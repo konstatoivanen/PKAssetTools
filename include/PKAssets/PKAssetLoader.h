@@ -3,7 +3,7 @@
 
 namespace PK::Assets
 {
-    PKAsset OpenAsset(const char* filepath);
+    int OpenAsset(const char* filepath, PKAsset* asset);
     void CloseAsset(PKAsset* asset);
 
     Shader::PKShader* ReadAsShader(PKAsset* asset);

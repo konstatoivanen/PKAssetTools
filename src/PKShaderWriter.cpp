@@ -580,6 +580,8 @@ namespace PK::Assets::Shader
     int WriteShader(const char* pathSrc, const char* pathDst)
     {
 		auto filename = StringUtilities::ReadFileName(pathSrc);
+		
+		printf("Preprocessing shader: %s \n", filename.c_str());
 
         auto buffer = PKAssetBuffer();
         buffer.header.get()->type = PKAssetType::Shader;

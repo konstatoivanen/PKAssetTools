@@ -5,17 +5,16 @@
 
 namespace PK::Assets
 {
-    PKAsset OpenAsset(const char* filepath)
+    int OpenAsset(const char* filepath, PKAsset* asset)
     {
-        PKAsset asset{};
         FILE* file = nullptr;
 
 #if _WIN32
         auto error = fopen_s(&file, filepath, "rb");
-        
+
         if (error != 0)
         {
-            return asset;
+            return -1;
         }
 #else
         file = fopen(filepath, "rb");
@@ -23,7 +22,7 @@ namespace PK::Assets
 
         if (file == nullptr)
         {
-            return asset;
+            return -1;
         }
 
         fseek(file, 0, SEEK_END);
@@ -33,7 +32,7 @@ namespace PK::Assets
         if (size == 0)
         {
             fclose(file);
-            return asset;
+            return -1;
         }
 
         auto buffer = malloc(size);
@@ -41,15 +40,15 @@ namespace PK::Assets
         if (buffer == nullptr)
         {
             fclose(file);
-            return asset;
+            return -1;
         }
 
-        asset.rawData = buffer;
+        asset->rawData = buffer;
         fread(buffer, sizeof(char), size, file);
         fclose(file);
 
-        asset.header = reinterpret_cast<PKAssetHeader*>(asset.rawData);
-        return asset;
+        asset->header = reinterpret_cast<PKAssetHeader*>(asset->rawData);
+        return 0;
     }
 
     void CloseAsset(PKAsset* asset)
