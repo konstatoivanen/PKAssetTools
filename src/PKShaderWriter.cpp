@@ -157,6 +157,32 @@ namespace PK::Assets::Shader
 		return PKBlendFactor::None;
 	}
 
+	static PKBlendOp GetBlendOpFromString(const std::string& blendOp)
+	{
+		if (blendOp == "Add")
+		{
+			return PKBlendOp::Add;
+		}
+		else if (blendOp == "Subtract")
+		{
+			return PKBlendOp::Subtract;
+		}
+		else if (blendOp == "ReverseSubtract")
+		{
+			return PKBlendOp::ReverseSubtract;
+		}
+		else if (blendOp == "Min")
+		{
+			return PKBlendOp::Min;
+		}
+		else if (blendOp == "Max")
+		{
+			return PKBlendOp::Max;
+		}
+
+		return PKBlendOp::None;
+	}
+
 	static unsigned short GetColorMaskFromString(const std::string& colorMask)
 	{
 		if (colorMask.empty())
@@ -291,7 +317,7 @@ namespace PK::Assets::Shader
 				if (keyword != "_")
 				{
 					PKShaderKeyword pkkw{};
-					pkkw.offsets = (uint_t)((dcount << 4) | (i & 0xF));
+					pkkw.offsets = (uint_t)((((dcount << 4) | (i & 0xF)) << 24) | (vcount & 0xFFFFFF));
 					WriteName(pkkw.name, keyword.c_str());
 					outKeywords.push_back(pkkw);
 				}
@@ -310,7 +336,8 @@ namespace PK::Assets::Shader
 	{
 		auto valueZWrite = StringUtilities::ExtractToken("#ZWrite ", source, false);
 		auto valueZTest = StringUtilities::ExtractToken("#ZTest ", source, false);
-		auto valueBlend = StringUtilities::ExtractToken("#Blend ", source, false);
+		auto valueBlendColor = StringUtilities::ExtractToken("#BlendColor ", source, false);
+		auto valueBlendAlpha = StringUtilities::ExtractToken("#BlendAlpha ", source, false);
 		auto valueColorMask = StringUtilities::ExtractToken("#ColorMask ", source, false);
 		auto valueCull = StringUtilities::ExtractToken("#Cull ", source, false);
 		auto valueOffset = StringUtilities::ExtractToken("#Offset ", source, false);
@@ -326,17 +353,35 @@ namespace PK::Assets::Shader
 			attributes->ztest = GetZTestFromString(StringUtilities::Trim(valueZTest));
 		}
 
-		if (!valueBlend.empty())
+		if (!valueBlendColor.empty())
 		{
-			auto keywords = StringUtilities::Split(valueBlend, " \n\r");
+			auto keywords = StringUtilities::Split(valueBlendColor, " \n\r");
 
-			attributes->blendSrc = PKBlendFactor::None;
-			attributes->blendDst = PKBlendFactor::None;
+			attributes->blendSrcFactorColor = PKBlendFactor::None;
+			attributes->blendDstFactorColor = PKBlendFactor::None;
+			attributes->blendOpColor = PKBlendOp::None;
 
-			if (keywords.size() == 2)
+			if (keywords.size() == 3)
 			{
-				attributes->blendSrc = GetBlendFactorFromString(keywords.at(0));
-				attributes->blendDst = GetBlendFactorFromString(keywords.at(1));
+				attributes->blendOpColor = GetBlendOpFromString(keywords.at(0));
+				attributes->blendSrcFactorColor = GetBlendFactorFromString(keywords.at(0));
+				attributes->blendDstFactorColor = GetBlendFactorFromString(keywords.at(2));
+			}
+		}
+
+		if (!valueBlendAlpha.empty())
+		{
+			auto keywords = StringUtilities::Split(valueBlendAlpha, " \n\r");
+
+			attributes->blendSrcFactorAlpha = PKBlendFactor::None;
+			attributes->blendDstFactorAlpha = PKBlendFactor::None;
+			attributes->blendOpAlpha = PKBlendOp::None;
+
+			if (keywords.size() == 3)
+			{
+				attributes->blendOpAlpha = GetBlendOpFromString(keywords.at(0));
+				attributes->blendSrcFactorAlpha = GetBlendFactorFromString(keywords.at(0));
+				attributes->blendDstFactorAlpha = GetBlendFactorFromString(keywords.at(2));
 			}
 		}
 
@@ -624,19 +669,20 @@ namespace PK::Assets::Shader
 			{
 				printf("Compiling %s variant %i stage % i \n", filename.c_str(), i, (int)kv.first);
 
-				auto spirv = CompileGLSLToSpirV(compiler, filename, kv.first, kv.second, false);
+				auto spirvd = CompileGLSLToSpirV(compiler, filename, kv.first, kv.second, false);
+				auto spirvr = CompileGLSLToSpirV(compiler, filename, kv.first, kv.second, true);
 
-				if (spirv.size() == 0)
+				if (spirvd.size() == 0 || spirvr.size() == 0)
 				{
 					printf("Failed to compile data from shader variant source! \n");
 					return -1;
 				}
 
-				pVariants[i].sprivSizes[(int)kv.first] = (uint_t)(sizeof(spirv[0]) * spirv.size());
-				auto pSpirv = buffer.Write(spirv.data(), spirv.size());
+				pVariants[i].sprivSizes[(int)kv.first] = (uint_t)(sizeof(spirvr[0]) * spirvr.size());
+				auto pSpirv = buffer.Write(spirvr.data(), spirvr.size());
 				pVariants[i].sprivBuffers[(int)kv.first].Set(buffer.data(), pSpirv);
 
-				if (GetReflectionModule(reflectionData, kv.first, spirv) != 0)
+				if (GetReflectionModule(reflectionData, kv.first, spirvd) != 0)
 				{
 					printf("Failed to extract reflection data from shader variant source! \n");
 					return -1;
@@ -644,6 +690,11 @@ namespace PK::Assets::Shader
 
 				GetUniqueBindings(reflectionData, kv.first);
 				GetVertexAttributes(reflectionData, kv.first, pVariants[i].vertexAttributes);
+			}
+			
+			if (i == 0)
+			{
+				shader.get()->type = pVariants[i].sprivSizes[(int)PKShaderStage::Compute] != 0 ? Type::Compute : Type::Graphics;
 			}
 
 			if (reflectionData.setCount <= 0)
