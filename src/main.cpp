@@ -1,4 +1,5 @@
 #include "PKShaderWriter.h"
+#include "PKMeshWriter.h"
 #include "PKAssets/PKAsset.h"
 #include <stdio.h>
 #include <filesystem>
@@ -73,6 +74,19 @@ int main(int argc, char** argv)
             if (Shader::WriteShader(srcpathstr.c_str(), dstpathstr.c_str()) != 0)
             {
                 printf("Failed to write shader: %s \n", dstpathstr.c_str());
+            }
+
+            continue;
+        }
+
+        if (extension.compare(Mesh::PK_ASSET_MESH_SRC_EXTENSION) == 0)
+        {
+            auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_MESH).string();
+            auto srcpathstr = srcpath.string();
+
+            if (Mesh::WriteMesh(srcpathstr.c_str(), dstpathstr.c_str()) != 0)
+            {
+                printf("Failed to write mesh: %s \n", dstpathstr.c_str());
             }
 
             continue;

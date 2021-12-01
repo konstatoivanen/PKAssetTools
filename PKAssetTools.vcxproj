@@ -175,6 +175,7 @@
     <ClInclude Include="include\SPIRV-Reflect\spirv.h" />
     <ClInclude Include="include\SPIRV-Reflect\spirv_reflect.h" />
     <ClInclude Include="src\PKAssetWriter.h" />
+    <ClInclude Include="src\PKMeshWriter.h" />
     <ClInclude Include="src\PKShaderWriter.h" />
     <ClInclude Include="src\PKStringUtilities.h" />
   </ItemGroup>
@@ -183,6 +184,7 @@
     <ClCompile Include="include\SPIRV-Reflect\spirv_reflect.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\PKAssetWriter.cpp" />
+    <ClCompile Include="src\PKMeshWriter.cpp" />
     <ClCompile Include="src\PKShaderWriter.cpp" />
     <ClCompile Include="src\PKStringUtilities.cpp" />
   </ItemGroup>
