@@ -16,7 +16,7 @@ namespace PK::Assets
         }
 
         memcpy(dst, src, c);
-        dst[c] = '\0';
+        memset(dst + c, '\0', PK_ASSET_NAME_MAX_LENGTH - c);
     }
 
     int WriteAsset(const char* filepath, const PKAssetBuffer& buffer)

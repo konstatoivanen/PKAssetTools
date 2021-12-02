@@ -54,6 +54,12 @@
     <ClInclude Include="src\PKMeshWriter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\tinyobjloader\tiny_obj_loader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mikktspace\mikktspace.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="include\PKAssets\PKAssetLoader.cpp">
@@ -77,6 +83,12 @@
     <ClCompile Include="src\PKMeshWriter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="include\tinyobjloader\tiny_obj_loader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="include\mikktspace\mikktspace.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Library Include="libs\shaderc_combined.lib" />
@@ -86,5 +98,7 @@
     <None Include=".gitignore" />
     <None Include="LICENSE" />
     <None Include="README.md" />
+    <None Include="debug_res\MDL_Cloth.mdl" />
+    <None Include="debug_res\SH_WS_Debug.shader" />
   </ItemGroup>
 </Project>
