@@ -98,7 +98,7 @@
     <None Include=".gitignore" />
     <None Include="LICENSE" />
     <None Include="README.md" />
-    <None Include="debug_res\MDL_Cloth.mdl" />
     <None Include="debug_res\SH_WS_Debug.shader" />
+    <None Include="debug_res\MDL_Debug.mdl" />
   </ItemGroup>
 </Project>

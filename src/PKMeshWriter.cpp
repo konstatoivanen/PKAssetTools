@@ -136,26 +136,22 @@ namespace PK::Assets::Mesh
 	}
 
 
-	struct Buffer
+	struct Buffer : public std::vector<char>
 	{
-		std::vector<char> buffer;
 		size_t head = 0;
-
-		size_t size() const { return buffer.size(); }
-		char* data() { return buffer.data(); }
 		
 		template<typename T>
-		void append(const T& v)
+		void append(const T* src, uint_t count)
 		{
-			auto s = sizeof(T);
+			auto s = sizeof(T) * count;
 			auto nh = head + s;
 			
-			if (nh > buffer.size())
+			if (nh > size())
 			{
-				buffer.resize(nh);
+				resize(nh);
 			}
 
-			memcpy(buffer.data() + head, &v, s);
+			memcpy(data() + head, src, s);
 			head += s;
 		}
 	};
@@ -249,6 +245,7 @@ namespace PK::Assets::Mesh
 			stride += attribute.size;
 		}
 
+		float float4_zero[4]{};
 		float bbmax[3]{}, bbmin[3]{};
 		bbmax[0] = bbmax[1] = bbmax[2] = -std::numeric_limits<float>().max();
 		bbmin[0] = bbmin[1] = bbmin[2] =  std::numeric_limits<float>().max();
@@ -258,59 +255,48 @@ namespace PK::Assets::Mesh
 		auto inuvs = attrib.texcoords.data();
 
 		auto index = 0u;
-		auto indexCount = 0u;
 
 		for (size_t i = 0; i < shapes.size(); ++i)
 		{
 			auto& tris = shapes.at(i).mesh.indices;
 			auto tcount = (uint_t)tris.size();
-			submeshes.push_back({ indexCount, tcount });
+			submeshes.push_back({ (uint_t)indices.size(), tcount });
 
 			for (uint_t j = 0; j < tcount; ++j)
 			{
 				auto& tri = tris.at(j);
 				IndexSet triKey = { (uint_t)tri.vertex_index, (uint_t)tri.normal_index, (uint_t)tri.texcoord_index };
-
+				
 				auto iter = indexmap.find(triKey);
-
+				
 				if (iter != indexmap.end())
 				{
 					indices.push_back(iter->second);
 					continue;
 				}
-
+				
 				indices.push_back(index);
 				indexmap[triKey] = index++;
 
-				float pos[3];
-				pos[0] = invertices[tri.vertex_index * 3 + 0];
-				pos[1] = invertices[tri.vertex_index * 3 + 1];
-				pos[2] = invertices[tri.vertex_index * 3 + 2];
+				float pos[3]{};
+				memcpy(pos, invertices + tri.vertex_index * 3, sizeof(float) * 3);
 
-				vertexBuffer.append(pos[0]);
-				vertexBuffer.append(pos[1]);
-				vertexBuffer.append(pos[2]);
+				vertexBuffer.append(pos, 3);
 
 				if (hasNormals)
 				{
-					vertexBuffer.append(innormals[tri.normal_index * 3 + 0]);
-					vertexBuffer.append(innormals[tri.normal_index * 3 + 1]);
-					vertexBuffer.append(innormals[tri.normal_index * 3 + 2]);
+					vertexBuffer.append(innormals + tri.normal_index * 3, 3);
 
 					// tangent
 					if (hasUvs)
 					{
-						vertexBuffer.append(0.0f);
-						vertexBuffer.append(0.0f);
-						vertexBuffer.append(0.0f);
-						vertexBuffer.append(0.0f);
+						vertexBuffer.append(float4_zero, 4);
 					}
 				}
 
 				if (hasUvs)
 				{
-					vertexBuffer.append(inuvs[tri.texcoord_index * 2 + 0]);
-					vertexBuffer.append(inuvs[tri.texcoord_index * 2 + 1]);
+					vertexBuffer.append(inuvs + tri.texcoord_index * 2, 2);
 				}
 
 				for (auto k = 0; k < 3; ++k)
@@ -326,32 +312,30 @@ namespace PK::Assets::Mesh
 					}
 				}
 			}
-
-			indexCount += tcount;
 		}
+
+		auto vcount = (uint_t)(vertexBuffer.size() / stride);
+		auto ushortmax = std::numeric_limits<unsigned short>().max();
+		auto indexType = vcount > ushortmax ? PKElementType::Uint : PKElementType::Ushort;
+		auto indexSize = indexType == PKElementType::Uint ? sizeof(uint_t) : sizeof(unsigned short);
 
 		if (hasNormals && hasUvs)
 		{
 			auto vfloats = reinterpret_cast<float*>(vertexBuffer.data());
-			auto vcount = (uint_t)(vertexBuffer.size() / stride);
 			auto fstride = (uint_t)(stride / sizeof(float));
 			CalculateTangents(vfloats, fstride, 0, 3, 6, 10, indices.data(), vcount, (uint_t)indices.size());
 		}
-
-		auto ushortmax = std::numeric_limits<unsigned short>().max();
-		auto indexType = indexmap.size() > ushortmax ? PKElementType::Uint : PKElementType::Ushort;
-		auto indexSize = indexType == PKElementType::Uint ? sizeof(uint_t) : sizeof(unsigned short);
 
 		auto buffer = PKAssetBuffer();
         buffer.header.get()->type = PKAssetType::Mesh;
         WriteName(buffer.header.get()->name, filename.c_str());
         
 		auto mesh = buffer.Allocate<PKMesh>();
-		mesh.get()->indexType = indexType;
-
+		
 		memcpy(bbmin, mesh.get()->bbmin, sizeof(bbmin));
 		memcpy(bbmax, mesh.get()->bbmax, sizeof(bbmax));
 
+		mesh.get()->indexType = indexType;
 		mesh.get()->submeshCount = (uint_t)submeshes.size();
 		mesh.get()->vertexAttributeCount = (uint_t)attributes.size();
 		mesh.get()->vertexCount = (uint_t)(vertexBuffer.size() / stride);
@@ -375,6 +359,7 @@ namespace PK::Assets::Mesh
 		{
 			auto pIndexBuffer = buffer.Allocate<unsigned short>(indices.size());
 			auto pIndices = pIndexBuffer.get();
+			mesh.get()->indexBuffer.Set(buffer.data(), pIndexBuffer);
 
 			for (auto i = 0; i < indices.size(); ++i)
 			{

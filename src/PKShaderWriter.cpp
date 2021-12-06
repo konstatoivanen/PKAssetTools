@@ -16,6 +16,8 @@ namespace PK::Assets::Shader
     {
         SpvReflectShaderModule m_modules[(int)PKShaderStage::MaxCount]{};
         std::map<std::string, SpvReflectDescriptorBinding*> uniqueBindings;
+        std::map<std::string, SpvReflectBlockVariable*> uniqueVariables;
+        std::map<std::string, uint32_t> variableStageFlags;
         std::map<uint32_t, uint32_t> setStageFlags;
         uint32_t setCount = 0u;
     };
@@ -345,7 +347,7 @@ namespace PK::Assets::Shader
         if (!valueZWrite.empty())
         {
             valueZWrite = StringUtilities::Trim(valueZWrite);
-            attributes->zwrite = valueZWrite == "On" ? 1 : 0;
+            attributes->zwrite = valueZWrite == "True" ? 1 : 0;
         }
 
         if (!valueZTest.empty())
@@ -621,6 +623,32 @@ namespace PK::Assets::Shader
         }
     }
 
+    static void GetPushConstants(ReflectionData& reflection, PKShaderStage stage)
+    {
+        auto* module = &reflection.m_modules[(uint32_t)stage];
+
+        auto count = 0u;
+        spvReflectEnumerateEntryPointPushConstantBlocks(module, module->entry_point_name, &count, nullptr);
+
+        std::vector<SpvReflectBlockVariable*> blocks;
+        blocks.resize(count);
+
+        spvReflectEnumerateEntryPointPushConstantBlocks(module, module->entry_point_name, &count, blocks.data());
+
+        auto i = 0;
+
+        for (auto* block : blocks)
+        {
+            auto name = std::string(block->name);
+            reflection.variableStageFlags[name] |= 1 << (int)stage;
+
+            if (reflection.uniqueVariables.count(name) <= 0)
+            {
+                reflection.uniqueVariables[name] = block;
+            }
+        }
+    }
+
 
     int WriteShader(const char* pathSrc, const char* pathDst)
     {
@@ -657,6 +685,7 @@ namespace PK::Assets::Shader
         for (uint32_t i = 0; i < shader.get()->variantcount; ++i)
         {
             GetVariantDefines(mckeywords, i, variantDefines);
+
             if (ProcessStageSources(source, sharedInclude, variantDefines, shaderSources) != 0)
             {
                 printf("Failed to preprocess shader variant glsl stage sources! \n");
@@ -670,9 +699,16 @@ namespace PK::Assets::Shader
                 printf("Compiling %s variant %i stage % i \n", filename.c_str(), i, (int)kv.first);
 
                 auto spirvd = CompileGLSLToSpirV(compiler, filename, kv.first, kv.second, false);
+
+                if (spirvd.size() == 0)
+                {
+                    printf("Failed to compile data from shader variant source! \n");
+                    return -1;
+                }
+
                 auto spirvr = CompileGLSLToSpirV(compiler, filename, kv.first, kv.second, true);
 
-                if (spirvd.size() == 0 || spirvr.size() == 0)
+                if (spirvr.size() == 0)
                 {
                     printf("Failed to compile data from shader variant source! \n");
                     return -1;
@@ -690,6 +726,7 @@ namespace PK::Assets::Shader
 
                 GetUniqueBindings(reflectionData, kv.first);
                 GetVertexAttributes(reflectionData, kv.first, pVariants[i].vertexAttributes);
+                GetPushConstants(reflectionData, kv.first);
             }
             
             if (i == 0)
@@ -697,43 +734,56 @@ namespace PK::Assets::Shader
                 shader.get()->type = pVariants[i].sprivSizes[(int)PKShaderStage::Compute] != 0 ? Type::Compute : Type::Graphics;
             }
 
-            if (reflectionData.setCount <= 0)
+            if (reflectionData.uniqueVariables.size() > 0)
             {
-                continue;
-            }
+                pVariants[i].constantVariableCount = (uint_t)reflectionData.uniqueVariables.size();
+                auto pConstantVariables = buffer.Allocate<PKConstantVariable>(reflectionData.uniqueVariables.size());
+                pVariants[i].constantVariables.Set(buffer.data(), pConstantVariables);
 
-            pVariants[i].descriptorSetCount = reflectionData.setCount;
-            auto pDescriptorSets = buffer.Allocate<PKDescriptorSet>(reflectionData.setCount);
-            pVariants[i].descriptorSets.Set(buffer.data(), pDescriptorSets);
-
-            std::map<uint_t, std::vector<PKDescriptor>> descriptors;
-
-            for (auto& kv : reflectionData.uniqueBindings)
-            {
-                if (kv.second->set >= PK_ASSET_MAX_DESCRIPTOR_SETS)
+                for (auto& kv : reflectionData.uniqueVariables)
                 {
-                    printf("Warning has a descriptor set outside of supported range (%i / %i) \n", kv.second->set, PK_ASSET_MAX_DESCRIPTOR_SETS);
-                    continue;
+                    WriteName(pConstantVariables[i].name, kv.first.c_str());
+                    pConstantVariables[i].offset = (unsigned short)kv.second->offset;
+                    pConstantVariables[i].stageFlags = reflectionData.variableStageFlags[kv.first];
+                    pConstantVariables[i].size = kv.second->size;
                 }
-    
-                PKDescriptor descriptor{};
-                descriptor.binding = kv.second->binding;
-                descriptor.count = kv.second->count;
-                descriptor.type = GetResourceType(kv.second->descriptor_type);
-                WriteName(descriptor.name, kv.second->name);
-                descriptors[kv.second->set].push_back(descriptor);
             }
 
-            auto j = 0u;
-
-            for (auto& kv : descriptors)
+            if (reflectionData.setCount > 0)
             {
-                pDescriptorSets[j].descriptorCount = (uint_t)kv.second.size();
-                pDescriptorSets[j].set = kv.first;
-                pDescriptorSets[j].stageflags = reflectionData.setStageFlags[kv.first];
-                auto pDescriptors = buffer.Write(kv.second.data(), kv.second.size());
-                pDescriptorSets[j].descriptors.Set(buffer.data(), pDescriptors);
-                j++;
+                pVariants[i].descriptorSetCount = reflectionData.setCount;
+                auto pDescriptorSets = buffer.Allocate<PKDescriptorSet>(reflectionData.setCount);
+                pVariants[i].descriptorSets.Set(buffer.data(), pDescriptorSets);
+
+                std::map<uint_t, std::vector<PKDescriptor>> descriptors;
+
+                for (auto& kv : reflectionData.uniqueBindings)
+                {
+                    if (kv.second->set >= PK_ASSET_MAX_DESCRIPTOR_SETS)
+                    {
+                        printf("Warning has a descriptor set outside of supported range (%i / %i) \n", kv.second->set, PK_ASSET_MAX_DESCRIPTOR_SETS);
+                        continue;
+                    }
+    
+                    PKDescriptor descriptor{};
+                    descriptor.binding = kv.second->binding;
+                    descriptor.count = kv.second->count;
+                    descriptor.type = GetResourceType(kv.second->descriptor_type);
+                    WriteName(descriptor.name, kv.second->name);
+                    descriptors[kv.second->set].push_back(descriptor);
+                }
+
+                auto j = 0u;
+
+                for (auto& kv : descriptors)
+                {
+                    pDescriptorSets[j].descriptorCount = (uint_t)kv.second.size();
+                    pDescriptorSets[j].set = kv.first;
+                    pDescriptorSets[j].stageflags = reflectionData.setStageFlags[kv.first];
+                    auto pDescriptors = buffer.Write(kv.second.data(), kv.second.size());
+                    pDescriptorSets[j].descriptors.Set(buffer.data(), pDescriptors);
+                    j++;
+                }
             }
         }
 
