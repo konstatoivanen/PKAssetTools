@@ -15,7 +15,7 @@ namespace PK::Assets::Shader
     struct ReflectBinding
     {
         uint_t firstStage = (int)PKShaderStage::MaxCount;
-        SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount];
+        SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount]{};
         SpvReflectDescriptorBinding* get() { return bindings[firstStage]; }
     };
 
@@ -671,7 +671,7 @@ namespace PK::Assets::Shader
         }
     }
 
-    static void RemapBindings(ReflectionData& reflection, ShaderSpriV* spirv)
+    static void RemapBindings(ReflectionData& reflection)
     {
         std::map<uint_t, uint_t> setCounters;
 
@@ -688,17 +688,6 @@ namespace PK::Assets::Shader
                     auto currentId = kv.second.bindings[i]->binding;
                     spvReflectChangeDescriptorBindingNumbers(&reflection.modules[i], kv.second.bindings[i], bindId, desc->set);
                 }
-            }
-        }
-
-        for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
-        {
-            if (reflection.modules[i].entry_point_count > 0)
-            {
-                auto sizer = spvReflectGetCodeSize(&reflection.modules[i]);
-                auto coder = spvReflectGetCode(&reflection.modules[i]);
-                spirv[i].resize(sizer);
-                memcpy(spirv[i].data(), coder, sizer);
             }
         }
     }
@@ -746,13 +735,12 @@ namespace PK::Assets::Shader
             }
 
             ReflectionData reflectionData{};
-            ShaderSpriV stageSpriv[(int)PKShaderStage::MaxCount]{};
 
             for (auto& kv : shaderSources)
             {
                 printf("Compiling %s variant %i stage % i \n", filename.c_str(), i, (int)kv.first);
 
-                auto& spirv = stageSpriv[(int)kv.first] = CompileGLSLToSpirV(compiler, kv.first, filename, kv.second);
+                auto spirv = CompileGLSLToSpirV(compiler, kv.first, filename, kv.second);
 
                 if (spirv.size() == 0)
                 {
@@ -770,14 +758,15 @@ namespace PK::Assets::Shader
                 GetVertexAttributes(reflectionData, kv.first, pVariants[i].vertexAttributes);
                 GetPushConstants(reflectionData, kv.first);
             }
-            
-            RemapBindings(reflectionData, stageSpriv);
+
+            RemapBindings(reflectionData);
 
             for (auto& kv : shaderSources)
             {
-                auto& spirv = stageSpriv[(int)kv.first];
-                pVariants[i].sprivSizes[(int)kv.first] = (uint_t)(sizeof(spirv[0]) * spirv.size());
-                auto pSpirv = buffer.Write(spirv.data(), spirv.size());
+                auto size = spvReflectGetCodeSize(&reflectionData.modules[(int)kv.first]);
+                auto code = spvReflectGetCode(&reflectionData.modules[(int)kv.first]);
+                auto pSpirv = buffer.Write(code, size / sizeof(uint_t));
+                pVariants[i].sprivSizes[(int)kv.first] = size;
                 pVariants[i].sprivBuffers[(int)kv.first].Set(buffer.data(), pSpirv);
             }
 

@@ -4,45 +4,41 @@
 #ZTest LEqual
 #ZWrite True
 
-layout(set = 0, binding = 1) uniform UniformBufferObject2
-{
-    mat4 model;
-    mat4 viewproj;
-} ubo2;
+#include includes/HLSLSupport.glsl
 
 #pragma PROGRAM_VERTEX
 
-layout(set = 0, binding = 0) uniform UniformBufferObject
+layout(set = 0) uniform UniformBufferObject
 {
-    mat4 model;
-    mat4 viewproj;
+    float4x4 model;
+    float4x4 viewproj;
 } ubo;
 
-layout(push_constant) uniform offset{ vec4 offset_x; };
+layout(push_constant) uniform offset{ float4 offset_x; };
 
-layout(location = 0) in vec3 in_POSITION;
-layout(location = 1) in vec2 in_TEXCOORD0;
-layout(location = 2) in vec3 in_COLOR;
+layout(location = 0) in float3 in_POSITION;
+layout(location = 1) in float2 in_TEXCOORD0;
+layout(location = 2) in float3 in_COLOR;
 
-layout(location = 0) out vec3 vs_COLOR;
-layout(location = 1) out vec2 vs_TEXCOORD0;
+layout(location = 0) out float3 vs_COLOR;
+layout(location = 1) out float2 vs_TEXCOORD0;
 
 void main()
 {
-    gl_Position = ubo.viewproj * ubo.model * vec4(in_POSITION + offset_x.xyz, 1.0);
+    gl_Position = mul(mul(ubo.viewproj, ubo.model), float4(in_POSITION + offset_x.xyz, 1.0f));
     vs_COLOR = in_COLOR;
     vs_TEXCOORD0 = in_TEXCOORD0;
 }
 
 #pragma PROGRAM_FRAGMENT
 
-layout(location = 0) in vec3 vs_COLOR;
-layout(location = 1) in vec2 vs_TEXCOORD0;
-layout(set = 0, binding = 1) uniform sampler2D tex1;
+layout(set = 0) uniform sampler2D tex1;
 
-layout(location = 0) out vec4 outColor;
+layout(location = 0) in float3 vs_COLOR;
+layout(location = 1) in float2 vs_TEXCOORD0;
+layout(location = 0) out float4 outColor;
 
 void main()
 {
-    outColor = vec4(texture(tex1, vs_TEXCOORD0).xyz * vs_COLOR, 1.0);
+    outColor = float4(tex2D(tex1, vs_TEXCOORD0).xyz * vs_COLOR, 1.0);
 }

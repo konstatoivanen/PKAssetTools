@@ -5,6 +5,9 @@
 #include <filesystem>
 #include <queue>
 #include <map>
+#if PK_DEBUG
+#include "PKAssets/PKAssetLoader.h"
+#endif
 
 namespace PK::Assets
 {
@@ -106,9 +109,9 @@ namespace PK::Assets
 
         while (minHeap.size() > 1)
         {
-            const auto& n0 = minHeap.top();
+            auto n0 = minHeap.top();
             minHeap.pop();
-            const auto& n1 = minHeap.top();
+            auto n1 = minHeap.top();
             minHeap.pop();
             minHeap.emplace(n0, n1);
         }
@@ -125,7 +128,8 @@ namespace PK::Assets
         auto depth = 0ull;
         auto binLength = 0ull;
 
-        auto pRootNode = WriteNodeTree(buffer, vtable, &sequence, &depth, &minHeap.top());
+        auto rootNode = minHeap.top();
+        auto pRootNode = WriteNodeTree(buffer, vtable, &sequence, &depth, &rootNode);
         *binOffset.get() = (uint_t)buffer.size();
 
         for (auto& kv : vtable)
@@ -174,11 +178,19 @@ namespace PK::Assets
 
         FILE* file = nullptr;
 
-        auto path = std::filesystem::path(filepath).remove_filename();
+        auto path = std::filesystem::path(filepath).remove_filename().string();
+        path = path.substr(0, path.length() - 1);
 
         if (!std::filesystem::exists(path))
         {
-            std::filesystem::create_directory(path);
+            try
+            {
+                std::filesystem::create_directories(path);
+            }
+            catch (std::exception& e)
+            {
+                printf(e.what());
+            }
         }
 
 #if _WIN32
@@ -214,6 +226,24 @@ namespace PK::Assets
             printf("Failed to close file! \n");
             return -1;
         }
+
+        #if PK_DEBUG
+        PKAsset asset;
+        Assets::OpenAsset(filepath, &asset);
+
+        auto charData = reinterpret_cast<char*>(asset.rawData);
+
+        for (auto i = 0ull; i < buffer.size(); ++i)
+        {
+            if (charData[i] != buffer.data()[i])
+            {
+                printf("Compression missmatch at byte index: %i", i);
+            }
+        }
+
+        auto compare = memcmp(asset.rawData, buffer.data(), buffer.size());
+        Assets::CloseAsset(&asset);
+        #endif
 
         return 0;
     }
