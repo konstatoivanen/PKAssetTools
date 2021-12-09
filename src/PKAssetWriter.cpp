@@ -3,9 +3,158 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <filesystem>
+#include <queue>
+#include <map>
 
 namespace PK::Assets
 {
+    constexpr static const size_t MIN_COMPRESSABLE_SIZE = 5000;
+
+    struct PKTempNode
+    {
+        std::shared_ptr<PKTempNode> left = nullptr;
+        std::shared_ptr<PKTempNode> right = nullptr;
+        char value = 0;
+        size_t freq = 0ull;
+
+        constexpr bool operator < (PKTempNode const& other) const { return other.freq < freq; }
+
+        PKTempNode(char v, size_t w)
+        {
+            value = v;
+            left = nullptr;
+            right = nullptr;
+            freq = w;
+        }
+
+        PKTempNode(const PKTempNode& tree)
+        {
+            value = tree.value;
+            left = tree.left;
+            right = tree.right;
+            freq = tree.freq;
+        }
+
+        PKTempNode(const PKTempNode& h1, const PKTempNode& h2)
+        {
+            right = std::make_shared<PKTempNode>(h1);
+            left = std::make_shared<PKTempNode>(h2);
+            freq = left->freq + right->freq;
+            value = 0;
+        }
+    };
+
+    struct PKBinaryKey
+    {
+        size_t count;
+        size_t sequence;
+        size_t length;
+    };
+
+    WritePtr<PKEncNode> WriteNodeTree(PKAssetBuffer& buffer, std::map<char, PKBinaryKey>& vtable, size_t* sequence, size_t* depth, const PKTempNode* node)
+    {
+        auto pNode = buffer.Allocate<PKEncNode>();
+        pNode.get()->isLeaf = node->left == nullptr && node->right == nullptr;
+        pNode.get()->value = node->value;
+
+        if (node->left == nullptr && node->right == nullptr)
+        {
+            vtable[node->value].sequence = *sequence;
+            vtable[node->value].length = *depth;
+            return pNode;
+        }
+
+        if (node->left != nullptr)
+        {
+            (*sequence) &= ~(1ull << (*depth));
+            (*depth)++;
+            auto newNode = WriteNodeTree(buffer, vtable, sequence, depth, node->left.get());
+            pNode.get()->left.Set(buffer.data(), newNode);
+            (*depth)--;
+        }
+
+        if (node->right != nullptr)
+        {
+            (*sequence) |= 1ull << (*depth);
+            (*depth)++;
+            auto newNode = WriteNodeTree(buffer, vtable, sequence, depth, node->right.get());
+            pNode.get()->right.Set(buffer.data(), newNode);
+            (*depth)--;
+            (*sequence) &= ~(1ull << (*depth));
+        }
+
+        return pNode;
+    }
+
+    PKAssetBuffer CompressBuffer(PKAssetBuffer src)
+    {
+        auto* charData = src.data() + sizeof(PKAssetHeader);
+        auto srcSize = src.size() - sizeof(PKAssetHeader);
+
+        std::map<char, PKBinaryKey> vtable;
+        std::priority_queue<PKTempNode> minHeap;
+
+        for (auto i = 0u; i < srcSize; ++i)
+        {
+            vtable[charData[i]].count++;
+        }
+
+        for (auto& kv : vtable)
+        {
+            minHeap.emplace(kv.first, kv.second.count);
+        }
+
+        while (minHeap.size() > 1)
+        {
+            const auto& n0 = minHeap.top();
+            minHeap.pop();
+            const auto& n1 = minHeap.top();
+            minHeap.pop();
+            minHeap.emplace(n0, n1);
+        }
+
+        PKAssetBuffer buffer;
+        buffer.header.get()->type = src.header.get()->type;
+        buffer.header.get()->isCompressed = true;
+        WriteName(buffer.header.get()->name, src.header.get()->name);
+
+        *buffer.Allocate<uint_t>().get() = (uint_t)src.size();
+        auto binOffset = buffer.Allocate<uint_t>();
+        auto binSize = buffer.Allocate<size_t>();
+        auto sequence = 0ull;
+        auto depth = 0ull;
+        auto binLength = 0ull;
+
+        auto pRootNode = WriteNodeTree(buffer, vtable, &sequence, &depth, &minHeap.top());
+        *binOffset.get() = (uint_t)buffer.size();
+
+        for (auto& kv : vtable)
+        {
+            binLength += kv.second.count * kv.second.length;
+        }
+
+        *binSize.get() = binLength;
+        auto pData = buffer.Allocate<char>(binLength / 8 + 1);
+        auto pHead = reinterpret_cast<char*>(pData.get());
+
+        for (auto i = 0ull, b = 0ull; i < srcSize; ++i)
+        {
+            auto& k = vtable[charData[i]];
+
+            for (auto j = 0; j < k.length; ++j, ++b)
+            {
+                if (k.sequence & (1ull << j))
+                {
+                    auto ch = b / 8;
+                    auto co = b - (ch * 8);
+                    pHead[ch] |= 1 << co;
+                }
+            }
+        }
+
+        return buffer;
+    }
+
     void WriteName(char* dst, const char* src)
     {
         auto c = strlen(src);
@@ -50,7 +199,15 @@ namespace PK::Assets
             return -1;
         }
 
-        fwrite(buffer.data(), sizeof(char), buffer.size(), file);
+        if (buffer.size() > MIN_COMPRESSABLE_SIZE)
+        {
+            auto compact = CompressBuffer(buffer);
+            fwrite(compact.data(), sizeof(char), compact.size(), file);
+        }
+        else
+        {
+            fwrite(buffer.data(), sizeof(char), buffer.size(), file);
+        }
 
         if (fclose(file) != 0)
         {

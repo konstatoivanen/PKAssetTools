@@ -12,10 +12,19 @@ namespace PK::Assets::Shader
 {
     typedef shaderc::Compiler ShaderCompiler;
 
+    struct ReflectBinding
+    {
+        uint_t firstStage = (int)PKShaderStage::MaxCount;
+        SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount];
+        SpvReflectDescriptorBinding* get() { return bindings[firstStage]; }
+    };
+
+    typedef std::vector<uint32_t> ShaderSpriV;
+
     struct ReflectionData
     {
-        SpvReflectShaderModule m_modules[(int)PKShaderStage::MaxCount]{};
-        std::map<std::string, SpvReflectDescriptorBinding*> uniqueBindings;
+        SpvReflectShaderModule modules[(int)PKShaderStage::MaxCount]{};
+        std::map<std::string, ReflectBinding> uniqueBindings;
         std::map<std::string, SpvReflectBlockVariable*> uniqueVariables;
         std::map<std::string, uint32_t> variableStageFlags;
         std::map<uint32_t, uint32_t> setStageFlags;
@@ -294,7 +303,11 @@ namespace PK::Assets::Shader
         ouput = StringUtilities::ReadFileRecursiveInclude(filepath);
     }
 
-    static void ExtractMulticompiles(std::string& source, std::vector<std::vector<std::string>>& keywords, std::vector<PKShaderKeyword>& outKeywords, uint_t* outVariantCount, uint_t* outDirectiveCount)
+    static void ExtractMulticompiles(std::string& source, 
+                                     std::vector<std::vector<std::string>>& keywords, 
+                                     std::vector<PKShaderKeyword>& outKeywords, 
+                                     uint_t* outVariantCount, 
+                                     uint_t* outDirectiveCount)
     {
         std::string output;
         size_t pos = 0;
@@ -467,7 +480,11 @@ namespace PK::Assets::Shader
         }
     }
 
-    static int ProcessStageSources(const std::string& source, const std::string& sharedInclude, const std::string& variantDefines, std::unordered_map<PKShaderStage, std::string>& shaderSources)
+    static int ProcessStageSources(const std::string& source, 
+                                   const std::string& sharedInclude, 
+                                   const std::string& variantDefines, 
+                                   std::unordered_map<PKShaderStage, 
+                                   std::string>& shaderSources)
     {
         shaderSources.clear();
 
@@ -513,7 +530,7 @@ namespace PK::Assets::Shader
         return 0;
     }
 
-    static std::vector<uint32_t> CompileGLSLToSpirV(const ShaderCompiler& compiler, const std::string& source_name, PKShaderStage stage, const std::string& source, bool optimize = false)
+    static ShaderSpriV CompileGLSLToSpirV(const ShaderCompiler& compiler, PKShaderStage stage, const std::string& source_name, const std::string& source)
     {
         auto kind = shaderc_shader_kind::shaderc_glsl_infer_from_source;
 
@@ -529,13 +546,8 @@ namespace PK::Assets::Shader
 
         shaderc::CompileOptions options;
 
-        // Like -DMY_DEFINE=1
-        //options.AddMacroDefinition("MY_DEFINE", "1");
-
-        if (optimize)
-        {
-            options.SetOptimizationLevel(shaderc_optimization_level_size);
-        }
+        options.SetAutoBindUniforms(true);
+        options.SetAutoMapLocations(true);
 
         auto module = compiler.CompileGlslToSpv(source, kind, source_name.c_str(), options);
         auto status = module.GetCompilationStatus();
@@ -546,15 +558,16 @@ namespace PK::Assets::Shader
             printf("\n ----------BEGIN SOURCE---------- \n");
             printf(source.c_str());
             printf("\n ----------END SOURCE---------- \n");
-            return std::vector<uint32_t>();
+            return ShaderSpriV();
         }
 
         return { module.cbegin(), module.cend() };
     }
 
-    static int GetReflectionModule(ReflectionData& reflection, PKShaderStage stage, const std::vector<uint32_t>& spriv)
+    static int GetReflectionModule(ReflectionData& reflection, PKShaderStage stage, const ShaderSpriV& spriv)
     {
-        auto* module = &reflection.m_modules[(uint32_t)stage];
+        auto* module = &reflection.modules[(uint32_t)stage];
+
         if (spvReflectCreateShaderModule(spriv.size() * sizeof(uint32_t), spriv.data(), module) != SPV_REFLECT_RESULT_SUCCESS)
         {
             return -1;
@@ -563,36 +576,45 @@ namespace PK::Assets::Shader
         return 0;
     }
 
+    static void ReleaseReflectionData(ReflectionData& reflection)
+    {
+        for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
+        {
+            if (reflection.modules[i].entry_point_count != 0)
+            {
+                spvReflectDestroyShaderModule(&reflection.modules[i]);
+            }
+        }
+    }
+
     static void GetUniqueBindings(ReflectionData& reflection, PKShaderStage stage)
     {
-        auto* module = &reflection.m_modules[(uint32_t)stage];
+        auto* module = &reflection.modules[(uint32_t)stage];
 
         uint32_t bindingCount = 0u;
         uint32_t setCount = 0u;
 
-        spvReflectEnumerateEntryPointDescriptorBindings(module, module->entry_point_name, &bindingCount, nullptr);
-        spvReflectEnumerateEntryPointDescriptorSets(module, module->entry_point_name, &setCount, nullptr);
+        spvReflectEnumerateDescriptorBindings(module, &bindingCount, nullptr);
+        spvReflectEnumerateDescriptorSets(module, &setCount, nullptr);
 
         if (setCount > reflection.setCount)
         {
             reflection.setCount = setCount;
         }
 
-        std::vector<SpvReflectDescriptorBinding*> activeBindings{};
-        activeBindings.resize(setCount);
-        spvReflectEnumerateEntryPointDescriptorBindings(module, module->entry_point_name, &bindingCount, activeBindings.data());
+        std::vector<SpvReflectDescriptorBinding*> activeBindings;
+        activeBindings.resize(bindingCount);
+        spvReflectEnumerateDescriptorBindings(module, &bindingCount, activeBindings.data());
 
         for (auto i = 0u; i < bindingCount; ++i)
         {
-            auto* binding = activeBindings.at(i);
+            auto name = std::string(activeBindings.at(i)->name);
 
-            auto name = std::string(binding->name);
-            reflection.setStageFlags[binding->set] |= 1 << (int)stage;
+            reflection.setStageFlags[activeBindings.at(i)->set] |= 1 << (int)stage;
 
-            if (reflection.uniqueBindings.count(name) <= 0)
-            {
-                reflection.uniqueBindings[name] = binding;
-            }
+            auto& binding = reflection.uniqueBindings[name];
+            binding.firstStage = binding.firstStage > (int)stage ? (int)stage : binding.firstStage;
+            binding.bindings[(int)stage] = activeBindings.at(i);
         }
     }
 
@@ -603,7 +625,7 @@ namespace PK::Assets::Shader
             return;
         }
 
-        auto* module = &reflection.m_modules[(uint32_t)stage];
+        auto* module = &reflection.modules[(uint32_t)stage];
 
         auto count = 0u;
         spvReflectEnumerateEntryPointInputVariables(module, module->entry_point_name, &count, nullptr);
@@ -625,7 +647,7 @@ namespace PK::Assets::Shader
 
     static void GetPushConstants(ReflectionData& reflection, PKShaderStage stage)
     {
-        auto* module = &reflection.m_modules[(uint32_t)stage];
+        auto* module = &reflection.modules[(uint32_t)stage];
 
         auto count = 0u;
         spvReflectEnumerateEntryPointPushConstantBlocks(module, module->entry_point_name, &count, nullptr);
@@ -649,6 +671,37 @@ namespace PK::Assets::Shader
         }
     }
 
+    static void RemapBindings(ReflectionData& reflection, ShaderSpriV* spirv)
+    {
+        std::map<uint_t, uint_t> setCounters;
+
+        for (auto& kv : reflection.uniqueBindings)
+        {
+            auto desc = kv.second.get();
+            auto bindId = setCounters[desc->set];
+            setCounters[desc->set]++;
+            
+            for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
+            {
+                if (kv.second.bindings[i] != nullptr)
+                {
+                    auto currentId = kv.second.bindings[i]->binding;
+                    spvReflectChangeDescriptorBindingNumbers(&reflection.modules[i], kv.second.bindings[i], bindId, desc->set);
+                }
+            }
+        }
+
+        for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
+        {
+            if (reflection.modules[i].entry_point_count > 0)
+            {
+                auto sizer = spvReflectGetCodeSize(&reflection.modules[i]);
+                auto coder = spvReflectGetCode(&reflection.modules[i]);
+                spirv[i].resize(sizer);
+                memcpy(spirv[i].data(), coder, sizer);
+            }
+        }
+    }
 
     int WriteShader(const char* pathSrc, const char* pathDst)
     {
@@ -693,32 +746,21 @@ namespace PK::Assets::Shader
             }
 
             ReflectionData reflectionData{};
+            ShaderSpriV stageSpriv[(int)PKShaderStage::MaxCount]{};
 
             for (auto& kv : shaderSources)
             {
                 printf("Compiling %s variant %i stage % i \n", filename.c_str(), i, (int)kv.first);
 
-                auto spirvd = CompileGLSLToSpirV(compiler, filename, kv.first, kv.second, false);
+                auto& spirv = stageSpriv[(int)kv.first] = CompileGLSLToSpirV(compiler, kv.first, filename, kv.second);
 
-                if (spirvd.size() == 0)
+                if (spirv.size() == 0)
                 {
                     printf("Failed to compile data from shader variant source! \n");
                     return -1;
                 }
 
-                auto spirvr = CompileGLSLToSpirV(compiler, filename, kv.first, kv.second, true);
-
-                if (spirvr.size() == 0)
-                {
-                    printf("Failed to compile data from shader variant source! \n");
-                    return -1;
-                }
-
-                pVariants[i].sprivSizes[(int)kv.first] = (uint_t)(sizeof(spirvr[0]) * spirvr.size());
-                auto pSpirv = buffer.Write(spirvr.data(), spirvr.size());
-                pVariants[i].sprivBuffers[(int)kv.first].Set(buffer.data(), pSpirv);
-
-                if (GetReflectionModule(reflectionData, kv.first, spirvd) != 0)
+                if (GetReflectionModule(reflectionData, kv.first, spirv) != 0)
                 {
                     printf("Failed to extract reflection data from shader variant source! \n");
                     return -1;
@@ -729,6 +771,16 @@ namespace PK::Assets::Shader
                 GetPushConstants(reflectionData, kv.first);
             }
             
+            RemapBindings(reflectionData, stageSpriv);
+
+            for (auto& kv : shaderSources)
+            {
+                auto& spirv = stageSpriv[(int)kv.first];
+                pVariants[i].sprivSizes[(int)kv.first] = (uint_t)(sizeof(spirv[0]) * spirv.size());
+                auto pSpirv = buffer.Write(spirv.data(), spirv.size());
+                pVariants[i].sprivBuffers[(int)kv.first].Set(buffer.data(), pSpirv);
+            }
+
             if (i == 0)
             {
                 shader.get()->type = pVariants[i].sprivSizes[(int)PKShaderStage::Compute] != 0 ? Type::Compute : Type::Graphics;
@@ -759,18 +811,20 @@ namespace PK::Assets::Shader
 
                 for (auto& kv : reflectionData.uniqueBindings)
                 {
-                    if (kv.second->set >= PK_ASSET_MAX_DESCRIPTOR_SETS)
+                    auto desc = kv.second.get();
+
+                    if (desc->set >= PK_ASSET_MAX_DESCRIPTOR_SETS)
                     {
-                        printf("Warning has a descriptor set outside of supported range (%i / %i) \n", kv.second->set, PK_ASSET_MAX_DESCRIPTOR_SETS);
+                        printf("Warning has a descriptor set outside of supported range (%i / %i) \n", desc->set, PK_ASSET_MAX_DESCRIPTOR_SETS);
                         continue;
                     }
     
                     PKDescriptor descriptor{};
-                    descriptor.binding = kv.second->binding;
-                    descriptor.count = kv.second->count;
-                    descriptor.type = GetResourceType(kv.second->descriptor_type);
-                    WriteName(descriptor.name, kv.second->name);
-                    descriptors[kv.second->set].push_back(descriptor);
+                    descriptor.binding = desc->binding;
+                    descriptor.count = desc->count;
+                    descriptor.type = GetResourceType(desc->descriptor_type);
+                    WriteName(descriptor.name, desc->name);
+                    descriptors[desc->set].push_back(descriptor);
                 }
 
                 auto j = 0u;
@@ -785,6 +839,8 @@ namespace PK::Assets::Shader
                     j++;
                 }
             }
+
+            ReleaseReflectionData(reflectionData);
         }
 
         return WriteAsset(pathDst, buffer);

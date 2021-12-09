@@ -4,6 +4,12 @@
 #ZTest LEqual
 #ZWrite True
 
+layout(set = 0, binding = 1) uniform UniformBufferObject2
+{
+    mat4 model;
+    mat4 viewproj;
+} ubo2;
+
 #pragma PROGRAM_VERTEX
 
 layout(set = 0, binding = 0) uniform UniformBufferObject
@@ -23,7 +29,7 @@ layout(location = 1) out vec2 vs_TEXCOORD0;
 
 void main()
 {
-    gl_Position = ubo.viewproj * ubo.model * vec4(in_POSITION + offset_x, 1.0);
+    gl_Position = ubo.viewproj * ubo.model * vec4(in_POSITION + offset_x.xyz, 1.0);
     vs_COLOR = in_COLOR;
     vs_TEXCOORD0 = in_TEXCOORD0;
 }

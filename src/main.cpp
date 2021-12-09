@@ -28,6 +28,51 @@ static std::string ProcessPath(const std::string& path)
     return outpath;
 }
 
+void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::path& subdir, const std::string& dstdir)
+{
+    for (const auto& entry : std::filesystem::directory_iterator(subdir))
+    {
+        auto& entryPath = entry.path();
+
+        if (!entryPath.has_extension())
+        {
+            ProcessFilesRecursive(basedir, entryPath, dstdir);
+            continue;
+        }
+
+        auto extension = entryPath.extension();
+        auto dstpath = std::filesystem::path(dstdir + std::filesystem::relative(entryPath, basedir).string());
+
+        if (extension.compare(Shader::PK_ASSET_SHADER_SRC_EXTENSION) == 0)
+        {
+            auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_SHADER).string();
+            auto srcpathstr = entryPath.string();
+
+            if (Shader::WriteShader(srcpathstr.c_str(), dstpathstr.c_str()) != 0)
+            {
+                printf("Failed to write shader: %s \n", dstpathstr.c_str());
+            }
+
+            continue;
+        }
+
+        if (extension.compare(Mesh::PK_ASSET_MESH_SRC_EXTENSION) == 0)
+        {
+            auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_MESH).string();
+            auto srcpathstr = entryPath.string();
+
+            if (Mesh::WriteMesh(srcpathstr.c_str(), dstpathstr.c_str()) != 0)
+            {
+                printf("Failed to write mesh: %s \n", dstpathstr.c_str());
+            }
+
+            continue;
+        }
+
+        // Write other types
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 3)
@@ -54,46 +99,6 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    for (const auto& entry : std::filesystem::directory_iterator(srcdir))
-    {
-        auto& srcpath = entry.path();
-
-        if (!srcpath.has_extension())
-        {
-            continue;
-        }
-
-        auto extension = srcpath.extension();
-        auto dstpath = std::filesystem::path(dstdir + std::filesystem::relative(srcpath, srcdir).string());
-
-        if (extension.compare(Shader::PK_ASSET_SHADER_SRC_EXTENSION) == 0)
-        {
-            auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_SHADER).string();
-            auto srcpathstr = srcpath.string();
-            
-            if (Shader::WriteShader(srcpathstr.c_str(), dstpathstr.c_str()) != 0)
-            {
-                printf("Failed to write shader: %s \n", dstpathstr.c_str());
-            }
-
-            continue;
-        }
-
-        if (extension.compare(Mesh::PK_ASSET_MESH_SRC_EXTENSION) == 0)
-        {
-            auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_MESH).string();
-            auto srcpathstr = srcpath.string();
-
-            if (Mesh::WriteMesh(srcpathstr.c_str(), dstpathstr.c_str()) != 0)
-            {
-                printf("Failed to write mesh: %s \n", dstpathstr.c_str());
-            }
-
-            continue;
-        }
-
-        // Write other types
-    }
-
+    ProcessFilesRecursive(srcdir, srcdir, dstdir);
     return 0;
 }

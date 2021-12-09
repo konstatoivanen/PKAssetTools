@@ -198,8 +198,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
-    <None Include="debug_res\MDL_Debug.mdl" />
-    <None Include="debug_res\SH_WS_Debug.shader" />
+    <None Include="debug_res\models\MDL_Debug.mdl" />
+    <None Include="debug_res\shaders\SH_WS_Debug.shader" />
     <None Include="LICENSE" />
     <None Include="README.md" />
   </ItemGroup>
