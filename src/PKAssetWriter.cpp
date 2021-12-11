@@ -237,7 +237,7 @@ namespace PK::Assets
         {
             if (charData[i] != buffer.data()[i])
             {
-                printf("Compression missmatch at byte index: %i", i);
+                printf("Compression missmatch at byte index: %lli", i);
             }
         }
 

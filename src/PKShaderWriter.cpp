@@ -608,7 +608,13 @@ namespace PK::Assets::Shader
 
         for (auto i = 0u; i < bindingCount; ++i)
         {
-            auto name = std::string(activeBindings.at(i)->name);
+            auto desc = activeBindings.at(i);
+            auto name = std::string(desc->name);
+
+            if (name.empty())
+            {
+                name = std::string(desc->type_description->type_name);
+            }
 
             reflection.setStageFlags[activeBindings.at(i)->set] |= 1 << (int)stage;
 
@@ -812,7 +818,7 @@ namespace PK::Assets::Shader
                     descriptor.binding = desc->binding;
                     descriptor.count = desc->count;
                     descriptor.type = GetResourceType(desc->descriptor_type);
-                    WriteName(descriptor.name, desc->name);
+                    WriteName(descriptor.name, kv.first.c_str());
                     descriptors[desc->set].push_back(descriptor);
                 }
 
