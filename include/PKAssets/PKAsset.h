@@ -120,9 +120,9 @@ namespace PK::Assets
         SamplerTexture,
         Texture,
         Image,
-        UniformBuffer,
+        ConstantBuffer,
         StorageBuffer,
-        DynamicUniformBuffer,
+        DynamicConstantBuffer,
         DynamicStorageBuffer,
         InputAttachment,
     };

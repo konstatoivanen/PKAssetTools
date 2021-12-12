@@ -60,6 +60,24 @@
     <ClInclude Include="include\mikktspace\mikktspace.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\spirv-tools\instrument.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\spirv-tools\libspirv.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\spirv-tools\libspirv.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\spirv-tools\linker.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\spirv-tools\linter.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\spirv-tools\optimizer.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="include\PKAssets\PKAssetLoader.cpp">

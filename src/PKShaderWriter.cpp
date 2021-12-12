@@ -2,11 +2,13 @@
 #include "PKShaderWriter.h"
 #include "PKAssetWriter.h"
 #include "PKStringUtilities.h"
+#include <shaderc/shaderc.hpp>
+#include <SPIRV-Reflect/spirv_reflect.h>
+#include <spirv-tools/optimizer.hpp>
 #include <unordered_map>
 #include <map>
-#include <shaderc/shaderc.hpp>
 #include <stdexcept>
-#include "SPIRV-Reflect/spirv_reflect.h"
+#include <sstream>
 
 namespace PK::Assets::Shader
 {
@@ -287,9 +289,9 @@ namespace PK::Assets::Shader
             case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: return PKDescriptorType::SamplerTexture;
             case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE: return PKDescriptorType::Texture;
             case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE: return PKDescriptorType::Image;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER: return PKDescriptorType::UniformBuffer;
+            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER: return PKDescriptorType::ConstantBuffer;
             case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER: return PKDescriptorType::StorageBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: return PKDescriptorType::DynamicUniformBuffer;
+            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: return PKDescriptorType::DynamicConstantBuffer;
             case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: return PKDescriptorType::DynamicStorageBuffer;
             case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT: return PKDescriptorType::InputAttachment;
         }
@@ -530,6 +532,77 @@ namespace PK::Assets::Shader
         return 0;
     }
 
+    // @TODO This doesn't work atm. Generates an invalid op code when trying to create a vulkan shader module. find a solution?
+    static ShaderSpriV OptimizeSpirv(const uint32_t* code, size_t size, bool stripDebug)
+    {
+        spvtools::Optimizer opt(SPV_ENV_VULKAN_1_2);
+        auto print_msg_to_stderr = [](spv_message_level_t, const char*, const spv_position_t&, const char* m) { printf("error: %s \n", m); };
+
+        opt.SetMessageConsumer(print_msg_to_stderr);
+
+        if (stripDebug)
+        {
+            opt.RegisterPass(spvtools::CreateStripDebugInfoPass())
+               .RegisterPass(spvtools::CreateStripReflectInfoPass());
+        }
+        else
+        {
+            opt.RegisterPass(spvtools::CreateWrapOpKillPass())
+               .RegisterPass(spvtools::CreateDeadBranchElimPass())
+               .RegisterPass(spvtools::CreateMergeReturnPass())
+               .RegisterPass(spvtools::CreateInlineExhaustivePass())
+               .RegisterPass(spvtools::CreateEliminateDeadFunctionsPass())
+             //  .RegisterPass(spvtools::CreateAggressiveDCEPass())
+               .RegisterPass(spvtools::CreatePrivateToLocalPass())
+               .RegisterPass(spvtools::CreateLocalSingleBlockLoadStoreElimPass())
+               .RegisterPass(spvtools::CreateLocalSingleStoreElimPass())
+            //   .RegisterPass(spvtools::CreateAggressiveDCEPass())
+               .RegisterPass(spvtools::CreateScalarReplacementPass())
+               .RegisterPass(spvtools::CreateLocalAccessChainConvertPass())
+               .RegisterPass(spvtools::CreateLocalSingleBlockLoadStoreElimPass())
+               .RegisterPass(spvtools::CreateLocalSingleStoreElimPass())
+            //   .RegisterPass(spvtools::CreateAggressiveDCEPass())
+               .RegisterPass(spvtools::CreateLocalMultiStoreElimPass())
+             //  .RegisterPass(spvtools::CreateAggressiveDCEPass())
+               .RegisterPass(spvtools::CreateCCPPass())
+             //  .RegisterPass(spvtools::CreateAggressiveDCEPass())
+               .RegisterPass(spvtools::CreateLoopUnrollPass(true))
+               .RegisterPass(spvtools::CreateDeadBranchElimPass())
+               .RegisterPass(spvtools::CreateRedundancyEliminationPass())
+               .RegisterPass(spvtools::CreateCombineAccessChainsPass())
+               .RegisterPass(spvtools::CreateSimplificationPass())
+               .RegisterPass(spvtools::CreateScalarReplacementPass())
+               .RegisterPass(spvtools::CreateLocalAccessChainConvertPass())
+               .RegisterPass(spvtools::CreateLocalSingleBlockLoadStoreElimPass())
+               .RegisterPass(spvtools::CreateLocalSingleStoreElimPass())
+             //  .RegisterPass(spvtools::CreateAggressiveDCEPass())
+               .RegisterPass(spvtools::CreateSSARewritePass())
+              // .RegisterPass(spvtools::CreateAggressiveDCEPass())
+               .RegisterPass(spvtools::CreateVectorDCEPass())
+               .RegisterPass(spvtools::CreateDeadInsertElimPass())
+               .RegisterPass(spvtools::CreateDeadBranchElimPass())
+               .RegisterPass(spvtools::CreateSimplificationPass())
+               .RegisterPass(spvtools::CreateIfConversionPass())
+               .RegisterPass(spvtools::CreateCopyPropagateArraysPass())
+              // .RegisterPass(spvtools::CreateReduceLoadSizePass())
+           //    .RegisterPass(spvtools::CreateAggressiveDCEPass())
+               .RegisterPass(spvtools::CreateBlockMergePass())
+               .RegisterPass(spvtools::CreateRedundancyEliminationPass())
+               .RegisterPass(spvtools::CreateDeadBranchElimPass())
+               .RegisterPass(spvtools::CreateBlockMergePass())
+               .RegisterPass(spvtools::CreateSimplificationPass());
+        }
+
+        ShaderSpriV spirv;
+        if (!opt.Run(code, size, &spirv))
+        {
+            return ShaderSpriV();
+        }
+
+        return spirv;
+    }
+
+
     static ShaderSpriV CompileGLSLToSpirV(const ShaderCompiler& compiler, PKShaderStage stage, const std::string& source_name, const std::string& source)
     {
         auto kind = shaderc_shader_kind::shaderc_glsl_infer_from_source;
@@ -556,12 +629,20 @@ namespace PK::Assets::Shader
         {
             printf(module.GetErrorMessage().c_str());
             printf("\n ----------BEGIN SOURCE---------- \n");
-            printf(source.c_str());
+
+            std::istringstream iss(source);
+            auto index = 0u;
+
+            for (std::string line; std::getline(iss, line); )
+            {
+                printf("%i: %s \n", index++, line.c_str());
+            }
+
             printf("\n ----------END SOURCE---------- \n");
             return ShaderSpriV();
         }
 
-        return { module.cbegin(), module.cend() };
+        return { module.cbegin(), module.cend() }; //OptimizeSpirv(module.cbegin(), module.cend() - module.cbegin(), false);
     }
 
     static int GetReflectionModule(ReflectionData& reflection, PKShaderStage stage, const ShaderSpriV& spriv)
@@ -680,6 +761,40 @@ namespace PK::Assets::Shader
     static void RemapBindings(ReflectionData& reflection)
     {
         std::map<uint_t, uint_t> setCounters;
+        std::map<uint_t, uint_t> setRemap;
+        std::vector<SpvReflectDescriptorSet*> sets;
+        auto setCount = 0u;
+        auto setIndex = 0u;
+
+        decltype(reflection.setStageFlags) newStageFlags;
+        newStageFlags.swap(reflection.setStageFlags);
+
+        for (auto& kv : newStageFlags)
+        {
+            reflection.setStageFlags[setIndex] = kv.second;
+            setRemap[kv.first] = setIndex++;
+        }
+
+        for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
+        {
+            if (reflection.modules[i]._internal == nullptr)
+            {
+                continue;
+            }
+
+            auto& module = reflection.modules[i];
+            spvReflectEnumerateDescriptorSets(&module, &setCount, nullptr);
+            sets.resize(setCount);
+            spvReflectEnumerateDescriptorSets(&module, &setCount, sets.data());
+
+            for (auto set : sets)
+            {
+                if (set->set != setRemap[set->set])
+                {
+                    spvReflectChangeDescriptorSetNumber(&module, set, setRemap[set->set]);
+                }
+            }
+        }
 
         for (auto& kv : reflection.uniqueBindings)
         {
@@ -771,7 +886,8 @@ namespace PK::Assets::Shader
             {
                 auto size = spvReflectGetCodeSize(&reflectionData.modules[(int)kv.first]);
                 auto code = spvReflectGetCode(&reflectionData.modules[(int)kv.first]);
-                auto pSpirv = buffer.Write(code, size / sizeof(uint_t));
+               // auto optimized = OptimizeSpirv(code, size / sizeof(uint32_t), true);
+                auto pSpirv = buffer.Write(code, size / sizeof(uint32_t));
                 pVariants[i].sprivSizes[(int)kv.first] = size;
                 pVariants[i].sprivBuffers[(int)kv.first].Set(buffer.data(), pSpirv);
             }

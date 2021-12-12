@@ -14,6 +14,12 @@ PK_DECLARE_CBUFFER(UniformBufferObject, 0)
     float4x4 viewproj;
 };
 
+PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
+{
+    float4x4 model;
+    float4x4 viewproj;
+} named;
+
 layout(push_constant) uniform offset{ float4 offset_x; };
 
 layout(location = 0) in float3 in_POSITION;
@@ -32,7 +38,7 @@ void main()
 
 #pragma PROGRAM_FRAGMENT
 
-layout(set = 0) uniform sampler2D tex1;
+layout(set = 3) uniform sampler2D tex1;
 
 layout(location = 0) in float3 vs_COLOR;
 layout(location = 1) in float2 vs_TEXCOORD0;
