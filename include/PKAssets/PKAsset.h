@@ -245,7 +245,6 @@ namespace PK::Assets
 
         struct PKDescriptorSet
         {
-            uint_t set;
             uint_t stageflags;
             uint_t descriptorCount;
             RelativePtr<PKDescriptor> descriptors;

@@ -34,6 +34,7 @@ void main()
     gl_Position = mul(mul(viewproj, model), float4(in_POSITION + offset_x.xyz, 1.0f));
     vs_COLOR = in_COLOR;
     vs_TEXCOORD0 = in_TEXCOORD0;
+    vs_TEXCOORD0.x += gl_VertexIndex;
 }
 
 #pragma PROGRAM_FRAGMENT

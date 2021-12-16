@@ -726,6 +726,12 @@ namespace PK::Assets::Shader
 
         for (auto* variable : variables)
         {
+            // Ignore built in variables
+            if (variable->built_in != -1)
+            {
+                continue;
+            }
+
             attributes[i].location = variable->location;
             WriteName(attributes[i].name, variable->name);
             attributes[i++].type = GetElementType(variable->format);
@@ -758,7 +764,7 @@ namespace PK::Assets::Shader
         }
     }
 
-    static void RemapBindings(ReflectionData& reflection)
+    static void CompressBindIndices(ReflectionData& reflection)
     {
         std::map<uint_t, uint_t> setCounters;
         std::map<uint_t, uint_t> setRemap;
@@ -880,7 +886,7 @@ namespace PK::Assets::Shader
                 GetPushConstants(reflectionData, kv.first);
             }
 
-            RemapBindings(reflectionData);
+            CompressBindIndices(reflectionData);
 
             for (auto& kv : shaderSources)
             {
@@ -938,16 +944,13 @@ namespace PK::Assets::Shader
                     descriptors[desc->set].push_back(descriptor);
                 }
 
-                auto j = 0u;
-
                 for (auto& kv : descriptors)
                 {
-                    pDescriptorSets[j].descriptorCount = (uint_t)kv.second.size();
-                    pDescriptorSets[j].set = kv.first;
-                    pDescriptorSets[j].stageflags = reflectionData.setStageFlags[kv.first];
+                    auto i = kv.first;
+                    pDescriptorSets[i].descriptorCount = (uint_t)kv.second.size();
+                    pDescriptorSets[i].stageflags = reflectionData.setStageFlags[kv.first];
                     auto pDescriptors = buffer.Write(kv.second.data(), kv.second.size());
-                    pDescriptorSets[j].descriptors.Set(buffer.data(), pDescriptors);
-                    j++;
+                    pDescriptorSets[i].descriptors.Set(buffer.data(), pDescriptors);
                 }
             }
 
