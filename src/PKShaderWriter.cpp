@@ -381,7 +381,7 @@ namespace PK::Assets::Shader
             if (keywords.size() == 3)
             {
                 attributes->blendOpColor = GetBlendOpFromString(keywords.at(0));
-                attributes->blendSrcFactorColor = GetBlendFactorFromString(keywords.at(0));
+                attributes->blendSrcFactorColor = GetBlendFactorFromString(keywords.at(1));
                 attributes->blendDstFactorColor = GetBlendFactorFromString(keywords.at(2));
             }
         }
@@ -847,6 +847,7 @@ namespace PK::Assets::Shader
 
         auto pKeywords = buffer.Write<PKShaderKeyword>(keywords.data(), keywords.size());
         shader.get()->keywords.Set(buffer.data(), pKeywords);
+        shader.get()->keywordCount = (uint_t)keywords.size();
         
         auto pVariants = buffer.Allocate<PKShaderVariant>(shader.get()->variantcount);
         shader.get()->variants.Set(buffer.data(), pVariants);
@@ -909,14 +910,16 @@ namespace PK::Assets::Shader
                 auto pConstantVariables = buffer.Allocate<PKConstantVariable>(reflectionData.uniqueVariables.size());
                 pVariants[i].constantVariables.Set(buffer.data(), pConstantVariables);
 
+                auto j = 0u;
                 for (auto& kv : reflectionData.uniqueVariables)
                 {
-                    WriteName(pConstantVariables[i].name, kv.first.c_str());
-                    pConstantVariables[i].offset = (unsigned short)kv.second->offset;
-                    pConstantVariables[i].stageFlags = reflectionData.variableStageFlags[kv.first];
-                    pConstantVariables[i].size = kv.second->size;
+                    WriteName(pConstantVariables[j].name, kv.first.c_str());
+                    pConstantVariables[j].offset = (unsigned short)kv.second->offset;
+                    pConstantVariables[j].stageFlags = reflectionData.variableStageFlags[kv.first];
+                    pConstantVariables[j++].size = kv.second->size;
                 }
             }
+
 
             if (reflectionData.setCount > 0)
             {
@@ -946,11 +949,10 @@ namespace PK::Assets::Shader
 
                 for (auto& kv : descriptors)
                 {
-                    auto i = kv.first;
-                    pDescriptorSets[i].descriptorCount = (uint_t)kv.second.size();
-                    pDescriptorSets[i].stageflags = reflectionData.setStageFlags[kv.first];
+                    pDescriptorSets[kv.first].descriptorCount = (uint_t)kv.second.size();
+                    pDescriptorSets[kv.first].stageflags = reflectionData.setStageFlags[kv.first];
                     auto pDescriptors = buffer.Write(kv.second.data(), kv.second.size());
-                    pDescriptorSets[i].descriptors.Set(buffer.data(), pDescriptors);
+                    pDescriptorSets[kv.first].descriptors.Set(buffer.data(), pDescriptors);
                 }
             }
 
