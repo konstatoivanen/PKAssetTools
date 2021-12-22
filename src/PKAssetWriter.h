@@ -28,6 +28,7 @@ namespace PK::Assets
     {
         PKAssetBuffer() : header(Allocate<PKAssetHeader>())
         {    
+            header.get()->magicNumber = PK_ASSET_MAGIC_NUMBER;
         }
 
         template<typename T>
