@@ -177,12 +177,6 @@
     <ClInclude Include="include\shaderc\visibility.h" />
     <ClInclude Include="include\SPIRV-Reflect\spirv.h" />
     <ClInclude Include="include\SPIRV-Reflect\spirv_reflect.h" />
-    <ClInclude Include="include\spirv-tools\instrument.hpp" />
-    <ClInclude Include="include\spirv-tools\libspirv.h" />
-    <ClInclude Include="include\spirv-tools\libspirv.hpp" />
-    <ClInclude Include="include\spirv-tools\linker.hpp" />
-    <ClInclude Include="include\spirv-tools\linter.hpp" />
-    <ClInclude Include="include\spirv-tools\optimizer.hpp" />
     <ClInclude Include="include\tinyobjloader\tiny_obj_loader.h" />
     <ClInclude Include="src\PKAssetWriter.h" />
     <ClInclude Include="src\PKMeshWriter.h" />
@@ -191,6 +185,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="include\mikktspace\mikktspace.c" />
+    <ClCompile Include="include\PKAssets\PKAsset.cpp" />
     <ClCompile Include="include\PKAssets\PKAssetLoader.cpp" />
     <ClCompile Include="include\SPIRV-Reflect\spirv_reflect.cpp" />
     <ClCompile Include="include\tinyobjloader\tiny_obj_loader.cpp" />
@@ -207,7 +202,7 @@
   <ItemGroup>
     <None Include=".gitignore" />
     <None Include="debug_res\models\MDL_Debug.mdl" />
-    <None Include="debug_res\shaders\includes\HLSLSupport.glsl" />
+    <None Include="debug_res\shaders\includes\Utilities.glsl" />
     <None Include="debug_res\shaders\SH_WS_Debug.shader" />
     <None Include="LICENSE" />
     <None Include="README.md" />

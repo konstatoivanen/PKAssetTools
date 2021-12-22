@@ -4,7 +4,6 @@
 #include "PKStringUtilities.h"
 #include <shaderc/shaderc.hpp>
 #include <SPIRV-Reflect/spirv_reflect.h>
-#include <spirv-tools/optimizer.hpp>
 #include <unordered_map>
 #include <map>
 #include <stdexcept>
@@ -12,13 +11,15 @@
 
 namespace PK::Assets::Shader
 {
+    using PK::Assets::GetElementType;
+
     typedef shaderc::Compiler ShaderCompiler;
 
     struct ReflectBinding
     {
         uint_t firstStage = (int)PKShaderStage::MaxCount;
-        SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount]{};
-        SpvReflectDescriptorBinding* get() { return bindings[firstStage]; }
+        const SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount]{};
+        const SpvReflectDescriptorBinding* get() { return bindings[firstStage]; }
     };
 
     typedef std::vector<uint32_t> ShaderSpriV;
@@ -27,11 +28,41 @@ namespace PK::Assets::Shader
     {
         SpvReflectShaderModule modules[(int)PKShaderStage::MaxCount]{};
         std::map<std::string, ReflectBinding> uniqueBindings;
-        std::map<std::string, SpvReflectBlockVariable*> uniqueVariables;
+        std::map<std::string, const SpvReflectBlockVariable*> uniqueVariables;
         std::map<std::string, uint32_t> variableStageFlags;
         std::map<uint32_t, uint32_t> setStageFlags;
         uint32_t setCount = 0u;
     };
+
+    constexpr const static char* Instancing_Base_GLSL =
+        "#define PK_INSTANCING_ENABLED                                                                                                                  \n"
+        "struct PK_Transform { mat4 localToWorld; mat4 worldToLocal; };                                                                                 \n"
+        "struct PK_Draw { uint material; uint transform; };                                                                                             \n"
+        "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { PK_Transform pk_Instancing_Transforms_Data[]; };             \n"
+        "layout(std430, set = 3, binding = 101) readonly buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                        \n"
+        "layout(std430, set = 3, binding = 102) readonly buffer pk_Instancing_Properties { PK_MaterialPropertyBlock pk_Instancing_Properties_Data[]; }; \n"
+        "layout(set = 3, binding = 103) uniform sampler2D pk_Instancing_Textures2D[];                                                                   \n"
+        "layout(set = 3, binding = 104) uniform sampler3D pk_Instancing_Textures3D[];                                                                   \n"
+        "layout(set = 3, binding = 105) uniform samplerCube pk_Instancing_TexturesCube[];                                                               \n"
+        "mat4 pk_MATRIX_M;                                                                                                                              \n"
+        "mat4 pk_MATRIX_I_M;                                                                                                                            \n"
+        "void PK_INSTANCING_ASSIGN_LOCALS(uint index)                                                                                                   \n"
+        "{                                                                                                                                              \n"
+        "    PK_Draw draw = pk_Instancing_Indices_Data[index];                                                                                          \n"
+        "    PK_Transform transform = pk_Instancing_Transforms_Data[draw.transform];                                                                    \n"
+        "    pk_MATRIX_M = transform.localToWorld;                                                                                                      \n"
+        "    pk_MATRIX_I_M = transform.worldToLocal;                                                                                                    \n"
+        "    PK_MaterialPropertyBlock prop = pk_Instancing_Properties_Data[draw.material];                                                              \n";
+
+    constexpr const static char* Instancing_Stage_GLSL = "PK_INSTANCING_ASSIGN_STAGE_LOCALS \n";
+
+    constexpr const static char* Instancing_Vertex_GLSL =
+        "out flat uint vs_INSTANCE_ID;                                                                                                          \n"
+        "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS PK_INSTANCING_ASSIGN_LOCALS(uint(gl_InstanceIndex)); vs_INSTANCE_ID = uint(gl_InstanceIndex);\n";
+
+    constexpr const static char* Instancing_Fragment_GLSL =
+        "in flat uint vs_INSTANCE_ID;                                                           \n"
+        "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS PK_INSTANCING_ASSIGN_LOCALS(vs_INSTANCE_ID); \n";
 
     PKElementType GetElementType(SpvReflectFormat format)
     {
@@ -64,6 +95,63 @@ namespace PK::Assets::Shader
         }
 
         return PKElementType::Invalid;
+    }
+
+    std::string GetGLSLType(PKElementType type)
+    {
+        switch (type)
+        {
+            case PKElementType::Float: return "float";
+            case PKElementType::Float2: return "vec2";
+            case PKElementType::Float3: return "vec3";
+            case PKElementType::Float4: return "vec4";
+            case PKElementType::Double: return "float64_t";
+            case PKElementType::Double2: return "f64vec2";
+            case PKElementType::Double3: return "f64vec3";
+            case PKElementType::Double4: return "f64vec4";
+            case PKElementType::Half: return "float16_t";
+            case PKElementType::Half2: return "f16vec2";
+            case PKElementType::Half3: return "f16vec3";
+            case PKElementType::Half4: return "f16vec4";
+            case PKElementType::Int: return "int";
+            case PKElementType::Int2: return "ivec2";
+            case PKElementType::Int3: return "ivec3";
+            case PKElementType::Int4: return "ivec4";
+            case PKElementType::Uint: return "uint";
+            case PKElementType::Uint2: return "uvec2";
+            case PKElementType::Uint3: return "uvec3";
+            case PKElementType::Uint4: return "uvec4";
+            case PKElementType::Short: return "int16_t";
+            case PKElementType::Short2: return "i16vec2";
+            case PKElementType::Short3: return "i16vec3";
+            case PKElementType::Short4: return "i16vec4";
+            case PKElementType::Ushort: return "u16int";
+            case PKElementType::Ushort2: return "u16vec2";
+            case PKElementType::Ushort3: return "u16vec3";
+            case PKElementType::Ushort4: return "u16vec4";
+            case PKElementType::Long: return "int64_t";
+            case PKElementType::Long2: return "i64vec2";
+            case PKElementType::Long3: return "i64vec3";
+            case PKElementType::Long4: return "i64vec4";
+            case PKElementType::Ulong: return "uint64_t";
+            case PKElementType::Ulong2: return "u64vec2";
+            case PKElementType::Ulong3: return "u64vec3";
+            case PKElementType::Ulong4: return "u64vec4";
+            case PKElementType::Float2x2: return "mat2";
+            case PKElementType::Float3x3: return "mat3";
+            case PKElementType::Float4x4: return "mat4";
+            case PKElementType::Double2x2: return "f64mat2";
+            case PKElementType::Double3x3: return "f64mat3";
+            case PKElementType::Double4x4: return "f64mat4";
+            case PKElementType::Half2x2: return "f16mat2";
+            case PKElementType::Half3x3: return "f16mat3";
+            case PKElementType::Half4x4: return "f16mat4";
+            case PKElementType::Texture2DHandle: return "uint";
+            case PKElementType::Texture3DHandle: return "uint";
+            case PKElementType::TextureCubeHandle: return "uint";
+        }
+
+        return "INVALID";
     }
 
     static PKComparison GetZTestFromString(const std::string& ztest)
@@ -305,6 +393,72 @@ namespace PK::Assets::Shader
         ouput = StringUtilities::ReadFileRecursiveInclude(filepath);
     }
 
+    static void ConvertHLSLTypesToGLSL(std::string& source)
+    {
+        const std::string surroundMask = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";
+        StringUtilities::ReplaceAll(source, surroundMask, "lerp", "mix");
+        StringUtilities::ReplaceAll(source, surroundMask, "tex2D", "texture");
+        StringUtilities::ReplaceAll(source, surroundMask, "tex2DLod", "textureLod");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "bool2", "bvec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "bool3", "bvec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "bool4", "bvec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "half", "float16_t");
+        StringUtilities::ReplaceAll(source, surroundMask, "half2", "f16vec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "half3", "f16vec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "half4", "f16vec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "float2", "vec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "float3", "vec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "float4", "vec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "double", "float64_t");
+        StringUtilities::ReplaceAll(source, surroundMask, "double2", "f64vec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "double3", "f64vec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "double4", "f64vec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "short", "int16_t");
+        StringUtilities::ReplaceAll(source, surroundMask, "short2", "i16vec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "short3", "i16vec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "short4", "i16vec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "ushort", "uint16_t");
+        StringUtilities::ReplaceAll(source, surroundMask, "ushort2", "u16vec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "ushort3", "u16vec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "ushort4", "u16vec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "int2", "ivec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "int3", "ivec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "int4", "ivec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "uint2", "uvec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "uint3", "uvec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "uint4", "uvec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "long", "int64_t");
+        StringUtilities::ReplaceAll(source, surroundMask, "long2", "i64vec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "long3", "i64vec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "long4", "i64vec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "ulong", "uint64_t");
+        StringUtilities::ReplaceAll(source, surroundMask, "ulong2", "u64vec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "ulong3", "u64vec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "ulong4", "u64vec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "half2x2", "f16mat2");
+        StringUtilities::ReplaceAll(source, surroundMask, "half3x3", "f16mat3");
+        StringUtilities::ReplaceAll(source, surroundMask, "half4x4", "f16mat4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "float2x2", "mat2");
+        StringUtilities::ReplaceAll(source, surroundMask, "float3x3", "mat3");
+        StringUtilities::ReplaceAll(source, surroundMask, "float4x4", "mat4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "double2x2", "f64mat2");
+        StringUtilities::ReplaceAll(source, surroundMask, "double3x3", "f64mat3");
+        StringUtilities::ReplaceAll(source, surroundMask, "double4x4", "f64mat4");
+    }
+
     static void ExtractMulticompiles(std::string& source, 
                                      std::vector<std::vector<std::string>>& keywords, 
                                      std::vector<PKShaderKeyword>& outKeywords, 
@@ -318,7 +472,7 @@ namespace PK::Assets::Shader
 
         while (true)
         {
-            pos = StringUtilities::ExtractToken(pos, "#multi_compile ", source, output, false);
+            pos = StringUtilities::ExtractToken(pos, PK_SHADER_ATTRIB_MULTI_COMPILE, source, output, false);
 
             if (pos == std::string::npos)
             {
@@ -351,13 +505,13 @@ namespace PK::Assets::Shader
 
     static void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes)
     {
-        auto valueZWrite = StringUtilities::ExtractToken("#ZWrite ", source, false);
-        auto valueZTest = StringUtilities::ExtractToken("#ZTest ", source, false);
-        auto valueBlendColor = StringUtilities::ExtractToken("#BlendColor ", source, false);
-        auto valueBlendAlpha = StringUtilities::ExtractToken("#BlendAlpha ", source, false);
-        auto valueColorMask = StringUtilities::ExtractToken("#ColorMask ", source, false);
-        auto valueCull = StringUtilities::ExtractToken("#Cull ", source, false);
-        auto valueOffset = StringUtilities::ExtractToken("#Offset ", source, false);
+        auto valueZWrite = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZWRITE, source, false);
+        auto valueZTest = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZTEST, source, false);
+        auto valueBlendColor = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_BLENDCOLOR, source, false);
+        auto valueBlendAlpha = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_BLENDALPHA, source, false);
+        auto valueColorMask = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_COLORMASK, source, false);
+        auto valueCull = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_CULL, source, false);
+        auto valueOffset = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_OFFSET, source, false);
 
         if (!valueZWrite.empty())
         {
@@ -420,6 +574,149 @@ namespace PK::Assets::Shader
 
         attributes->colorMask = GetColorMaskFromString(valueColorMask);
         attributes->cull = GetCullModeFromString(StringUtilities::Trim(valueCull));
+    }
+
+    static void ProcessInstancingProperties(std::string& source, std::vector<PKMaterialProperty>& materialProperties)
+    {
+        std::string output;
+        size_t pos = 0;
+
+        materialProperties.clear();
+
+        while (true)
+        {
+            pos = StringUtilities::ExtractToken(pos, PK_SHADER_ATTRIB_MATERIAL_PROP, source, output, false);
+
+            if (pos == std::string::npos)
+            {
+                break;
+            }
+
+            auto parts = StringUtilities::Split(output, " ");
+
+            if (parts.size() != 2)
+            {
+                continue;
+            }
+
+            auto type = PK::Assets::GetElementType(parts.at(0).c_str());
+
+            if (type == PKElementType::Invalid)
+            {
+                continue;
+            }
+
+            PKMaterialProperty prop;
+            prop.type = type;
+            WriteName(prop.name, parts.at(1).c_str());
+            materialProperties.push_back(prop);
+        }
+
+        if (materialProperties.size() == 0)
+        {
+            return;
+        }
+
+        std::string block = "struct PK_MaterialPropertyBlock\n{\n";
+
+        for (auto& prop : materialProperties)
+        {
+            block += "    " + GetGLSLType(prop.type) + " " + std::string(prop.name) + ";\n";
+        }
+
+        block += "};\n";
+
+        for (auto& prop : materialProperties)
+        {
+            auto name = std::string(prop.name);
+
+            switch (prop.type)
+            {
+                case PKElementType::Texture2DHandle:
+                    block += "uint " + name + "_Handle;\n";
+                    break;
+                case PKElementType::Texture3DHandle:
+                    block += "uint " + name + "_Handle;\n";
+                    break;
+                case PKElementType::TextureCubeHandle:
+                    block += "uint " + name + "_Handle;\n";
+                    break;
+                default:
+                    block += GetGLSLType(prop.type) + " " + name + ";\n";
+                    break;
+            }
+        }
+
+        block += Instancing_Base_GLSL;
+
+        for (auto& prop : materialProperties)
+        {
+            auto name = std::string(prop.name);
+
+            switch (prop.type)
+            {
+                case PKElementType::Texture2DHandle:
+                case PKElementType::Texture3DHandle:
+                case PKElementType::TextureCubeHandle:
+                    block += "    " + name + "_Handle = prop." + name + ";\n";
+                    break;
+
+                default:
+                    block += "    " + name + " = prop." + name + ";\n";
+                    break;
+            }
+        }
+        
+        block += "}\n";
+
+        for (auto& prop : materialProperties)
+        {
+            auto name = std::string(prop.name);
+
+            switch (prop.type)
+            {
+                case PKElementType::Texture2DHandle:
+                    block += "#define " + name + " pk_Instancing_Textures2D[" + name + "_Handle]\n";
+                    break;
+                case PKElementType::Texture3DHandle:
+                    block += "#define " + name + " pk_Instancing_Textures3D[" + name + "_Handle]\n";
+                    break;
+                case PKElementType::TextureCubeHandle:
+                    block += "#define " + name + " pk_Instancing_TexturesCube[" + name + "_Handle]\n";
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        source.insert(0, block);
+    }
+
+    static void InsertRequiredExtensions(std::string& source)
+    {
+        source.insert(0, "#extension GL_EXT_shader_explicit_arithmetic_types : require \n");
+        source.insert(0, "#extension GL_EXT_nonuniform_qualifier : require \n");
+    }
+
+    static void InsertInstancingDefine(std::string& source, PKShaderStage stage, bool enableInstancing)
+    {
+        if (!enableInstancing)
+        {
+            return;
+        }
+
+        switch (stage)
+        {
+            case PKShaderStage::Vertex: source.insert(0, Instancing_Vertex_GLSL); break;
+            case PKShaderStage::Fragment: source.insert(0, Instancing_Fragment_GLSL); break;
+            default: return;
+        }
+
+        auto pos = source.find("main()");
+        pos = source.find('{', pos);
+        auto eol = source.find_first_of("\r\n", pos);
+        auto nextLinePos = source.find_first_not_of("\r\n", eol);
+        source.insert(nextLinePos, Instancing_Stage_GLSL);
     }
 
     static void GetSharedInclude(const std::string& source, std::string& sharedInclude)
@@ -486,7 +783,8 @@ namespace PK::Assets::Shader
                                    const std::string& sharedInclude, 
                                    const std::string& variantDefines, 
                                    std::unordered_map<PKShaderStage, 
-                                   std::string>& shaderSources)
+                                   std::string>& shaderSources,
+                                   bool enableInstancing)
     {
         shaderSources.clear();
 
@@ -524,6 +822,7 @@ namespace PK::Assets::Shader
         for (auto& kv : shaderSources)
         {
             kv.second.insert(0, sharedInclude);
+            InsertInstancingDefine(kv.second, kv.first, enableInstancing);
             ProcessShaderStageDefine(kv.first, kv.second);
             kv.second.insert(0, variantDefines);
             ProcessShaderVersion(kv.second);
@@ -532,78 +831,7 @@ namespace PK::Assets::Shader
         return 0;
     }
 
-    // @TODO This doesn't work atm. Generates an invalid op code when trying to create a vulkan shader module. find a solution?
-    static ShaderSpriV OptimizeSpirv(const uint32_t* code, size_t size, bool stripDebug)
-    {
-        spvtools::Optimizer opt(SPV_ENV_VULKAN_1_2);
-        auto print_msg_to_stderr = [](spv_message_level_t, const char*, const spv_position_t&, const char* m) { printf("error: %s \n", m); };
-
-        opt.SetMessageConsumer(print_msg_to_stderr);
-
-        if (stripDebug)
-        {
-            opt.RegisterPass(spvtools::CreateStripDebugInfoPass())
-               .RegisterPass(spvtools::CreateStripReflectInfoPass());
-        }
-        else
-        {
-            opt.RegisterPass(spvtools::CreateWrapOpKillPass())
-               .RegisterPass(spvtools::CreateDeadBranchElimPass())
-               .RegisterPass(spvtools::CreateMergeReturnPass())
-               .RegisterPass(spvtools::CreateInlineExhaustivePass())
-               .RegisterPass(spvtools::CreateEliminateDeadFunctionsPass())
-             //  .RegisterPass(spvtools::CreateAggressiveDCEPass())
-               .RegisterPass(spvtools::CreatePrivateToLocalPass())
-               .RegisterPass(spvtools::CreateLocalSingleBlockLoadStoreElimPass())
-               .RegisterPass(spvtools::CreateLocalSingleStoreElimPass())
-            //   .RegisterPass(spvtools::CreateAggressiveDCEPass())
-               .RegisterPass(spvtools::CreateScalarReplacementPass())
-               .RegisterPass(spvtools::CreateLocalAccessChainConvertPass())
-               .RegisterPass(spvtools::CreateLocalSingleBlockLoadStoreElimPass())
-               .RegisterPass(spvtools::CreateLocalSingleStoreElimPass())
-            //   .RegisterPass(spvtools::CreateAggressiveDCEPass())
-               .RegisterPass(spvtools::CreateLocalMultiStoreElimPass())
-             //  .RegisterPass(spvtools::CreateAggressiveDCEPass())
-               .RegisterPass(spvtools::CreateCCPPass())
-             //  .RegisterPass(spvtools::CreateAggressiveDCEPass())
-               .RegisterPass(spvtools::CreateLoopUnrollPass(true))
-               .RegisterPass(spvtools::CreateDeadBranchElimPass())
-               .RegisterPass(spvtools::CreateRedundancyEliminationPass())
-               .RegisterPass(spvtools::CreateCombineAccessChainsPass())
-               .RegisterPass(spvtools::CreateSimplificationPass())
-               .RegisterPass(spvtools::CreateScalarReplacementPass())
-               .RegisterPass(spvtools::CreateLocalAccessChainConvertPass())
-               .RegisterPass(spvtools::CreateLocalSingleBlockLoadStoreElimPass())
-               .RegisterPass(spvtools::CreateLocalSingleStoreElimPass())
-             //  .RegisterPass(spvtools::CreateAggressiveDCEPass())
-               .RegisterPass(spvtools::CreateSSARewritePass())
-              // .RegisterPass(spvtools::CreateAggressiveDCEPass())
-               .RegisterPass(spvtools::CreateVectorDCEPass())
-               .RegisterPass(spvtools::CreateDeadInsertElimPass())
-               .RegisterPass(spvtools::CreateDeadBranchElimPass())
-               .RegisterPass(spvtools::CreateSimplificationPass())
-               .RegisterPass(spvtools::CreateIfConversionPass())
-               .RegisterPass(spvtools::CreateCopyPropagateArraysPass())
-              // .RegisterPass(spvtools::CreateReduceLoadSizePass())
-           //    .RegisterPass(spvtools::CreateAggressiveDCEPass())
-               .RegisterPass(spvtools::CreateBlockMergePass())
-               .RegisterPass(spvtools::CreateRedundancyEliminationPass())
-               .RegisterPass(spvtools::CreateDeadBranchElimPass())
-               .RegisterPass(spvtools::CreateBlockMergePass())
-               .RegisterPass(spvtools::CreateSimplificationPass());
-        }
-
-        ShaderSpriV spirv;
-        if (!opt.Run(code, size, &spirv))
-        {
-            return ShaderSpriV();
-        }
-
-        return spirv;
-    }
-
-
-    static ShaderSpriV CompileGLSLToSpirV(const ShaderCompiler& compiler, PKShaderStage stage, const std::string& source_name, const std::string& source)
+    static int CompileGLSLToSpirV(const ShaderCompiler& compiler, PKShaderStage stage, const std::string& source_name, const std::string& source, ShaderSpriV& spirvd, ShaderSpriV& spirvr)
     {
         auto kind = shaderc_shader_kind::shaderc_glsl_infer_from_source;
 
@@ -639,16 +867,22 @@ namespace PK::Assets::Shader
             }
 
             printf("\n ----------END SOURCE---------- \n");
-            return ShaderSpriV();
+            return -1;
         }
 
-        return { module.cbegin(), module.cend() }; //OptimizeSpirv(module.cbegin(), module.cend() - module.cbegin(), false);
+        spirvd = { module.cbegin(), module.cend() };
+
+        options.SetOptimizationLevel(shaderc_optimization_level::shaderc_optimization_level_performance);
+
+        module = compiler.CompileGlslToSpv(source, kind, source_name.c_str(), options);
+
+        spirvr = { module.cbegin(), module.cend() };
+
+        return 0;
     }
 
-    static int GetReflectionModule(ReflectionData& reflection, PKShaderStage stage, const ShaderSpriV& spriv)
+    static int GetReflectionModule(SpvReflectShaderModule* module, const ShaderSpriV& spriv)
     {
-        auto* module = &reflection.modules[(uint32_t)stage];
-
         if (spvReflectCreateShaderModule(spriv.size() * sizeof(uint32_t), spriv.data(), module) != SPV_REFLECT_RESULT_SUCCESS)
         {
             return -1;
@@ -668,28 +902,35 @@ namespace PK::Assets::Shader
         }
     }
 
-    static void GetUniqueBindings(ReflectionData& reflection, PKShaderStage stage)
+    static void GetUniqueBindings(ReflectionData& reflection, SpvReflectShaderModule* debugModule, PKShaderStage stage)
     {
         auto* module = &reflection.modules[(uint32_t)stage];
 
         uint32_t bindingCount = 0u;
         uint32_t setCount = 0u;
 
-        spvReflectEnumerateDescriptorBindings(module, &bindingCount, nullptr);
-        spvReflectEnumerateDescriptorSets(module, &setCount, nullptr);
-
-        if (setCount > reflection.setCount)
-        {
-            reflection.setCount = setCount;
-        }
+        spvReflectEnumerateDescriptorBindings(debugModule, &bindingCount, nullptr);
 
         std::vector<SpvReflectDescriptorBinding*> activeBindings;
         activeBindings.resize(bindingCount);
-        spvReflectEnumerateDescriptorBindings(module, &bindingCount, activeBindings.data());
+        spvReflectEnumerateDescriptorBindings(debugModule, &bindingCount, activeBindings.data());
 
         for (auto i = 0u; i < bindingCount; ++i)
         {
             auto desc = activeBindings.at(i);
+
+            if (!desc->accessed)
+            {
+                continue;
+            }
+
+            auto releaseBinding = spvReflectGetDescriptorBinding(module, desc->binding, desc->set, nullptr);
+
+            if (releaseBinding == nullptr)
+            {
+                continue;
+            }
+
             auto name = std::string(desc->name);
 
             if (name.empty())
@@ -697,30 +938,28 @@ namespace PK::Assets::Shader
                 name = std::string(desc->type_description->type_name);
             }
 
-            reflection.setStageFlags[activeBindings.at(i)->set] |= 1 << (int)stage;
+            reflection.setStageFlags[desc->set] |= 1 << (int)stage;
 
             auto& binding = reflection.uniqueBindings[name];
             binding.firstStage = binding.firstStage > (int)stage ? (int)stage : binding.firstStage;
-            binding.bindings[(int)stage] = activeBindings.at(i);
+            binding.bindings[(int)stage] = releaseBinding;
         }
     }
 
-    static void GetVertexAttributes(ReflectionData& reflection, PKShaderStage stage, PKVertexAttribute* attributes)
+    static void GetVertexAttributes(SpvReflectShaderModule* debugModule, PKShaderStage stage, PKVertexAttribute* attributes)
     {
         if (stage != PKShaderStage::Vertex)
         {
             return;
         }
 
-        auto* module = &reflection.modules[(uint32_t)stage];
-
         auto count = 0u;
-        spvReflectEnumerateEntryPointInputVariables(module, module->entry_point_name, &count, nullptr);
+        spvReflectEnumerateEntryPointInputVariables(debugModule, debugModule->entry_point_name, &count, nullptr);
 
         std::vector<SpvReflectInterfaceVariable*> variables;
         variables.resize(count);
 
-        spvReflectEnumerateEntryPointInputVariables(module, module->entry_point_name, &count, variables.data());
+        spvReflectEnumerateEntryPointInputVariables(debugModule, debugModule->entry_point_name, &count, variables.data());
 
         auto i = 0;
 
@@ -738,19 +977,19 @@ namespace PK::Assets::Shader
         }
     }
 
-    static void GetPushConstants(ReflectionData& reflection, PKShaderStage stage)
+    static void GetPushConstants(ReflectionData& reflection, SpvReflectShaderModule* debugModule, PKShaderStage stage)
     {
         auto* module = &reflection.modules[(uint32_t)stage];
 
         auto count = 0u;
-        spvReflectEnumerateEntryPointPushConstantBlocks(module, module->entry_point_name, &count, nullptr);
+        spvReflectEnumerateEntryPointPushConstantBlocks(debugModule, debugModule->entry_point_name, &count, nullptr);
 
         std::vector<SpvReflectBlockVariable*> blocks;
         blocks.resize(count);
 
-        spvReflectEnumerateEntryPointPushConstantBlocks(module, module->entry_point_name, &count, blocks.data());
+        spvReflectEnumerateEntryPointPushConstantBlocks(debugModule, debugModule->entry_point_name, &count, blocks.data());
 
-        auto i = 0;
+        auto i = 0u;
 
         for (auto* block : blocks)
         {
@@ -759,8 +998,10 @@ namespace PK::Assets::Shader
 
             if (reflection.uniqueVariables.count(name) <= 0)
             {
-                reflection.uniqueVariables[name] = block;
+                reflection.uniqueVariables[name] = spvReflectGetPushConstantBlock(module, i, nullptr);
             }
+
+            ++i;
         }
     }
 
@@ -780,6 +1021,8 @@ namespace PK::Assets::Shader
             reflection.setStageFlags[setIndex] = kv.second;
             setRemap[kv.first] = setIndex++;
         }
+
+        reflection.setCount = setIndex;
 
         for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
         {
@@ -838,17 +1081,33 @@ namespace PK::Assets::Shader
         std::string variantDefines;
         std::vector<std::vector<std::string>> mckeywords;
         std::vector<PKShaderKeyword> keywords;
+        std::vector<PKMaterialProperty> materialProperties;
         std::unordered_map<PKShaderStage, std::string> shaderSources;
 
         ReadFile(pathSrc, source);
         ExtractMulticompiles(source, mckeywords, keywords, &shader.get()->variantcount, &directiveCount);
         ExtractStateAttributes(source, &shader.get()->attributes);
+        ProcessInstancingProperties(source, materialProperties);
+        ConvertHLSLTypesToGLSL(source);
         GetSharedInclude(source, sharedInclude);
+        InsertRequiredExtensions(sharedInclude);
 
-        auto pKeywords = buffer.Write<PKShaderKeyword>(keywords.data(), keywords.size());
-        shader.get()->keywords.Set(buffer.data(), pKeywords);
+        auto enableInstancing = materialProperties.size() > 0;
         shader.get()->keywordCount = (uint_t)keywords.size();
+        shader.get()->materialPropertyCount = (uint_t)materialProperties.size();
         
+        if (keywords.size() > 0)
+        {
+            auto pKeywords = buffer.Write<PKShaderKeyword>(keywords.data(), keywords.size());
+            shader.get()->keywords.Set(buffer.data(), pKeywords);
+        }
+
+        if (materialProperties.size() > 0)
+        {
+            auto pMaterialProperties = buffer.Write<PKMaterialProperty>(materialProperties.data(), materialProperties.size());
+            shader.get()->materialProperties.Set(buffer.data(), pMaterialProperties);
+        }
+
         auto pVariants = buffer.Allocate<PKShaderVariant>(shader.get()->variantcount);
         shader.get()->variants.Set(buffer.data(), pVariants);
 
@@ -856,7 +1115,7 @@ namespace PK::Assets::Shader
         {
             GetVariantDefines(mckeywords, i, variantDefines);
 
-            if (ProcessStageSources(source, sharedInclude, variantDefines, shaderSources) != 0)
+            if (ProcessStageSources(source, sharedInclude, variantDefines, shaderSources, enableInstancing) != 0)
             {
                 printf("Failed to preprocess shader variant glsl stage sources! \n");
                 return -1;
@@ -868,23 +1127,35 @@ namespace PK::Assets::Shader
             {
                 printf("Compiling %s variant %i stage % i \n", filename.c_str(), i, (int)kv.first);
 
-                auto spirv = CompileGLSLToSpirV(compiler, kv.first, filename, kv.second);
+                ShaderSpriV spirvd;
+                ShaderSpriV spirvr;
 
-                if (spirv.size() == 0)
+                if (CompileGLSLToSpirV(compiler, kv.first, filename, kv.second, spirvd, spirvr) != 0)
                 {
-                    printf("Failed to compile data from shader variant source! \n");
+                    printf("Failed to compile spirv from shader variant source! \n");
                     return -1;
                 }
 
-                if (GetReflectionModule(reflectionData, kv.first, spirv) != 0)
+                SpvReflectShaderModule moduled;
+                auto* moduler = &reflectionData.modules[(uint32_t)kv.first];
+
+                if (GetReflectionModule(moduler, spirvr) != 0)
                 {
                     printf("Failed to extract reflection data from shader variant source! \n");
                     return -1;
                 }
 
-                GetUniqueBindings(reflectionData, kv.first);
-                GetVertexAttributes(reflectionData, kv.first, pVariants[i].vertexAttributes);
-                GetPushConstants(reflectionData, kv.first);
+                if (GetReflectionModule(&moduled, spirvd) != 0)
+                {
+                    printf("Failed to extract reflection data from shader variant source! \n");
+                    return -1;
+                }
+
+                GetUniqueBindings(reflectionData, &moduled, kv.first);
+                GetVertexAttributes(&moduled, kv.first, pVariants[i].vertexAttributes);
+                GetPushConstants(reflectionData, &moduled, kv.first);
+
+                spvReflectDestroyShaderModule(&moduled);
             }
 
             CompressBindIndices(reflectionData);
@@ -893,7 +1164,6 @@ namespace PK::Assets::Shader
             {
                 auto size = spvReflectGetCodeSize(&reflectionData.modules[(int)kv.first]);
                 auto code = spvReflectGetCode(&reflectionData.modules[(int)kv.first]);
-               // auto optimized = OptimizeSpirv(code, size / sizeof(uint32_t), true);
                 auto pSpirv = buffer.Write(code, size / sizeof(uint32_t));
                 pVariants[i].sprivSizes[(int)kv.first] = size;
                 pVariants[i].sprivBuffers[(int)kv.first].Set(buffer.data(), pSpirv);
@@ -919,7 +1189,6 @@ namespace PK::Assets::Shader
                     pConstantVariables[j++].size = kv.second->size;
                 }
             }
-
 
             if (reflectionData.setCount > 0)
             {

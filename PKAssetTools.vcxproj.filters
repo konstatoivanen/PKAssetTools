@@ -60,24 +60,6 @@
     <ClInclude Include="include\mikktspace\mikktspace.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\spirv-tools\instrument.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\spirv-tools\libspirv.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\spirv-tools\libspirv.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\spirv-tools\linker.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\spirv-tools\linter.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\spirv-tools\optimizer.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="include\PKAssets\PKAssetLoader.cpp">
@@ -107,6 +89,9 @@
     <ClCompile Include="include\mikktspace\mikktspace.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="include\PKAssets\PKAsset.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Library Include="libs\shaderc_combined.lib" />
@@ -118,6 +103,6 @@
     <None Include="README.md" />
     <None Include="debug_res\shaders\SH_WS_Debug.shader" />
     <None Include="debug_res\models\MDL_Debug.mdl" />
-    <None Include="debug_res\shaders\includes\HLSLSupport.glsl" />
+    <None Include="debug_res\shaders\includes\Utilities.glsl" />
   </ItemGroup>
 </Project>

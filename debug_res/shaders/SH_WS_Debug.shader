@@ -4,7 +4,13 @@
 #ZTest LEqual
 #ZWrite True
 
-#include includes/HLSLSupport.glsl
+#MaterialProperty float4 _Color
+#MaterialProperty float _Roughness
+#MaterialProperty float _Metallic
+#MaterialProperty texture2D _AlbedoTex
+#MaterialProperty texture3D _LutTex
+
+#include includes/Utilities.glsl
 
 #pragma PROGRAM_VERTEX
 
@@ -20,14 +26,17 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
     float4x4 viewproj;
 } named;
 
-layout(push_constant) uniform offset{ float4 offset_x; };
+layout(push_constant) uniform offset
+{ 
+    float4 offset_x; 
+    float4 unused_x;
+};
 
-layout(location = 0) in float3 in_POSITION;
-layout(location = 1) in float2 in_TEXCOORD0;
-layout(location = 2) in float3 in_COLOR;
-
-layout(location = 0) out float3 vs_COLOR;
-layout(location = 1) out float2 vs_TEXCOORD0;
+in float3 in_POSITION;
+in float2 in_TEXCOORD0;
+in float3 in_COLOR;
+out float3 vs_COLOR;
+out float2 vs_TEXCOORD0;
 
 void main()
 {
@@ -41,11 +50,11 @@ void main()
 
 layout(set = 3) uniform sampler2D tex1;
 
-layout(location = 0) in float3 vs_COLOR;
-layout(location = 1) in float2 vs_TEXCOORD0;
-layout(location = 0) out float4 outColor;
+in float3 vs_COLOR;
+in float2 vs_TEXCOORD0;
+out float4 outColor;
 
 void main()
 {
-    outColor = float4(tex2D(tex1, vs_TEXCOORD0).xyz * vs_COLOR, 1.0);
+    outColor = float4(tex2D(_AlbedoTex, vs_TEXCOORD0).xyz * tex2D(tex1, vs_TEXCOORD0).xyz * vs_COLOR * _Color.rgb, 1.0);
 }

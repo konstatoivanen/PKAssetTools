@@ -250,4 +250,31 @@ namespace PK::Assets::StringUtilities
         auto ptr = strrchr(str, c);
         return ptr == nullptr ? std::string::npos : (ptr - str);
     }
+
+    void ReplaceAll(std::string& str, const std::string& surroundMask, const std::string& from, const std::string& to)
+    {
+        if (from.empty())
+        {
+            return;
+        }
+
+        auto tl = to.length();
+        auto fl = from.length();
+        size_t pos = 0ull;
+        
+        while ((pos = str.find(from, pos)) != std::string::npos)
+        {
+            auto sl = str.length();
+
+            if ((pos > 0 && surroundMask.find(str[pos - 1]) != std::string::npos) ||
+                (pos + fl < sl && surroundMask.find(str[pos + fl]) != std::string::npos))
+            {
+                pos += fl;
+                continue;
+            }
+
+            str.replace(pos, fl, to);
+            pos += tl;
+        }
+    }
 }
