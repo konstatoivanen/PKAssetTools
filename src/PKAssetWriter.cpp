@@ -91,6 +91,10 @@ namespace PK::Assets
 
     PKAssetBuffer CompressBuffer(PKAssetBuffer src)
     {
+        // Write some padding to the end so that decompression wont reinterpret wrong bytes
+        uint_t padding = 0u;
+        src.Write(&padding, 1);
+
         auto* charData = src.data() + sizeof(PKAssetHeader);
         auto srcSize = src.size() - sizeof(PKAssetHeader);
 

@@ -332,8 +332,8 @@ namespace PK::Assets::Mesh
         
 		auto mesh = buffer.Allocate<PKMesh>();
 		
-		memcpy(bbmin, mesh.get()->bbmin, sizeof(bbmin));
-		memcpy(bbmax, mesh.get()->bbmax, sizeof(bbmax));
+		memcpy(mesh.get()->bbmin, bbmin, sizeof(bbmin));
+		memcpy(mesh.get()->bbmax, bbmax, sizeof(bbmax));
 
 		mesh.get()->indexType = indexType;
 		mesh.get()->submeshCount = (uint_t)submeshes.size();

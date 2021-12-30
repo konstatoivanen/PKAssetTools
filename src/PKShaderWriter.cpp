@@ -18,8 +18,17 @@ namespace PK::Assets::Shader
     struct ReflectBinding
     {
         uint_t firstStage = (int)PKShaderStage::MaxCount;
+        uint_t maxBinding = 0u;
+        uint_t count = 0u;
+        std::string name;
         const SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount]{};
         const SpvReflectDescriptorBinding* get() { return bindings[firstStage]; }
+    };
+
+    struct ReflectPushConstant
+    {
+        const SpvReflectBlockVariable* block = nullptr;
+        uint32_t stageFlags = 0u;
     };
 
     typedef std::vector<uint32_t> ShaderSpriV;
@@ -27,9 +36,9 @@ namespace PK::Assets::Shader
     struct ReflectionData
     {
         SpvReflectShaderModule modules[(int)PKShaderStage::MaxCount]{};
+        std::vector<ReflectBinding> sortedBindings;
         std::map<std::string, ReflectBinding> uniqueBindings;
-        std::map<std::string, const SpvReflectBlockVariable*> uniqueVariables;
-        std::map<std::string, uint32_t> variableStageFlags;
+        std::map<std::string, ReflectPushConstant> uniqueVariables;
         std::map<uint32_t, uint32_t> setStageFlags;
         uint32_t setCount = 0u;
     };
@@ -37,7 +46,7 @@ namespace PK::Assets::Shader
     constexpr const static char* Instancing_Base_GLSL =
         "#define PK_INSTANCING_ENABLED                                                                                                                  \n"
         "struct PK_Transform { mat4 localToWorld; mat4 worldToLocal; };                                                                                 \n"
-        "struct PK_Draw { uint material; uint transform; };                                                                                             \n"
+        "struct PK_Draw { uint material; uint transform; uint mesh; uint clipInfo; };                                                                   \n"
         "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { PK_Transform pk_Instancing_Transforms_Data[]; };             \n"
         "layout(std430, set = 3, binding = 101) readonly buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                        \n"
         "layout(std430, set = 3, binding = 102) readonly buffer pk_Instancing_Properties { PK_MaterialPropertyBlock pk_Instancing_Properties_Data[]; }; \n"
@@ -427,6 +436,11 @@ namespace PK::Assets::Shader
         StringUtilities::ReplaceAll(source, surroundMask, "ushort2", "u16vec2");
         StringUtilities::ReplaceAll(source, surroundMask, "ushort3", "u16vec3");
         StringUtilities::ReplaceAll(source, surroundMask, "ushort4", "u16vec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "fixed", "uint8_t");
+        StringUtilities::ReplaceAll(source, surroundMask, "fixed2", "u8vec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "fixed3", "u8vec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "fixed4", "i8vec4");
 
         StringUtilities::ReplaceAll(source, surroundMask, "int2", "ivec2");
         StringUtilities::ReplaceAll(source, surroundMask, "int3", "ivec3");
@@ -825,6 +839,7 @@ namespace PK::Assets::Shader
             InsertInstancingDefine(kv.second, kv.first, enableInstancing);
             ProcessShaderStageDefine(kv.first, kv.second);
             kv.second.insert(0, variantDefines);
+            InsertRequiredExtensions(kv.second);
             ProcessShaderVersion(kv.second);
         }
 
@@ -942,6 +957,9 @@ namespace PK::Assets::Shader
 
             auto& binding = reflection.uniqueBindings[name];
             binding.firstStage = binding.firstStage > (int)stage ? (int)stage : binding.firstStage;
+            binding.maxBinding = binding.maxBinding > releaseBinding->binding ? binding.maxBinding : releaseBinding->binding;
+            binding.name = name;
+            binding.count = desc->type_description->op == SpvOpTypeRuntimeArray ? PK::Assets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
             binding.bindings[(int)stage] = releaseBinding;
         }
     }
@@ -994,11 +1012,14 @@ namespace PK::Assets::Shader
         for (auto* block : blocks)
         {
             auto name = std::string(block->name);
-            reflection.variableStageFlags[name] |= 1 << (int)stage;
 
             if (reflection.uniqueVariables.count(name) <= 0)
             {
-                reflection.uniqueVariables[name] = spvReflectGetPushConstantBlock(module, i, nullptr);
+                reflection.uniqueVariables[name] = { spvReflectGetPushConstantBlock(module, i, nullptr), (1u << (uint_t)stage) };
+            }
+            else
+            {
+                reflection.uniqueVariables[name].stageFlags |= 1u << (uint_t)stage;
             }
 
             ++i;
@@ -1007,7 +1028,6 @@ namespace PK::Assets::Shader
 
     static void CompressBindIndices(ReflectionData& reflection)
     {
-        std::map<uint_t, uint_t> setCounters;
         std::map<uint_t, uint_t> setRemap;
         std::vector<SpvReflectDescriptorSet*> sets;
         auto setCount = 0u;
@@ -1045,18 +1065,35 @@ namespace PK::Assets::Shader
             }
         }
 
+        std::multimap<uint32_t, ReflectBinding> sortedBindingMap;
+
         for (auto& kv : reflection.uniqueBindings)
         {
-            auto desc = kv.second.get();
+            sortedBindingMap.insert(std::make_pair(kv.second.maxBinding, kv.second));
+        }
+        
+        reflection.sortedBindings.clear();
+
+        for (auto& kv : sortedBindingMap)
+        {
+            reflection.sortedBindings.push_back(kv.second);
+        }
+
+        uint_t* setCounters = reinterpret_cast<uint_t*>(alloca(sizeof(uint_t) * reflection.setCount));
+        memset(setCounters, 0, sizeof(uint_t) * reflection.setCount);
+
+        for (auto& binding : reflection.sortedBindings)
+        {
+            auto desc = binding.get();
             auto bindId = setCounters[desc->set];
             setCounters[desc->set]++;
             
             for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
             {
-                if (kv.second.bindings[i] != nullptr)
+                if (binding.bindings[i] != nullptr)
                 {
-                    auto currentId = kv.second.bindings[i]->binding;
-                    spvReflectChangeDescriptorBindingNumbers(&reflection.modules[i], kv.second.bindings[i], bindId, desc->set);
+                    auto currentId = binding.bindings[i]->binding;
+                    spvReflectChangeDescriptorBindingNumbers(&reflection.modules[i], binding.bindings[i], bindId, desc->set);
                 }
             }
         }
@@ -1090,7 +1127,6 @@ namespace PK::Assets::Shader
         ProcessInstancingProperties(source, materialProperties);
         ConvertHLSLTypesToGLSL(source);
         GetSharedInclude(source, sharedInclude);
-        InsertRequiredExtensions(sharedInclude);
 
         auto enableInstancing = materialProperties.size() > 0;
         shader.get()->keywordCount = (uint_t)keywords.size();
@@ -1184,9 +1220,9 @@ namespace PK::Assets::Shader
                 for (auto& kv : reflectionData.uniqueVariables)
                 {
                     WriteName(pConstantVariables[j].name, kv.first.c_str());
-                    pConstantVariables[j].offset = (unsigned short)kv.second->offset;
-                    pConstantVariables[j].stageFlags = reflectionData.variableStageFlags[kv.first];
-                    pConstantVariables[j++].size = kv.second->size;
+                    pConstantVariables[j].offset = (unsigned short)kv.second.block->offset;
+                    pConstantVariables[j].stageFlags = kv.second.stageFlags;
+                    pConstantVariables[j++].size = kv.second.block->size;
                 }
             }
 
@@ -1198,9 +1234,9 @@ namespace PK::Assets::Shader
 
                 std::map<uint_t, std::vector<PKDescriptor>> descriptors;
 
-                for (auto& kv : reflectionData.uniqueBindings)
+                for (auto& binding : reflectionData.sortedBindings)
                 {
-                    auto desc = kv.second.get();
+                    auto desc = binding.get();
 
                     if (desc->set >= PK_ASSET_MAX_DESCRIPTOR_SETS)
                     {
@@ -1209,10 +1245,9 @@ namespace PK::Assets::Shader
                     }
     
                     PKDescriptor descriptor{};
-                    descriptor.binding = desc->binding;
-                    descriptor.count = desc->count;
+                    descriptor.count = binding.count;
                     descriptor.type = GetResourceType(desc->descriptor_type);
-                    WriteName(descriptor.name, kv.first.c_str());
+                    WriteName(descriptor.name, binding.name.c_str());
                     descriptors[desc->set].push_back(descriptor);
                 }
 
