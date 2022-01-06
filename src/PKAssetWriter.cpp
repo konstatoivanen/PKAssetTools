@@ -92,6 +92,7 @@ namespace PK::Assets
     PKAssetBuffer CompressBuffer(PKAssetBuffer src)
     {
         // Write some padding to the end so that decompression wont reinterpret wrong bytes
+        // @TODO there is something wrong going on here as this should be unecessary. Investigate later.
         uint_t padding = 0u;
         src.Write(&padding, 1);
 
@@ -142,7 +143,7 @@ namespace PK::Assets
         }
 
         *binSize.get() = binLength;
-        auto pData = buffer.Allocate<char>(binLength / 8 + 1);
+        auto pData = buffer.Allocate<char>((binLength + 7) / 8);
         auto pHead = reinterpret_cast<char*>(pData.get());
 
         for (auto i = 0ull, b = 0ull; i < srcSize; ++i)
@@ -153,9 +154,7 @@ namespace PK::Assets
             {
                 if (k.sequence & (1ull << j))
                 {
-                    auto ch = b / 8;
-                    auto co = b - (ch * 8);
-                    pHead[ch] |= 1 << co;
+                    pHead[b / 8] |= 1 << (b % 8);
                 }
             }
         }

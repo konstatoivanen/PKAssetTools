@@ -28,6 +28,47 @@ static std::string ProcessPath(const std::string& path)
     return outpath;
 }
 
+void GetLastWriteTimeRecursive(const std::filesystem::path& dir, std::filesystem::file_time_type& lastTime)
+{
+    for (const auto& entry : std::filesystem::directory_iterator(dir))
+    {
+        auto& entryPath = entry.path();
+
+        if (!entryPath.has_extension())
+        {
+            GetLastWriteTimeRecursive(entryPath, lastTime);
+            continue;
+        }
+
+        auto time = std::filesystem::last_write_time(entryPath);
+    
+        if (time > lastTime)
+        {
+            lastTime = time;
+        }
+    }
+}
+
+bool RequiresUpdate(const std::filesystem::path& src, const::std::filesystem::path& dst)
+{
+    if (!std::filesystem::exists(dst))
+    {
+        return true;
+    }
+
+    auto srctime = std::filesystem::file_time_type::min();
+    auto dsttime = std::filesystem::file_time_type::min();
+    GetLastWriteTimeRecursive(src, srctime);
+    GetLastWriteTimeRecursive(dst, dsttime);
+
+    if (srctime > dsttime)
+    {
+        return true;
+    }
+
+    return false;
+}
+
 void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::path& subdir, const std::string& dstdir)
 {
     for (const auto& entry : std::filesystem::directory_iterator(subdir))
@@ -75,7 +116,7 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
 
 int main(int argc, char** argv)
 {
-    if (argc < 3)
+    if (argc < 2 || argc > 3)
     {
         printf("Invalid number of arguments. current: %i \n", argc);
         
@@ -87,8 +128,10 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    auto srcdir = ProcessPath(argv[1]);
-    auto dstdir = ProcessPath(argv[2]);
+    // Three arguments usually means that the working directory is included as the first argument.
+    auto offs = argc == 3 ? 1 : 0;
+    auto srcdir = ProcessPath(argv[offs + 0]);
+    auto dstdir = ProcessPath(argv[offs + 1]);
 
     printf("Processing assets from: %s \n", srcdir.c_str());
     printf("to: %s \n", dstdir.c_str());
@@ -96,6 +139,11 @@ int main(int argc, char** argv)
     if (!std::filesystem::exists(srcdir))
     {
         printf("Source directory not found: %s \n", srcdir.c_str());
+        return 0;
+    }
+
+    if (!RequiresUpdate(srcdir, dstdir))
+    {
         return 0;
     }
 

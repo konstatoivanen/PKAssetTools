@@ -43,24 +43,38 @@ namespace PK::Assets::Shader
         uint32_t setCount = 0u;
     };
 
+    constexpr const static char* Instancing_Standalone_GLSL =
+        "#define PK_INSTANCING_ENABLED                                                                                                                  \n"
+        "struct PK_Draw { uint material; uint transform; uint mesh; uint clipInfo; };                                                                   \n"
+        "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { mat4 pk_Instancing_Transforms_Data[]; };                     \n"
+        "layout(std430, set = 3, binding = 101) readonly buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                        \n"
+        "mat4 pk_MATRIX_M;                                                                                                                              \n"
+        "#define pk_MATRIX_I_M inverse(pk_MATRIX_M)                                                                                                     \n"
+        "uint pk_Instancing_ClipInfo;                                                                                                                   \n"
+        "void PK_INSTANCING_ASSIGN_LOCALS(uint index)                                                                                                   \n"
+        "{                                                                                                                                              \n"
+        "    PK_Draw draw = pk_Instancing_Indices_Data[index];                                                                                          \n"
+        "    pk_MATRIX_M = pk_Instancing_Transforms_Data[draw.transform];                                                                               \n"
+        "    pk_Instancing_ClipInfo = draw.clipInfo;                                                                                                    \n"
+        "}                                                                                                                                              \n";
+
     constexpr const static char* Instancing_Base_GLSL =
         "#define PK_INSTANCING_ENABLED                                                                                                                  \n"
-        "struct PK_Transform { mat4 localToWorld; mat4 worldToLocal; };                                                                                 \n"
         "struct PK_Draw { uint material; uint transform; uint mesh; uint clipInfo; };                                                                   \n"
-        "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { PK_Transform pk_Instancing_Transforms_Data[]; };             \n"
+        "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { mat4 pk_Instancing_Transforms_Data[]; };                     \n"
         "layout(std430, set = 3, binding = 101) readonly buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                        \n"
         "layout(std430, set = 3, binding = 102) readonly buffer pk_Instancing_Properties { PK_MaterialPropertyBlock pk_Instancing_Properties_Data[]; }; \n"
         "layout(set = 3, binding = 103) uniform sampler2D pk_Instancing_Textures2D[];                                                                   \n"
         "layout(set = 3, binding = 104) uniform sampler3D pk_Instancing_Textures3D[];                                                                   \n"
         "layout(set = 3, binding = 105) uniform samplerCube pk_Instancing_TexturesCube[];                                                               \n"
         "mat4 pk_MATRIX_M;                                                                                                                              \n"
-        "mat4 pk_MATRIX_I_M;                                                                                                                            \n"
+        "#define pk_MATRIX_I_M inverse(pk_MATRIX_M)                                                                                                     \n"
+        "uint pk_Instancing_ClipInfo;                                                                                                                   \n"
         "void PK_INSTANCING_ASSIGN_LOCALS(uint index)                                                                                                   \n"
         "{                                                                                                                                              \n"
         "    PK_Draw draw = pk_Instancing_Indices_Data[index];                                                                                          \n"
-        "    PK_Transform transform = pk_Instancing_Transforms_Data[draw.transform];                                                                    \n"
-        "    pk_MATRIX_M = transform.localToWorld;                                                                                                      \n"
-        "    pk_MATRIX_I_M = transform.worldToLocal;                                                                                                    \n"
+        "    pk_MATRIX_M = pk_Instancing_Transforms_Data[draw.transform];                                                                               \n"
+        "    pk_Instancing_ClipInfo = draw.clipInfo;                                                                                                    \n"
         "    PK_MaterialPropertyBlock prop = pk_Instancing_Properties_Data[draw.material];                                                              \n";
 
     constexpr const static char* Instancing_Stage_GLSL = "PK_INSTANCING_ASSIGN_STAGE_LOCALS \n";
@@ -590,8 +604,9 @@ namespace PK::Assets::Shader
         attributes->cull = GetCullModeFromString(StringUtilities::Trim(valueCull));
     }
 
-    static void ProcessInstancingProperties(std::string& source, std::vector<PKMaterialProperty>& materialProperties)
+    static void ProcessInstancingProperties(std::string& source, std::vector<PKMaterialProperty>& materialProperties, bool* enableInstancing)
     {
+        *enableInstancing = false;
         std::string output;
         size_t pos = 0;
 
@@ -628,6 +643,14 @@ namespace PK::Assets::Shader
 
         if (materialProperties.size() == 0)
         {
+            auto standaloneToken = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_INSTANCING_PROP, source, true);
+            
+            if (!standaloneToken.empty())
+            {
+                source.insert(0, Instancing_Standalone_GLSL);
+                *enableInstancing = true;
+            }
+
             return;
         }
 
@@ -704,12 +727,14 @@ namespace PK::Assets::Shader
         }
 
         source.insert(0, block);
+        *enableInstancing = true;
     }
 
     static void InsertRequiredExtensions(std::string& source)
     {
         source.insert(0, "#extension GL_EXT_shader_explicit_arithmetic_types : require \n");
         source.insert(0, "#extension GL_EXT_nonuniform_qualifier : require \n");
+        source.insert(0, "#extension GL_ARB_shader_viewport_layer_array : require \n");
     }
 
     static void InsertInstancingDefine(std::string& source, PKShaderStage stage, bool enableInstancing)
@@ -727,10 +752,16 @@ namespace PK::Assets::Shader
         }
 
         auto pos = source.find("main()");
-        pos = source.find('{', pos);
-        auto eol = source.find_first_of("\r\n", pos);
-        auto nextLinePos = source.find_first_not_of("\r\n", eol);
-        source.insert(nextLinePos, Instancing_Stage_GLSL);
+
+        // Source might contain multiple mains
+        while (pos != std::string::npos)
+        {
+            pos = source.find('{', pos);
+            auto eol = source.find_first_of("\r\n", pos);
+            auto nextLinePos = source.find_first_not_of("\r\n", eol);
+            source.insert(nextLinePos, Instancing_Stage_GLSL);
+            pos = source.find("main()", nextLinePos);
+        }
     }
 
     static void GetSharedInclude(const std::string& source, std::string& sharedInclude)
@@ -852,18 +883,20 @@ namespace PK::Assets::Shader
 
         switch (stage)
         {
-            case PKShaderStage::Vertex: kind = shaderc_shader_kind::shaderc_vertex_shader; break;
-            case PKShaderStage::TesselationControl: kind = shaderc_shader_kind::shaderc_tess_control_shader; break;
-            case PKShaderStage::TesselationEvaluation: kind = shaderc_shader_kind::shaderc_tess_evaluation_shader; break;
-            case PKShaderStage::Geometry: kind = shaderc_shader_kind::shaderc_geometry_shader; break;
-            case PKShaderStage::Fragment: kind = shaderc_shader_kind::shaderc_fragment_shader; break;
-            case PKShaderStage::Compute: kind = shaderc_shader_kind::shaderc_compute_shader; break;
+            case PKShaderStage::Vertex: kind = shaderc_vertex_shader; break;
+            case PKShaderStage::TesselationControl: kind = shaderc_tess_control_shader; break;
+            case PKShaderStage::TesselationEvaluation: kind = shaderc_tess_evaluation_shader; break;
+            case PKShaderStage::Geometry: kind = shaderc_geometry_shader; break;
+            case PKShaderStage::Fragment: kind = shaderc_fragment_shader; break;
+            case PKShaderStage::Compute: kind = shaderc_compute_shader; break;
         }
 
         shaderc::CompileOptions options;
 
         options.SetAutoBindUniforms(true);
         options.SetAutoMapLocations(true);
+        options.SetTargetEnvironment(shaderc_target_env_default, shaderc_env_version_vulkan_1_2);
+        options.SetTargetSpirv(shaderc_spirv_version_1_5);
 
         auto module = compiler.CompileGlslToSpv(source, kind, source_name.c_str(), options);
         auto status = module.GetCompilationStatus();
@@ -874,7 +907,7 @@ namespace PK::Assets::Shader
             printf("\n ----------BEGIN SOURCE---------- \n");
 
             std::istringstream iss(source);
-            auto index = 0u;
+            auto index = -1;
 
             for (std::string line; std::getline(iss, line); )
             {
@@ -1120,15 +1153,15 @@ namespace PK::Assets::Shader
         std::vector<PKShaderKeyword> keywords;
         std::vector<PKMaterialProperty> materialProperties;
         std::unordered_map<PKShaderStage, std::string> shaderSources;
+        auto enableInstancing = false;
 
         ReadFile(pathSrc, source);
         ExtractMulticompiles(source, mckeywords, keywords, &shader.get()->variantcount, &directiveCount);
         ExtractStateAttributes(source, &shader.get()->attributes);
-        ProcessInstancingProperties(source, materialProperties);
+        ProcessInstancingProperties(source, materialProperties, &enableInstancing);
         ConvertHLSLTypesToGLSL(source);
         GetSharedInclude(source, sharedInclude);
 
-        auto enableInstancing = materialProperties.size() > 0;
         shader.get()->keywordCount = (uint_t)keywords.size();
         shader.get()->materialPropertyCount = (uint_t)materialProperties.size();
         
