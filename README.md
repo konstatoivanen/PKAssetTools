@@ -1,16 +1,27 @@
 # PKAsset
 A repository of build tools used to cook assets for use in PKRenderer.
 
+## Features
+- GLSL To spriv compilation.
+- .obj to custom binary mesh format conversion.
+- Lossless file compression (Huffman encoding).
+
 ## Shader Format
-Converts glsl shader files to binary spirv files (**.pkshader**) along with vertex attribute & descriptor information.
+- Converts glsl shader files to **.pkshader** files.
+- Supports multiple compilation (in source glsl: #multi_compile VARIANT0 VARIANT1).
+- The following attributes are parsed & stored from the source glsl:
+	- Vertex attributes.
+	- Descriptor sets.
+	- Material property layout.
+	- Rasterization parameters (blend mode, cull face, depth test mode, etc.).
+	- multi compile keyword map.
 
 ## Mesh Format
-Converts .obj files to binary files (**.pkmesh**) containing interleaved vertex data, index buffer & vertex buffer attributes.
+- Converts .obj files to binary files (**.pkmesh**) containing interleaved vertex data, index buffer & vertex buffer attributes.
 
 ## Planned Features
 - Utilize [meshoptimizer](https://github.com/zeux/meshoptimizer) to optimize mesh data for rendering.
 - Add support for gltf conversion.
-- Implement lossless compression for output formats.
 - Implement some form of asset packaging.
 
 ## Dependencies
