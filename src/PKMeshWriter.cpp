@@ -204,7 +204,7 @@ namespace PK::Assets::Mesh
 		Buffer vertexBuffer;
 		std::map<IndexSet, uint_t> indexmap;
 		std::vector<uint_t> indices;
-		std::vector<PKIndexRange> submeshes;
+		std::vector<PKSubmesh> submeshes;
 		std::vector<PKVertexAttribute> attributes;
 
 		PKVertexAttribute attribute;
@@ -246,9 +246,6 @@ namespace PK::Assets::Mesh
 		}
 
 		float float4_zero[4]{};
-		float bbmax[3]{}, bbmin[3]{};
-		bbmax[0] = bbmax[1] = bbmax[2] = -std::numeric_limits<float>().max();
-		bbmin[0] = bbmin[1] = bbmin[2] =  std::numeric_limits<float>().max();
 
 		auto invertices = attrib.vertices.data();
 		auto innormals = attrib.normals.data();
@@ -260,7 +257,11 @@ namespace PK::Assets::Mesh
 		{
 			auto& tris = shapes.at(i).mesh.indices;
 			auto tcount = (uint_t)tris.size();
-			submeshes.push_back({ (uint_t)indices.size(), tcount });
+			PKSubmesh submesh{};
+			submesh.firstIndex = (uint_t)indices.size();
+			submesh.indexCount = tcount;
+			submesh.bbmax[0] = submesh.bbmax[1] = submesh.bbmax[2] = -std::numeric_limits<float>().max();
+			submesh.bbmin[0] = submesh.bbmin[1] = submesh.bbmin[2] = std::numeric_limits<float>().max();
 
 			for (uint_t j = 0; j < tcount; ++j)
 			{
@@ -301,17 +302,19 @@ namespace PK::Assets::Mesh
 
 				for (auto k = 0; k < 3; ++k)
 				{
-					if (bbmax[k] < pos[k])
+					if (submesh.bbmax[k] < pos[k])
 					{
-						bbmax[k] = pos[k];
+						submesh.bbmax[k] = pos[k];
 					}
 
-					if (bbmin[k] > pos[k])
+					if (submesh.bbmin[k] > pos[k])
 					{
-						bbmin[k] = pos[k];
+						submesh.bbmin[k] = pos[k];
 					}
 				}
 			}
+
+			submeshes.push_back(submesh);
 		}
 
 		auto vcount = (uint_t)(vertexBuffer.size() / stride);
@@ -331,9 +334,6 @@ namespace PK::Assets::Mesh
         WriteName(buffer.header.get()->name, filename.c_str());
         
 		auto mesh = buffer.Allocate<PKMesh>();
-		
-		memcpy(mesh.get()->bbmin, bbmin, sizeof(bbmin));
-		memcpy(mesh.get()->bbmax, bbmax, sizeof(bbmax));
 
 		mesh.get()->indexType = indexType;
 		mesh.get()->submeshCount = (uint_t)submeshes.size();
