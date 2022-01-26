@@ -6,6 +6,7 @@
 #include <map>
 #include <mikktspace/mikktspace.h>
 #include <tinyobjloader/tiny_obj_loader.h>
+#include <meshoptimizer/meshoptimizer.h>
 
 namespace PK::Assets::Mesh
 {
@@ -168,6 +169,27 @@ namespace PK::Assets::Mesh
 		}
 	};
 
+	void OptimizeMesh(Buffer& vertices, size_t stride, std::vector<uint_t>& indices, const std::vector<PKSubmesh>& submeshes)
+	{
+		auto vcount = vertices.size() / stride;
+
+		std::vector<uint_t> remap(indices.size());
+		size_t total_vertices = meshopt_generateVertexRemap(&remap[0], indices.data(), indices.size(), vertices.data(), vcount, stride);
+		meshopt_remapIndexBuffer(indices.data(), indices.data(), indices.size(), &remap[0]);
+		meshopt_remapVertexBuffer(vertices.data(), vertices.data(), vcount, stride, &remap[0]);
+
+		for (const auto& sm : submeshes)
+		{
+			auto pSmIndices = &indices[sm.firstIndex];
+			meshopt_optimizeVertexCache(pSmIndices, pSmIndices, sm.indexCount, total_vertices);
+		
+			// Assumes that positions are the first attribute in a vertex.
+			meshopt_optimizeOverdraw(pSmIndices, pSmIndices, sm.indexCount, reinterpret_cast<float*>(vertices.data()), total_vertices, stride, 1.05f);
+		}
+		
+		meshopt_optimizeVertexFetch(vertices.data(), indices.data(), indices.size(), vertices.data(), total_vertices, stride);
+	}
+
     int WriteMesh(const char* pathSrc, const char* pathDst)
     {
         auto filename = StringUtilities::ReadFileName(pathSrc);
@@ -275,7 +297,7 @@ namespace PK::Assets::Mesh
 					indices.push_back(iter->second);
 					continue;
 				}
-				
+
 				indices.push_back(index);
 				indexmap[triKey] = index++;
 
@@ -316,6 +338,8 @@ namespace PK::Assets::Mesh
 
 			submeshes.push_back(submesh);
 		}
+
+		OptimizeMesh(vertexBuffer, stride, indices, submeshes);
 
 		auto vcount = (uint_t)(vertexBuffer.size() / stride);
 		auto ushortmax = std::numeric_limits<unsigned short>().max();

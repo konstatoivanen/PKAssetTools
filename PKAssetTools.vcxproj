@@ -167,6 +167,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="include\meshoptimizer\meshoptimizer.h" />
     <ClInclude Include="include\mikktspace\mikktspace.h" />
     <ClInclude Include="include\PKAssets\PKAsset.h" />
     <ClInclude Include="include\PKAssets\PKAssetLoader.h" />
@@ -184,6 +185,21 @@
     <ClInclude Include="src\PKStringUtilities.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="include\meshoptimizer\allocator.cpp" />
+    <ClCompile Include="include\meshoptimizer\clusterizer.cpp" />
+    <ClCompile Include="include\meshoptimizer\indexcodec.cpp" />
+    <ClCompile Include="include\meshoptimizer\indexgenerator.cpp" />
+    <ClCompile Include="include\meshoptimizer\overdrawanalyzer.cpp" />
+    <ClCompile Include="include\meshoptimizer\overdrawoptimizer.cpp" />
+    <ClCompile Include="include\meshoptimizer\simplifier.cpp" />
+    <ClCompile Include="include\meshoptimizer\spatialorder.cpp" />
+    <ClCompile Include="include\meshoptimizer\stripifier.cpp" />
+    <ClCompile Include="include\meshoptimizer\vcacheanalyzer.cpp" />
+    <ClCompile Include="include\meshoptimizer\vcacheoptimizer.cpp" />
+    <ClCompile Include="include\meshoptimizer\vertexcodec.cpp" />
+    <ClCompile Include="include\meshoptimizer\vertexfilter.cpp" />
+    <ClCompile Include="include\meshoptimizer\vfetchanalyzer.cpp" />
+    <ClCompile Include="include\meshoptimizer\vfetchoptimizer.cpp" />
     <ClCompile Include="include\mikktspace\mikktspace.c" />
     <ClCompile Include="include\PKAssets\PKAsset.cpp" />
     <ClCompile Include="include\PKAssets\PKAssetLoader.cpp" />

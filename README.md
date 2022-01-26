@@ -18,15 +18,16 @@ A repository of build tools used to cook assets for use in PKRenderer.
 
 ## Mesh Format
 - Converts .obj files to binary files (**.pkmesh**) containing interleaved vertex data, index buffer & vertex buffer attributes.
+- Optimizes output vertex & index buffers using zeux meshoptimizer.
 
 ## Planned Features
-- Utilize [meshoptimizer](https://github.com/zeux/meshoptimizer) to optimize mesh data for rendering.
 - Add support for gltf conversion.
 - Implement some form of asset packaging.
 
 ## Dependencies
 - C++ 17 support required
 - [mikktspace](http://www.mikktspace.com/)
+- [meshoptimizer](https://github.com/zeux/meshoptimizer)
 - [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader)
 - [SPIRV-Reflect](https://github.com/KhronosGroup/SPIRV-Reflect)
 - [shaderc](https://github.com/google/shaderc)
