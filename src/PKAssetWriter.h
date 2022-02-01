@@ -8,9 +8,9 @@ namespace PK::Assets
     struct WritePtr
     {
         std::vector<char>* buffer;
-        uint_t offset;
+        uint32_t offset;
 
-        WritePtr(std::vector<char>* _buffer, uint_t _offset)
+        WritePtr(std::vector<char>* _buffer, uint32_t _offset)
         {
             buffer = _buffer;
             offset = _offset;
@@ -36,7 +36,7 @@ namespace PK::Assets
         {
             auto offs = size();
             resize(offs + sizeof(T) * count);
-            return WritePtr<T>(this, (uint_t)offs);
+            return WritePtr<T>(this, (uint32_t)offs);
         }
 
         template<typename T>

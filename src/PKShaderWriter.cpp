@@ -17,9 +17,9 @@ namespace PK::Assets::Shader
 
     struct ReflectBinding
     {
-        uint_t firstStage = (int)PKShaderStage::MaxCount;
-        uint_t maxBinding = 0u;
-        uint_t count = 0u;
+        uint32_t firstStage = (uint32_t)PKShaderStage::MaxCount;
+        uint32_t maxBinding = 0u;
+        uint32_t count = 0u;
         std::string name;
         const SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount]{};
         const SpvReflectDescriptorBinding* get() { return bindings[firstStage]; }
@@ -307,14 +307,14 @@ namespace PK::Assets::Shader
         return PKBlendOp::None;
     }
 
-    static unsigned short GetColorMaskFromString(const std::string& colorMask)
+    static uint16_t GetColorMaskFromString(const std::string& colorMask)
     {
         if (colorMask.empty())
         {
             return 255;
         }
 
-        unsigned short mask = 0;
+        uint16_t mask = 0;
 
         if (colorMask.find('R') != std::string::npos)
         {
@@ -490,8 +490,8 @@ namespace PK::Assets::Shader
     static void ExtractMulticompiles(std::string& source, 
                                      std::vector<std::vector<std::string>>& keywords, 
                                      std::vector<PKShaderKeyword>& outKeywords, 
-                                     uint_t* outVariantCount, 
-                                     uint_t* outDirectiveCount)
+                                     uint32_t* outVariantCount, 
+                                     uint32_t* outDirectiveCount)
     {
         std::string output;
         size_t pos = 0;
@@ -516,7 +516,7 @@ namespace PK::Assets::Shader
                 if (keyword != "_")
                 {
                     PKShaderKeyword pkkw{};
-                    pkkw.offsets = (uint_t)((((dcount << 4) | (i & 0xF)) << 24) | (vcount & 0xFFFFFF));
+                    pkkw.offsets = (uint32_t)((((dcount << 4) | (i & 0xF)) << 24) | (vcount & 0xFFFFFF));
                     WriteName(pkkw.name, keyword.c_str());
                     outKeywords.push_back(pkkw);
                 }
@@ -527,8 +527,8 @@ namespace PK::Assets::Shader
             vcount *= directive.size();
         }
 
-        *outDirectiveCount = (uint_t)dcount;
-        *outVariantCount = (uint_t)vcount;
+        *outDirectiveCount = (uint32_t)dcount;
+        *outVariantCount = (uint32_t)vcount;
     }
 
     static void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes)
@@ -1048,11 +1048,11 @@ namespace PK::Assets::Shader
 
             if (reflection.uniqueVariables.count(name) <= 0)
             {
-                reflection.uniqueVariables[name] = { spvReflectGetPushConstantBlock(module, i, nullptr), (1u << (uint_t)stage) };
+                reflection.uniqueVariables[name] = { spvReflectGetPushConstantBlock(module, i, nullptr), (1u << (uint32_t)stage) };
             }
             else
             {
-                reflection.uniqueVariables[name].stageFlags |= 1u << (uint_t)stage;
+                reflection.uniqueVariables[name].stageFlags |= 1u << (uint32_t)stage;
             }
 
             ++i;
@@ -1061,7 +1061,7 @@ namespace PK::Assets::Shader
 
     static void CompressBindIndices(ReflectionData& reflection)
     {
-        std::map<uint_t, uint_t> setRemap;
+        std::map<uint32_t, uint32_t> setRemap;
         std::vector<SpvReflectDescriptorSet*> sets;
         auto setCount = 0u;
         auto setIndex = 0u;
@@ -1112,8 +1112,8 @@ namespace PK::Assets::Shader
             reflection.sortedBindings.push_back(kv.second);
         }
 
-        uint_t* setCounters = reinterpret_cast<uint_t*>(alloca(sizeof(uint_t) * reflection.setCount));
-        memset(setCounters, 0, sizeof(uint_t) * reflection.setCount);
+        uint32_t* setCounters = reinterpret_cast<uint32_t*>(alloca(sizeof(uint32_t) * reflection.setCount));
+        memset(setCounters, 0, sizeof(uint32_t) * reflection.setCount);
 
         for (auto& binding : reflection.sortedBindings)
         {
@@ -1145,7 +1145,7 @@ namespace PK::Assets::Shader
         auto shader = buffer.Allocate<PKShader>();
 
         ShaderCompiler compiler;
-        uint_t directiveCount;
+        uint32_t directiveCount;
         std::string source;
         std::string sharedInclude;
         std::string variantDefines;
@@ -1162,8 +1162,8 @@ namespace PK::Assets::Shader
         ConvertHLSLTypesToGLSL(source);
         GetSharedInclude(source, sharedInclude);
 
-        shader.get()->keywordCount = (uint_t)keywords.size();
-        shader.get()->materialPropertyCount = (uint_t)materialProperties.size();
+        shader.get()->keywordCount = (uint32_t)keywords.size();
+        shader.get()->materialPropertyCount = (uint32_t)materialProperties.size();
         
         if (keywords.size() > 0)
         {
@@ -1245,7 +1245,7 @@ namespace PK::Assets::Shader
 
             if (reflectionData.uniqueVariables.size() > 0)
             {
-                pVariants[i].constantVariableCount = (uint_t)reflectionData.uniqueVariables.size();
+                pVariants[i].constantVariableCount = (uint32_t)reflectionData.uniqueVariables.size();
                 auto pConstantVariables = buffer.Allocate<PKConstantVariable>(reflectionData.uniqueVariables.size());
                 pVariants[i].constantVariables.Set(buffer.data(), pConstantVariables);
 
@@ -1265,7 +1265,7 @@ namespace PK::Assets::Shader
                 auto pDescriptorSets = buffer.Allocate<PKDescriptorSet>(reflectionData.setCount);
                 pVariants[i].descriptorSets.Set(buffer.data(), pDescriptorSets);
 
-                std::map<uint_t, std::vector<PKDescriptor>> descriptors;
+                std::map<uint32_t, std::vector<PKDescriptor>> descriptors;
 
                 for (auto& binding : reflectionData.sortedBindings)
                 {
@@ -1286,7 +1286,7 @@ namespace PK::Assets::Shader
 
                 for (auto& kv : descriptors)
                 {
-                    pDescriptorSets[kv.first].descriptorCount = (uint_t)kv.second.size();
+                    pDescriptorSets[kv.first].descriptorCount = (uint32_t)kv.second.size();
                     pDescriptorSets[kv.first].stageflags = reflectionData.setStageFlags[kv.first];
                     auto pDescriptors = buffer.Write(kv.second.data(), kv.second.size());
                     pDescriptorSets[kv.first].descriptors.Set(buffer.data(), pDescriptors);

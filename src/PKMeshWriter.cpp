@@ -15,14 +15,14 @@ namespace PK::Assets::Mesh
 		struct PKMeshData
 		{
 			float* vertices = nullptr;
-			unsigned int stride = 0;
-			unsigned int vertexOffset = 0;
-			unsigned int normalOffset = 0;
-			unsigned int tangentOffset = 0;
-			unsigned int texcoordOffset = 0;
-			const unsigned int* indices = nullptr;
-			unsigned int vcount = 0;
-			unsigned int icount = 0;
+			uint32_t stride = 0;
+			uint32_t vertexOffset = 0;
+			uint32_t normalOffset = 0;
+			uint32_t tangentOffset = 0;
+			uint32_t texcoordOffset = 0;
+			const uint32_t* indices = nullptr;
+			uint32_t vcount = 0;
+			uint32_t icount = 0;
 		};
 
 		// Returns the number of faces (triangles/quads) on the mesh to be processed.
@@ -92,14 +92,14 @@ namespace PK::Assets::Mesh
 	}
 
 	int CalculateTangents(void* vertices, 
-						  uint_t stride, 
-					      uint_t vertexOffset, 
-						  uint_t normalOffset, 
-						  uint_t tangentOffset, 
-						  uint_t texcoordOffset, 
-						  const uint_t* indices, 
-						  uint_t vcount, 
-						  uint_t icount)
+						  uint32_t stride, 
+					      uint32_t vertexOffset, 
+						  uint32_t normalOffset, 
+						  uint32_t tangentOffset, 
+						  uint32_t texcoordOffset, 
+						  const uint32_t* indices, 
+						  uint32_t vcount, 
+						  uint32_t icount)
 	{
 		MikktsInterface1::PKMeshData data;
 		data.vertices = reinterpret_cast<float*>(vertices);
@@ -142,7 +142,7 @@ namespace PK::Assets::Mesh
 		size_t head = 0;
 		
 		template<typename T>
-		void append(const T* src, uint_t count)
+		void append(const T* src, uint32_t count)
 		{
 			auto s = sizeof(T) * count;
 			auto nh = head + s;
@@ -159,9 +159,9 @@ namespace PK::Assets::Mesh
 
 	struct IndexSet
 	{
-		uint_t position = 0u;
-		uint_t normal = 0u;
-		uint_t uv = 0u;
+		uint32_t position = 0u;
+		uint32_t normal = 0u;
+		uint32_t uv = 0u;
 
 		inline bool operator < (const IndexSet& r) const noexcept
 		{
@@ -169,11 +169,11 @@ namespace PK::Assets::Mesh
 		}
 	};
 
-	void OptimizeMesh(Buffer& vertices, size_t stride, std::vector<uint_t>& indices, const std::vector<PKSubmesh>& submeshes)
+	void OptimizeMesh(Buffer& vertices, size_t stride, std::vector<uint32_t>& indices, const std::vector<PKSubmesh>& submeshes)
 	{
 		auto vcount = vertices.size() / stride;
 
-		std::vector<uint_t> remap(indices.size());
+		std::vector<uint32_t> remap(indices.size());
 		size_t total_vertices = meshopt_generateVertexRemap(&remap[0], indices.data(), indices.size(), vertices.data(), vcount, stride);
 		meshopt_remapIndexBuffer(indices.data(), indices.data(), indices.size(), &remap[0]);
 		meshopt_remapVertexBuffer(vertices.data(), vertices.data(), vcount, stride, &remap[0]);
@@ -224,8 +224,8 @@ namespace PK::Assets::Mesh
 		auto hasUvs = !attrib.texcoords.empty();
 
 		Buffer vertexBuffer;
-		std::map<IndexSet, uint_t> indexmap;
-		std::vector<uint_t> indices;
+		std::map<IndexSet, uint32_t> indexmap;
+		std::vector<uint32_t> indices;
 		std::vector<PKSubmesh> submeshes;
 		std::vector<PKVertexAttribute> attributes;
 
@@ -278,17 +278,17 @@ namespace PK::Assets::Mesh
 		for (size_t i = 0; i < shapes.size(); ++i)
 		{
 			auto& tris = shapes.at(i).mesh.indices;
-			auto tcount = (uint_t)tris.size();
+			auto tcount = (uint32_t)tris.size();
 			PKSubmesh submesh{};
-			submesh.firstIndex = (uint_t)indices.size();
+			submesh.firstIndex = (uint32_t)indices.size();
 			submesh.indexCount = tcount;
 			submesh.bbmax[0] = submesh.bbmax[1] = submesh.bbmax[2] = -std::numeric_limits<float>().max();
 			submesh.bbmin[0] = submesh.bbmin[1] = submesh.bbmin[2] = std::numeric_limits<float>().max();
 
-			for (uint_t j = 0; j < tcount; ++j)
+			for (uint32_t j = 0; j < tcount; ++j)
 			{
 				auto& tri = tris.at(j);
-				IndexSet triKey = { (uint_t)tri.vertex_index, (uint_t)tri.normal_index, (uint_t)tri.texcoord_index };
+				IndexSet triKey = { (uint32_t)tri.vertex_index, (uint32_t)tri.normal_index, (uint32_t)tri.texcoord_index };
 				
 				auto iter = indexmap.find(triKey);
 				
@@ -341,16 +341,16 @@ namespace PK::Assets::Mesh
 
 		OptimizeMesh(vertexBuffer, stride, indices, submeshes);
 
-		auto vcount = (uint_t)(vertexBuffer.size() / stride);
+		auto vcount = (uint32_t)(vertexBuffer.size() / stride);
 		auto ushortmax = std::numeric_limits<unsigned short>().max();
 		auto indexType = vcount > ushortmax ? PKElementType::Uint : PKElementType::Ushort;
-		auto indexSize = indexType == PKElementType::Uint ? sizeof(uint_t) : sizeof(unsigned short);
+		auto indexSize = indexType == PKElementType::Uint ? sizeof(uint32_t) : sizeof(unsigned short);
 
 		if (hasNormals && hasUvs)
 		{
 			auto vfloats = reinterpret_cast<float*>(vertexBuffer.data());
-			auto fstride = (uint_t)(stride / sizeof(float));
-			CalculateTangents(vfloats, fstride, 0, 3, 6, 10, indices.data(), vcount, (uint_t)indices.size());
+			auto fstride = (uint32_t)(stride / sizeof(float));
+			CalculateTangents(vfloats, fstride, 0, 3, 6, 10, indices.data(), vcount, (uint32_t)indices.size());
 		}
 
 		auto buffer = PKAssetBuffer();
@@ -360,10 +360,10 @@ namespace PK::Assets::Mesh
 		auto mesh = buffer.Allocate<PKMesh>();
 
 		mesh.get()->indexType = indexType;
-		mesh.get()->submeshCount = (uint_t)submeshes.size();
-		mesh.get()->vertexAttributeCount = (uint_t)attributes.size();
-		mesh.get()->vertexCount = (uint_t)(vertexBuffer.size() / stride);
-		mesh.get()->indexCount = (uint_t)indices.size();
+		mesh.get()->submeshCount = (uint32_t)submeshes.size();
+		mesh.get()->vertexAttributeCount = (uint32_t)attributes.size();
+		mesh.get()->vertexCount = (uint32_t)(vertexBuffer.size() / stride);
+		mesh.get()->indexCount = (uint32_t)indices.size();
 
 		auto pVertexAttributes = buffer.Write(attributes.data(), attributes.size());
 		mesh.get()->vertexAttributes.Set(buffer.data(), pVertexAttributes);

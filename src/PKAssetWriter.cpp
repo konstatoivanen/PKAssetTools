@@ -93,7 +93,7 @@ namespace PK::Assets
     {
         // Write some padding to the end so that decompression wont reinterpret wrong bytes
         // @TODO there is something wrong going on here as this should be unecessary. Investigate later.
-        uint_t padding = 0u;
+        uint32_t padding = 0u;
         src.Write(&padding, 1);
 
         auto* charData = src.data() + sizeof(PKAssetHeader);
@@ -126,8 +126,8 @@ namespace PK::Assets
         buffer.header.get()->isCompressed = true;
         WriteName(buffer.header.get()->name, src.header.get()->name);
 
-        *buffer.Allocate<uint_t>().get() = (uint_t)src.size();
-        auto binOffset = buffer.Allocate<uint_t>();
+        *buffer.Allocate<uint32_t>().get() = (uint32_t)src.size();
+        auto binOffset = buffer.Allocate<uint32_t>();
         auto binSize = buffer.Allocate<size_t>();
         auto sequence = 0ull;
         auto depth = 0ull;
@@ -135,7 +135,7 @@ namespace PK::Assets
 
         auto rootNode = minHeap.top();
         auto pRootNode = WriteNodeTree(buffer, vtable, &sequence, &depth, &rootNode);
-        *binOffset.get() = (uint_t)buffer.size();
+        *binOffset.get() = (uint32_t)buffer.size();
 
         for (auto& kv : vtable)
         {
