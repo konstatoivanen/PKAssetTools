@@ -152,5 +152,6 @@
     <None Include="debug_res\models\MDL_Debug.mdl" />
     <None Include="debug_res\shaders\includes\Utilities.glsl" />
     <None Include="debug_res\shaders\SH_WS_Debug.shader" />
+    <None Include="debug_res\models\MDL_Debug.mdl.pkmeta" />
   </ItemGroup>
 </Project>

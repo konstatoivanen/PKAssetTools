@@ -1,6 +1,7 @@
 #pragma once
 #include "PKShaderWriter.h"
 #include "PKAssetWriter.h"
+#include "PKAssets/PKAssetLoader.h"
 #include "PKStringUtilities.h"
 #include <unordered_map>
 #include <map>
@@ -190,6 +191,77 @@ namespace PK::Assets::Mesh
 		meshopt_optimizeVertexFetch(vertices.data(), indices.data(), indices.size(), vertices.data(), total_vertices, stride);
 	}
 
+	void SplitPositionStream(Buffer& vertices, size_t stride, size_t vertexCount)
+	{
+		auto positionSize = sizeof(float) * 3;
+		Buffer newVertices;
+		newVertices.resize(vertices.size());
+		
+		auto newStride = stride - positionSize;
+		auto stream0 = newVertices.data();
+		auto stream1 = newVertices.data() + newStride * vertexCount;
+
+		for (auto i = 0u; i < vertexCount; ++i)
+		{
+			memcpy(stream0 + newStride * i, vertices.data() + positionSize + stride * i, newStride);
+			memcpy(stream1 + positionSize * i, vertices.data() + stride * i, positionSize);
+		}
+
+		vertices.swap(newVertices);
+	}
+
+	uint16_t PackHalf(float v)
+	{
+		if (v < -65536.0f)
+		{
+			v = -65536.0f;
+		}
+
+		if (v > 65536.0f)
+		{
+			v = 65536.0f;
+		}
+
+		v *= 1.925930e-34f;
+		int32_t i = *(int*)&v;
+		uint32_t ui = (uint32_t)i;
+		return ((i >> 16) & (int)0xffff8000) | ((int)(ui >> 13));
+	}
+
+	void ConvertFloatToHalfAttribute(Buffer& vertices, size_t stride, size_t offset, size_t elementCount, size_t vertexCount)
+	{
+		auto fullSize = sizeof(float) * elementCount;
+		auto halfSize = sizeof(uint16_t) * elementCount;
+		auto newStride = stride - halfSize;
+		auto dstTrailOffset = offset + halfSize;
+		auto srcTrailOffset = offset + fullSize;
+
+		Buffer newVertices;
+		newVertices.resize(newStride * vertexCount);
+
+		for (auto i = 0u; i < vertexCount; ++i)
+		{
+			if (offset > 0)
+			{
+				memcpy(newVertices.data() + newStride * i, vertices.data() + stride * i, offset);
+			}
+
+			if (dstTrailOffset <= newStride)
+			{
+				memcpy(newVertices.data() + newStride * i + dstTrailOffset, vertices.data() + stride * i + srcTrailOffset, newStride - dstTrailOffset);
+			}
+
+			for (auto j = 0u; j < elementCount; ++j)
+			{
+				auto vec = (float*)(vertices.data() + stride * i + offset);
+				auto half = PackHalf(vec[j]);
+				memcpy(newVertices.data() + newStride * i + offset + sizeof(uint16_t) * j, &half, sizeof(uint16_t));
+			}
+		}
+
+		vertices.swap(newVertices);
+	}
+
     int WriteMesh(const char* pathSrc, const char* pathDst)
     {
         auto filename = StringUtilities::ReadFileName(pathSrc);
@@ -220,8 +292,21 @@ namespace PK::Assets::Mesh
 			return -1;
 		}
 
+		auto splitPositionStream = false;
+		auto useHalfPrecisionNormals = false;
+		auto useHalfPrecisionTangents = false;
+		auto useHalfPrecisionUVs = false;
 		auto hasNormals = !attrib.normals.empty();
 		auto hasUvs = !attrib.texcoords.empty();
+
+		auto meta = OpenAssetMeta((std::string(pathSrc) + std::string(".pkmeta")).c_str());
+
+		GetAssetMetaOption(meta, "mesh_splitPositionStream", &splitPositionStream);
+		GetAssetMetaOption(meta, "mesh_useHalfPrecisionNormals", &useHalfPrecisionNormals);
+		GetAssetMetaOption(meta, "mesh_useHalfPrecisionTangents", &useHalfPrecisionTangents);
+		GetAssetMetaOption(meta, "mesh_useHalfPrecisionUVs", &useHalfPrecisionUVs);
+
+		CloseAssetMeta(&meta);
 
 		Buffer vertexBuffer;
 		std::map<IndexSet, uint32_t> indexmap;
@@ -234,41 +319,52 @@ namespace PK::Assets::Mesh
 		attribute.type = PKElementType::Float3;
 		attribute.size = sizeof(float) * 3;
 		attribute.offset = 0;
+		attribute.stream = splitPositionStream ? 1 : 0;
 		attributes.push_back(attribute);
+
+		auto attributeOffset = splitPositionStream ? 0 : attribute.size;
 		auto stride = attribute.size;
 
 		if (hasNormals)
 		{
 			WriteName(attribute.name, PK_VS_NORMAL);
-			attribute.type = PKElementType::Float3;
-			attribute.size = sizeof(float) * 3;
-			attribute.offset = stride;
+			attribute.type = useHalfPrecisionNormals ? PKElementType::Half3 : PKElementType::Float3;
+			attribute.size = (useHalfPrecisionTangents ? sizeof(uint16_t) : sizeof(float)) * 3;
+			attribute.offset = attributeOffset;
+			attribute.stream = 0;
 			attributes.push_back(attribute);
-			stride += attribute.size;
+
+			attributeOffset += attribute.size;
+			stride += sizeof(float) * 3;
 
 			if (hasUvs)
 			{
 				WriteName(attribute.name, PK_VS_TANGENT);
-				attribute.type = PKElementType::Float4;
-				attribute.size = sizeof(float) * 4;
-				attribute.offset = stride;
+				attribute.type = useHalfPrecisionTangents ? PKElementType::Half4 : PKElementType::Float4;
+				attribute.size = (useHalfPrecisionTangents ? sizeof(uint16_t) : sizeof(float)) * 4;
+				attribute.offset = attributeOffset;
+				attribute.stream = 0;
 				attributes.push_back(attribute);
-				stride += attribute.size;
+
+				attributeOffset += attribute.size;
+				stride += sizeof(float) * 4;
 			}
 		}
 
 		if (hasUvs)
 		{
 			WriteName(attribute.name, PK_VS_TEXCOORD0);
-			attribute.type = PKElementType::Float2;
-			attribute.size = sizeof(float) * 2;
-			attribute.offset = stride;
+			attribute.type = useHalfPrecisionUVs ? PKElementType::Half2 : PKElementType::Float2;
+			attribute.size = (useHalfPrecisionUVs ? sizeof(uint16_t) : sizeof(float)) * 2;
+			attribute.offset = attributeOffset;
+			attribute.stream = 0;
 			attributes.push_back(attribute);
-			stride += attribute.size;
+
+			attributeOffset += attribute.size;
+			stride += sizeof(float) * 2;
 		}
 
 		float float4_zero[4]{};
-
 		auto invertices = attrib.vertices.data();
 		auto innormals = attrib.normals.data();
 		auto inuvs = attrib.texcoords.data();
@@ -342,7 +438,7 @@ namespace PK::Assets::Mesh
 		OptimizeMesh(vertexBuffer, stride, indices, submeshes);
 
 		auto vcount = (uint32_t)(vertexBuffer.size() / stride);
-		auto ushortmax = std::numeric_limits<unsigned short>().max();
+		constexpr auto ushortmax = std::numeric_limits<unsigned short>().max();
 		auto indexType = vcount > ushortmax ? PKElementType::Uint : PKElementType::Ushort;
 		auto indexSize = indexType == PKElementType::Uint ? sizeof(uint32_t) : sizeof(unsigned short);
 
@@ -351,6 +447,26 @@ namespace PK::Assets::Mesh
 			auto vfloats = reinterpret_cast<float*>(vertexBuffer.data());
 			auto fstride = (uint32_t)(stride / sizeof(float));
 			CalculateTangents(vfloats, fstride, 0, 3, 6, 10, indices.data(), vcount, (uint32_t)indices.size());
+		}
+		
+		if (hasNormals && useHalfPrecisionNormals)
+		{
+			ConvertFloatToHalfAttribute(vertexBuffer, stride, attributes.at(1).offset, 3, vcount);
+			
+			if (hasUvs && useHalfPrecisionNormals)
+			{
+				ConvertFloatToHalfAttribute(vertexBuffer, stride, attributes.at(2).offset, 4, vcount);
+			}
+		}
+
+		if (hasUvs && useHalfPrecisionUVs)
+		{
+			ConvertFloatToHalfAttribute(vertexBuffer, stride, attributes.at(hasNormals ? 3 : 1).offset, 2, vcount);
+		}
+		
+		if (splitPositionStream)
+		{
+			SplitPositionStream(vertexBuffer, stride, vcount);
 		}
 
 		auto buffer = PKAssetBuffer();
@@ -362,7 +478,7 @@ namespace PK::Assets::Mesh
 		mesh.get()->indexType = indexType;
 		mesh.get()->submeshCount = (uint32_t)submeshes.size();
 		mesh.get()->vertexAttributeCount = (uint32_t)attributes.size();
-		mesh.get()->vertexCount = (uint32_t)(vertexBuffer.size() / stride);
+		mesh.get()->vertexCount = vcount;
 		mesh.get()->indexCount = (uint32_t)indices.size();
 
 		auto pVertexAttributes = buffer.Write(attributes.data(), attributes.size());
