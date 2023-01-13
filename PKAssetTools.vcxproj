@@ -132,7 +132,9 @@
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\libs;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /y /s "$(TargetDir)*.exe" "$(SolutionDir)Build\"</Command>
+      <Command>xcopy /y /s "$(TargetDir)*.exe" "$(SolutionDir)Build\"
+
+xcopy /y /s "$(SolutionDir)PKAssetTools\include\PKAssets\*.*" "$(SolutionDir)PKRenderer\include\PKAssets\"</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Copy Executable</Message>
@@ -160,7 +162,9 @@
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\libs;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /y /s "$(TargetDir)*.exe" "$(SolutionDir)Build\"</Command>
+      <Command>xcopy /y /s "$(TargetDir)*.exe" "$(SolutionDir)Build\"
+
+xcopy /y /s "$(SolutionDir)PKAssetTools\include\PKAssets\*.*" "$(SolutionDir)PKRenderer\include\PKAssets\"</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Copy Executable</Message>

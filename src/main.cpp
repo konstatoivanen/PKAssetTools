@@ -144,6 +144,7 @@ int main(int argc, char** argv)
 
     if (!RequiresUpdate(srcdir, dstdir))
     {
+        printf("Assets are up to date.");
         return 0;
     }
 

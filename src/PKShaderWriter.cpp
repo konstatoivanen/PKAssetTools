@@ -389,6 +389,31 @@ namespace PK::Assets::Shader
             return PKShaderStage::Compute;
         }
 
+        if (type == "RAY_GENERATION")
+        {
+            return PKShaderStage::RayGeneration;
+        }
+
+        if (type == "RAY_MISS")
+        {
+            return PKShaderStage::RayMiss;
+        }
+
+        if (type == "RAY_CLOSEST_HIT")
+        {
+            return PKShaderStage::RayClosestHit;
+        }
+
+        if (type == "RAY_ANY_HIT")
+        {
+            return PKShaderStage::RayAnyHit;
+        }
+
+        if (type == "RAY_INTERSECTION")
+        {
+            return PKShaderStage::RayIntersection;
+        }
+
         return PKShaderStage::MaxCount;
     }
 
@@ -405,6 +430,7 @@ namespace PK::Assets::Shader
             case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: return PKDescriptorType::DynamicConstantBuffer;
             case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: return PKDescriptorType::DynamicStorageBuffer;
             case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT: return PKDescriptorType::InputAttachment;
+            case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: return PKDescriptorType::AccelerationStructure;
         }
 
         return PKDescriptorType::Invalid;
@@ -730,11 +756,20 @@ namespace PK::Assets::Shader
         *enableInstancing = true;
     }
 
-    static void InsertRequiredExtensions(std::string& source)
+    static void InsertRequiredExtensions(std::string& source, PKShaderStage stage)
     {
         source.insert(0, "#extension GL_EXT_shader_explicit_arithmetic_types : require \n");
         source.insert(0, "#extension GL_EXT_nonuniform_qualifier : require \n");
         source.insert(0, "#extension GL_ARB_shader_viewport_layer_array : require \n");
+
+        if (stage == PKShaderStage::RayGeneration ||
+            stage == PKShaderStage::RayMiss ||
+            stage == PKShaderStage::RayClosestHit ||
+            stage == PKShaderStage::RayAnyHit ||
+            stage == PKShaderStage::RayIntersection)
+        {
+            source.insert(0, "#extension GL_EXT_ray_tracing : enable \n");
+        }
     }
 
     static void InsertInstancingDefine(std::string& source, PKShaderStage stage, bool enableInstancing)
@@ -821,6 +856,12 @@ namespace PK::Assets::Shader
             case PKShaderStage::TesselationControl: source.insert(0, "#define SHADER_STAGE_TESSELATION_CONTROL\n"); return;
             case PKShaderStage::TesselationEvaluation: source.insert(0, "#define SHADER_STAGE_TESSELATION_EVALUATE\n"); return;
             case PKShaderStage::Compute: source.insert(0, "#define SHADER_STAGE_COMPUTE\n"); return;
+
+            case PKShaderStage::RayGeneration: source.insert(0, "#define SHADER_STAGE_RAY_GENERATION\n"); return;
+            case PKShaderStage::RayMiss: source.insert(0, "#define SHADER_STAGE_RAY_MISS\n"); return;
+            case PKShaderStage::RayClosestHit: source.insert(0, "#define SHADER_STAGE_RAY_CLOSEST_HIT\n"); return;
+            case PKShaderStage::RayAnyHit: source.insert(0, "#define SHADER_STAGE_RAY_ANY_HIT\n"); return;
+            case PKShaderStage::RayIntersection: source.insert(0, "#define SHADER_STAGE_RAY_INTERSECTION\n"); return;
         }
     }
 
@@ -870,7 +911,7 @@ namespace PK::Assets::Shader
             InsertInstancingDefine(kv.second, kv.first, enableInstancing);
             ProcessShaderStageDefine(kv.first, kv.second);
             kv.second.insert(0, variantDefines);
-            InsertRequiredExtensions(kv.second);
+            InsertRequiredExtensions(kv.second, kv.first);
             ProcessShaderVersion(kv.second);
         }
 
@@ -889,6 +930,12 @@ namespace PK::Assets::Shader
             case PKShaderStage::Geometry: kind = shaderc_geometry_shader; break;
             case PKShaderStage::Fragment: kind = shaderc_fragment_shader; break;
             case PKShaderStage::Compute: kind = shaderc_compute_shader; break;
+
+            case PKShaderStage::RayGeneration: kind = shaderc_raygen_shader; break;
+            case PKShaderStage::RayMiss: kind = shaderc_miss_shader; break;
+            case PKShaderStage::RayClosestHit: kind = shaderc_closesthit_shader; break;
+            case PKShaderStage::RayAnyHit: kind = shaderc_anyhit_shader; break;
+            case PKShaderStage::RayIntersection: kind = shaderc_intersection_shader; break;
         }
 
         shaderc::CompileOptions options;
@@ -1139,8 +1186,8 @@ namespace PK::Assets::Shader
         printf("Preprocessing shader: %s \n", filename.c_str());
 
         auto buffer = PKAssetBuffer();
-        buffer.header.get()->type = PKAssetType::Shader;
-        WriteName(buffer.header.get()->name, filename.c_str());
+        buffer.header->type = PKAssetType::Shader;
+        WriteName(buffer.header->name, filename.c_str());
 
         auto shader = buffer.Allocate<PKShader>();
 
@@ -1156,31 +1203,31 @@ namespace PK::Assets::Shader
         auto enableInstancing = false;
 
         ReadFile(pathSrc, source);
-        ExtractMulticompiles(source, mckeywords, keywords, &shader.get()->variantcount, &directiveCount);
-        ExtractStateAttributes(source, &shader.get()->attributes);
+        ExtractMulticompiles(source, mckeywords, keywords, &shader->variantcount, &directiveCount);
+        ExtractStateAttributes(source, &shader->attributes);
         ProcessInstancingProperties(source, materialProperties, &enableInstancing);
         ConvertHLSLTypesToGLSL(source);
         GetSharedInclude(source, sharedInclude);
 
-        shader.get()->keywordCount = (uint32_t)keywords.size();
-        shader.get()->materialPropertyCount = (uint32_t)materialProperties.size();
+        shader->keywordCount = (uint32_t)keywords.size();
+        shader->materialPropertyCount = (uint32_t)materialProperties.size();
         
         if (keywords.size() > 0)
         {
             auto pKeywords = buffer.Write<PKShaderKeyword>(keywords.data(), keywords.size());
-            shader.get()->keywords.Set(buffer.data(), pKeywords);
+            shader->keywords.Set(buffer.data(), pKeywords.get());
         }
 
         if (materialProperties.size() > 0)
         {
             auto pMaterialProperties = buffer.Write<PKMaterialProperty>(materialProperties.data(), materialProperties.size());
-            shader.get()->materialProperties.Set(buffer.data(), pMaterialProperties);
+            shader->materialProperties.Set(buffer.data(), pMaterialProperties.get());
         }
 
-        auto pVariants = buffer.Allocate<PKShaderVariant>(shader.get()->variantcount);
-        shader.get()->variants.Set(buffer.data(), pVariants);
+        auto pVariants = buffer.Allocate<PKShaderVariant>(shader->variantcount);
+        shader->variants.Set(buffer.data(), pVariants.get());
 
-        for (uint32_t i = 0; i < shader.get()->variantcount; ++i)
+        for (uint32_t i = 0; i < shader->variantcount; ++i)
         {
             GetVariantDefines(mckeywords, i, variantDefines);
 
@@ -1235,19 +1282,21 @@ namespace PK::Assets::Shader
                 auto code = spvReflectGetCode(&reflectionData.modules[(int)kv.first]);
                 auto pSpirv = buffer.Write(code, size / sizeof(uint32_t));
                 pVariants[i].sprivSizes[(int)kv.first] = size;
-                pVariants[i].sprivBuffers[(int)kv.first].Set(buffer.data(), pSpirv);
+                pVariants[i].sprivBuffers[(int)kv.first].Set(buffer.data(), pSpirv.get());
             }
 
             if (i == 0)
             {
-                shader.get()->type = pVariants[i].sprivSizes[(int)PKShaderStage::Compute] != 0 ? Type::Compute : Type::Graphics;
+                auto hasCompute = pVariants[i].sprivSizes[(int)PKShaderStage::Compute] != 0;
+                auto hasRayTrace = pVariants[i].sprivSizes[(int)PKShaderStage::RayGeneration] != 0;
+                shader->type = hasCompute ? Type::Compute : hasRayTrace ? Type::RayTracing : Type::Graphics;
             }
 
             if (reflectionData.uniqueVariables.size() > 0)
             {
                 pVariants[i].constantVariableCount = (uint32_t)reflectionData.uniqueVariables.size();
                 auto pConstantVariables = buffer.Allocate<PKConstantVariable>(reflectionData.uniqueVariables.size());
-                pVariants[i].constantVariables.Set(buffer.data(), pConstantVariables);
+                pVariants[i].constantVariables.Set(buffer.data(), pConstantVariables.get());
 
                 auto j = 0u;
                 for (auto& kv : reflectionData.uniqueVariables)
@@ -1263,7 +1312,7 @@ namespace PK::Assets::Shader
             {
                 pVariants[i].descriptorSetCount = reflectionData.setCount;
                 auto pDescriptorSets = buffer.Allocate<PKDescriptorSet>(reflectionData.setCount);
-                pVariants[i].descriptorSets.Set(buffer.data(), pDescriptorSets);
+                pVariants[i].descriptorSets.Set(buffer.data(), pDescriptorSets.get());
 
                 std::map<uint32_t, std::vector<PKDescriptor>> descriptors;
 
@@ -1289,7 +1338,7 @@ namespace PK::Assets::Shader
                     pDescriptorSets[kv.first].descriptorCount = (uint32_t)kv.second.size();
                     pDescriptorSets[kv.first].stageflags = reflectionData.setStageFlags[kv.first];
                     auto pDescriptors = buffer.Write(kv.second.data(), kv.second.size());
-                    pDescriptorSets[kv.first].descriptors.Set(buffer.data(), pDescriptors);
+                    pDescriptorSets[kv.first].descriptors.Set(buffer.data(), pDescriptors.get());
                 }
             }
 

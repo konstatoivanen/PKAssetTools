@@ -470,36 +470,36 @@ namespace PK::Assets::Mesh
 		}
 
 		auto buffer = PKAssetBuffer();
-        buffer.header.get()->type = PKAssetType::Mesh;
-        WriteName(buffer.header.get()->name, filename.c_str());
+        buffer.header->type = PKAssetType::Mesh;
+        WriteName(buffer.header->name, filename.c_str());
         
 		auto mesh = buffer.Allocate<PKMesh>();
 
-		mesh.get()->indexType = indexType;
-		mesh.get()->submeshCount = (uint32_t)submeshes.size();
-		mesh.get()->vertexAttributeCount = (uint32_t)attributes.size();
-		mesh.get()->vertexCount = vcount;
-		mesh.get()->indexCount = (uint32_t)indices.size();
+		mesh->indexType = indexType;
+		mesh->submeshCount = (uint32_t)submeshes.size();
+		mesh->vertexAttributeCount = (uint32_t)attributes.size();
+		mesh->vertexCount = vcount;
+		mesh->indexCount = (uint32_t)indices.size();
 
 		auto pVertexAttributes = buffer.Write(attributes.data(), attributes.size());
-		mesh.get()->vertexAttributes.Set(buffer.data(), pVertexAttributes);
+		mesh->vertexAttributes.Set(buffer.data(), pVertexAttributes.get());
 
 		auto pSubmeshes = buffer.Write(submeshes.data(), submeshes.size());
-		mesh.get()->submeshes.Set(buffer.data(), pSubmeshes);
+		mesh->submeshes.Set(buffer.data(), pSubmeshes.get());
 
 		auto pVertexBuffer = buffer.Write(vertexBuffer.data(), vertexBuffer.size());
-		mesh.get()->vertexBuffer.Set(buffer.data(), pVertexBuffer);
+		mesh->vertexBuffer.Set(buffer.data(), pVertexBuffer.get());
 
 		if (indexType == PKElementType::Uint)
 		{
 			auto pIndexBuffer = buffer.Write(indices.data(), indices.size());
-			mesh.get()->indexBuffer.Set(buffer.data(), pIndexBuffer);
+			mesh->indexBuffer.Set(buffer.data(), pIndexBuffer.get());
 		}
 		else
 		{
 			auto pIndexBuffer = buffer.Allocate<unsigned short>(indices.size());
 			auto pIndices = pIndexBuffer.get();
-			mesh.get()->indexBuffer.Set(buffer.data(), pIndexBuffer);
+			mesh->indexBuffer.Set(buffer.data(), pIndexBuffer.get());
 
 			for (auto i = 0; i < indices.size(); ++i)
 			{

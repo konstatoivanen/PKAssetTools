@@ -16,19 +16,36 @@ namespace PK::Assets
             offset = _offset;
         }
 
-        T* get()
+        template <class T2 = T>
+        [[nodiscard]] T2* get() const
         {
-            return reinterpret_cast<T*>(buffer->data() + offset);
+            return reinterpret_cast<T2*>(buffer->data() + offset);
         }
 
-        operator T* () { return get(); }
+        template <class T2 = T>
+        [[nodiscard]] T2& operator*() const noexcept
+        {
+            return *get();
+        }
+
+        template <class T2 = T>
+        [[nodiscard]] T2* operator->() const noexcept 
+        {
+            return get();
+        }
+
+        template <class T2 = T>
+        [[nodiscard]] T2& operator[](uint32_t index) const noexcept
+        {
+            return get()[index];
+        }
     };
 
     struct PKAssetBuffer : std::vector<char>
     {
         PKAssetBuffer() : header(Allocate<PKAssetHeader>())
         {    
-            header.get()->magicNumber = PK_ASSET_MAGIC_NUMBER;
+            header->magicNumber = PK_ASSET_MAGIC_NUMBER;
         }
 
         template<typename T>
@@ -43,7 +60,7 @@ namespace PK::Assets
         WritePtr<T> Write(const T* src, size_t count)
         {
             auto ptr = Allocate<T>(count);
-            memcpy(ptr, src, sizeof(T) * count);
+            memcpy(ptr.get(), src, sizeof(T) * count);
             return ptr;
         }
 

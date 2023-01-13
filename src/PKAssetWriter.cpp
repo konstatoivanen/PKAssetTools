@@ -57,8 +57,8 @@ namespace PK::Assets
     WritePtr<PKEncNode> WriteNodeTree(PKAssetBuffer& buffer, std::map<char, PKBinaryKey>& vtable, size_t* sequence, size_t* depth, const PKTempNode* node)
     {
         auto pNode = buffer.Allocate<PKEncNode>();
-        pNode.get()->isLeaf = node->left == nullptr && node->right == nullptr;
-        pNode.get()->value = node->value;
+        pNode->isLeaf = node->left == nullptr && node->right == nullptr;
+        pNode->value = node->value;
 
         if (node->left == nullptr && node->right == nullptr)
         {
@@ -72,7 +72,7 @@ namespace PK::Assets
             (*sequence) &= ~(1ull << (*depth));
             (*depth)++;
             auto newNode = WriteNodeTree(buffer, vtable, sequence, depth, node->left.get());
-            pNode.get()->left.Set(buffer.data(), newNode);
+            pNode->left.Set(buffer.data(), newNode.get());
             (*depth)--;
         }
 
@@ -81,7 +81,7 @@ namespace PK::Assets
             (*sequence) |= 1ull << (*depth);
             (*depth)++;
             auto newNode = WriteNodeTree(buffer, vtable, sequence, depth, node->right.get());
-            pNode.get()->right.Set(buffer.data(), newNode);
+            pNode->right.Set(buffer.data(), newNode.get());
             (*depth)--;
             (*sequence) &= ~(1ull << (*depth));
         }
@@ -122,11 +122,11 @@ namespace PK::Assets
         }
 
         PKAssetBuffer buffer;
-        buffer.header.get()->type = src.header.get()->type;
-        buffer.header.get()->isCompressed = true;
-        WriteName(buffer.header.get()->name, src.header.get()->name);
+        buffer.header->type = src.header->type;
+        buffer.header->isCompressed = true;
+        WriteName(buffer.header->name, src.header->name);
 
-        *buffer.Allocate<uint32_t>().get() = (uint32_t)src.size();
+        *buffer.Allocate<uint32_t>() = (uint32_t)src.size();
         auto binOffset = buffer.Allocate<uint32_t>();
         auto binSize = buffer.Allocate<size_t>();
         auto sequence = 0ull;
@@ -135,14 +135,14 @@ namespace PK::Assets
 
         auto rootNode = minHeap.top();
         auto pRootNode = WriteNodeTree(buffer, vtable, &sequence, &depth, &rootNode);
-        *binOffset.get() = (uint32_t)buffer.size();
+        *binOffset = (uint32_t)buffer.size();
 
         for (auto& kv : vtable)
         {
             binLength += kv.second.count * kv.second.length;
         }
 
-        *binSize.get() = binLength;
+        *binSize = binLength;
         auto pData = buffer.Allocate<char>((binLength + 7) / 8);
         auto pHead = reinterpret_cast<char*>(pData.get());
 
