@@ -185,7 +185,9 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\include\PKAssets\*.*" "$(SolutionDir)PKR
     <ClInclude Include="include\tinyobjloader\tiny_obj_loader.h" />
     <ClInclude Include="src\PKAssetWriter.h" />
     <ClInclude Include="src\PKMeshWriter.h" />
+    <ClInclude Include="src\PKShaderUtilities.h" />
     <ClInclude Include="src\PKShaderWriter.h" />
+    <ClInclude Include="src\PKSPVUtilities.h" />
     <ClInclude Include="src\PKStringUtilities.h" />
   </ItemGroup>
   <ItemGroup>
@@ -212,7 +214,9 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\include\PKAssets\*.*" "$(SolutionDir)PKR
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\PKAssetWriter.cpp" />
     <ClCompile Include="src\PKMeshWriter.cpp" />
+    <ClCompile Include="src\PKShaderUtilities.cpp" />
     <ClCompile Include="src\PKShaderWriter.cpp" />
+    <ClCompile Include="src\PKSPVUtilities.cpp" />
     <ClCompile Include="src\PKStringUtilities.cpp" />
   </ItemGroup>
   <ItemGroup>

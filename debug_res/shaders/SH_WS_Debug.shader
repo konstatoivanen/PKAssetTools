@@ -10,6 +10,7 @@
 #MaterialProperty texture2D _AlbedoTex
 #MaterialProperty texture3D _LutTex
 
+
 #include includes/Utilities.glsl
 
 #pragma PROGRAM_VERTEX
@@ -48,6 +49,10 @@ void main()
 
 #pragma PROGRAM_FRAGMENT
 
+layout(r16f, set = PK_SET_SHADER) uniform image2DArray pk_ScreenGI_Hits;
+
+PK_DECLARE_BUFFER(float4, _WriteBuffer, PK_SET_DRAW);
+
 layout(set = 3) uniform sampler2D tex1;
 
 in float3 vs_COLOR;
@@ -57,4 +62,6 @@ out float4 outColor;
 void main()
 {
     outColor = float4(tex2D(_AlbedoTex, vs_TEXCOORD0).xyz * tex2D(tex1, vs_TEXCOORD0).xyz * vs_COLOR * _Color.rgb, 1.0);
+    imageStore(pk_ScreenGI_Hits, int3(outColor.xyz * 1024), float4(outColor.x, 0, 0, 0));
+    PK_BUFFER_DATA(_WriteBuffer, uint(outColor.x * 1024)) = outColor;
 }

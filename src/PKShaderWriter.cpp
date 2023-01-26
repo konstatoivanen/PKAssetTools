@@ -1,7 +1,8 @@
-#pragma once
 #include "PKShaderWriter.h"
 #include "PKAssetWriter.h"
 #include "PKStringUtilities.h"
+#include "PKShaderUtilities.h"
+#include "PKSPVUtilities.h"
 #include <shaderc/shaderc.hpp>
 #include <SPIRV-Reflect/spirv_reflect.h>
 #include <unordered_map>
@@ -20,6 +21,7 @@ namespace PK::Assets::Shader
         uint32_t firstStage = (uint32_t)PKShaderStage::MaxCount;
         uint32_t maxBinding = 0u;
         uint32_t count = 0u;
+        uint32_t writeStageMask = 0u;
         std::string name;
         const SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount]{};
         const SpvReflectDescriptorBinding* get() { return bindings[firstStage]; }
@@ -43,474 +45,9 @@ namespace PK::Assets::Shader
         uint32_t setCount = 0u;
     };
 
-    constexpr const static char* Instancing_Standalone_GLSL =
-        "#define PK_INSTANCING_ENABLED                                                                                                                  \n"
-        "struct PK_Draw { uint material; uint transform; uint mesh; uint userdata; };                                                                   \n"
-        "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { mat4 pk_Instancing_Transforms_Data[]; };                     \n"
-        "layout(std430, set = 3, binding = 101) readonly buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                        \n"
-        "mat4 pk_MATRIX_M;                                                                                                                              \n"
-        "#define pk_MATRIX_I_M inverse(pk_MATRIX_M)                                                                                                     \n"
-        "uint pk_Instancing_Userdata;                                                                                                                   \n"
-        "void PK_INSTANCING_ASSIGN_LOCALS(uint index)                                                                                                   \n"
-        "{                                                                                                                                              \n"
-        "    PK_Draw draw = pk_Instancing_Indices_Data[index];                                                                                          \n"
-        "    pk_MATRIX_M = pk_Instancing_Transforms_Data[draw.transform];                                                                               \n"
-        "    pk_Instancing_Userdata = draw.userdata;                                                                                                    \n"
-        "}                                                                                                                                              \n";
-
-    constexpr const static char* Instancing_Base_GLSL =
-        "#define PK_INSTANCING_ENABLED                                                                                                                  \n"
-        "struct PK_Draw { uint material; uint transform; uint mesh; uint userdata; };                                                                   \n"
-        "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { mat4 pk_Instancing_Transforms_Data[]; };                     \n"
-        "layout(std430, set = 3, binding = 101) readonly buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                        \n"
-        "layout(std430, set = 3, binding = 102) readonly buffer pk_Instancing_Properties { PK_MaterialPropertyBlock pk_Instancing_Properties_Data[]; }; \n"
-        "layout(set = 3, binding = 103) uniform sampler2D pk_Instancing_Textures2D[];                                                                   \n"
-        "layout(set = 3, binding = 104) uniform sampler3D pk_Instancing_Textures3D[];                                                                   \n"
-        "layout(set = 3, binding = 105) uniform samplerCube pk_Instancing_TexturesCube[];                                                               \n"
-        "mat4 pk_MATRIX_M;                                                                                                                              \n"
-        "#define pk_MATRIX_I_M inverse(pk_MATRIX_M)                                                                                                     \n"
-        "uint pk_Instancing_Userdata;                                                                                                                   \n"
-        "void PK_INSTANCING_ASSIGN_LOCALS(uint index)                                                                                                   \n"
-        "{                                                                                                                                              \n"
-        "    PK_Draw draw = pk_Instancing_Indices_Data[index];                                                                                          \n"
-        "    pk_MATRIX_M = pk_Instancing_Transforms_Data[draw.transform];                                                                               \n"
-        "    pk_Instancing_Userdata = draw.userdata;                                                                                                    \n"
-        "    PK_MaterialPropertyBlock prop = pk_Instancing_Properties_Data[draw.material];                                                              \n";
-
-    constexpr const static char* Instancing_Stage_GLSL = "PK_INSTANCING_ASSIGN_STAGE_LOCALS \n";
-
-    constexpr const static char* Instancing_Vertex_GLSL =
-        "out flat uint vs_INSTANCE_ID;                                                                                                          \n"
-        "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS PK_INSTANCING_ASSIGN_LOCALS(uint(gl_InstanceIndex)); vs_INSTANCE_ID = uint(gl_InstanceIndex);\n";
-
-    constexpr const static char* Instancing_Fragment_GLSL =
-        "in flat uint vs_INSTANCE_ID;                                                           \n"
-        "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS PK_INSTANCING_ASSIGN_LOCALS(vs_INSTANCE_ID); \n";
-
-    PKElementType GetElementType(SpvReflectFormat format)
-    {
-        switch (format)
-        {
-            case SPV_REFLECT_FORMAT_R32_SFLOAT: return PKElementType::Float;
-            case SPV_REFLECT_FORMAT_R32G32_SFLOAT: return PKElementType::Float2;
-            case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT: return PKElementType::Float3;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT: return PKElementType::Float4;
-            case SPV_REFLECT_FORMAT_R64_SFLOAT: return PKElementType::Double;
-            case SPV_REFLECT_FORMAT_R64G64_SFLOAT: return PKElementType::Double2;
-            case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT: return PKElementType::Double3;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT: return PKElementType::Double4;
-            case SPV_REFLECT_FORMAT_R32_SINT: return PKElementType::Int;
-            case SPV_REFLECT_FORMAT_R32G32_SINT: return PKElementType::Int2;
-            case SPV_REFLECT_FORMAT_R32G32B32_SINT: return PKElementType::Int3;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_SINT: return PKElementType::Int4;
-            case SPV_REFLECT_FORMAT_R32_UINT: return PKElementType::Uint;
-            case SPV_REFLECT_FORMAT_R32G32_UINT: return PKElementType::Uint2;
-            case SPV_REFLECT_FORMAT_R32G32B32_UINT: return PKElementType::Uint3;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_UINT: return PKElementType::Uint4;
-            case SPV_REFLECT_FORMAT_R64_SINT: return PKElementType::Long;
-            case SPV_REFLECT_FORMAT_R64G64_SINT: return PKElementType::Long2;
-            case SPV_REFLECT_FORMAT_R64G64B64_SINT: return PKElementType::Long3;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_SINT: return PKElementType::Long4;
-            case SPV_REFLECT_FORMAT_R64_UINT: return PKElementType::Ulong;
-            case SPV_REFLECT_FORMAT_R64G64_UINT: return PKElementType::Ulong2;
-            case SPV_REFLECT_FORMAT_R64G64B64_UINT: return PKElementType::Ulong3;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_UINT: return PKElementType::Ulong4;
-        }
-
-        return PKElementType::Invalid;
-    }
-
-    std::string GetGLSLType(PKElementType type)
-    {
-        switch (type)
-        {
-            case PKElementType::Float: return "float";
-            case PKElementType::Float2: return "vec2";
-            case PKElementType::Float3: return "vec3";
-            case PKElementType::Float4: return "vec4";
-            case PKElementType::Double: return "float64_t";
-            case PKElementType::Double2: return "f64vec2";
-            case PKElementType::Double3: return "f64vec3";
-            case PKElementType::Double4: return "f64vec4";
-            case PKElementType::Half: return "float16_t";
-            case PKElementType::Half2: return "f16vec2";
-            case PKElementType::Half3: return "f16vec3";
-            case PKElementType::Half4: return "f16vec4";
-            case PKElementType::Int: return "int";
-            case PKElementType::Int2: return "ivec2";
-            case PKElementType::Int3: return "ivec3";
-            case PKElementType::Int4: return "ivec4";
-            case PKElementType::Uint: return "uint";
-            case PKElementType::Uint2: return "uvec2";
-            case PKElementType::Uint3: return "uvec3";
-            case PKElementType::Uint4: return "uvec4";
-            case PKElementType::Short: return "int16_t";
-            case PKElementType::Short2: return "i16vec2";
-            case PKElementType::Short3: return "i16vec3";
-            case PKElementType::Short4: return "i16vec4";
-            case PKElementType::Ushort: return "u16int";
-            case PKElementType::Ushort2: return "u16vec2";
-            case PKElementType::Ushort3: return "u16vec3";
-            case PKElementType::Ushort4: return "u16vec4";
-            case PKElementType::Long: return "int64_t";
-            case PKElementType::Long2: return "i64vec2";
-            case PKElementType::Long3: return "i64vec3";
-            case PKElementType::Long4: return "i64vec4";
-            case PKElementType::Ulong: return "uint64_t";
-            case PKElementType::Ulong2: return "u64vec2";
-            case PKElementType::Ulong3: return "u64vec3";
-            case PKElementType::Ulong4: return "u64vec4";
-            case PKElementType::Float2x2: return "mat2";
-            case PKElementType::Float3x3: return "mat3";
-            case PKElementType::Float4x4: return "mat4";
-            case PKElementType::Double2x2: return "f64mat2";
-            case PKElementType::Double3x3: return "f64mat3";
-            case PKElementType::Double4x4: return "f64mat4";
-            case PKElementType::Half2x2: return "f16mat2";
-            case PKElementType::Half3x3: return "f16mat3";
-            case PKElementType::Half4x4: return "f16mat4";
-            case PKElementType::Texture2DHandle: return "uint";
-            case PKElementType::Texture3DHandle: return "uint";
-            case PKElementType::TextureCubeHandle: return "uint";
-        }
-
-        return "INVALID";
-    }
-
-    static PKComparison GetZTestFromString(const std::string& ztest)
-    {
-        if (ztest == "Off")
-        {
-            return PKComparison::Off;
-        }
-        else if (ztest == "Always")
-        {
-            return PKComparison::Always;
-        }
-        else if (ztest == "Never")
-        {
-            return PKComparison::Never;
-        }
-        else if (ztest == "Less")
-        {
-            return PKComparison::Less;
-        }
-        else if (ztest == "LEqual")
-        {
-            return PKComparison::LessEqual;
-        }
-        else if (ztest == "Greater")
-        {
-            return PKComparison::Greater;
-        }
-        else if (ztest == "NotEqual")
-        {
-            return PKComparison::NotEqual;
-        }
-        else if (ztest == "GEqual")
-        {
-            return PKComparison::GreaterEqual;
-        }
-        else if (ztest == "Equal")
-        {
-            return PKComparison::Equal;
-        }
-
-        return PKComparison::Off;
-    }
-
-    static PKBlendFactor GetBlendFactorFromString(const std::string& blendMode)
-    {
-        if (blendMode == "Zero")
-        {
-            return PKBlendFactor::Zero;
-        }
-        else if (blendMode == "One")
-        {
-            return PKBlendFactor::One;
-        }
-        else if (blendMode == "SrcColor")
-        {
-            return PKBlendFactor::SrcColor;
-        }
-        else if (blendMode == "OneMinusSrcColor")
-        {
-            return PKBlendFactor::OneMinusSrcColor;
-        }
-        else if (blendMode == "DstColor")
-        {
-            return PKBlendFactor::DstColor;
-        }
-        else if (blendMode == "OneMinusDstColor")
-        {
-            return PKBlendFactor::OneMinusDstColor;
-        }
-        else if (blendMode == "SrcAlpha")
-        {
-            return PKBlendFactor::SrcAlpha;
-        }
-        else if (blendMode == "OneMinusSrcAlpha")
-        {
-            return PKBlendFactor::OneMinusSrcAlpha;
-        }
-        else if (blendMode == "DstAlpha")
-        {
-            return PKBlendFactor::DstAlpha;
-        }
-        else if (blendMode == "OneMinusDstAlpha")
-        {
-            return PKBlendFactor::OneMinusDstAlpha;
-        }
-        else if (blendMode == "ConstColor")
-        {
-            return PKBlendFactor::ConstColor;
-        }
-        else if (blendMode == "OneMinusConstColor")
-        {
-            return PKBlendFactor::OneMinusConstColor;
-        }
-        else if (blendMode == "ConstAlpha")
-        {
-            return PKBlendFactor::ConstAlpha;
-        }
-        else if (blendMode == "OneMinusConstAlpha")
-        {
-            return PKBlendFactor::OneMinusConstAlpha;
-        }
-
-        return PKBlendFactor::None;
-    }
-
-    static PKBlendOp GetBlendOpFromString(const std::string& blendOp)
-    {
-        if (blendOp == "Add")
-        {
-            return PKBlendOp::Add;
-        }
-        else if (blendOp == "Subtract")
-        {
-            return PKBlendOp::Subtract;
-        }
-        else if (blendOp == "ReverseSubtract")
-        {
-            return PKBlendOp::ReverseSubtract;
-        }
-        else if (blendOp == "Min")
-        {
-            return PKBlendOp::Min;
-        }
-        else if (blendOp == "Max")
-        {
-            return PKBlendOp::Max;
-        }
-
-        return PKBlendOp::None;
-    }
-
-    static uint16_t GetColorMaskFromString(const std::string& colorMask)
-    {
-        if (colorMask.empty())
-        {
-            return 255;
-        }
-
-        uint16_t mask = 0;
-
-        if (colorMask.find('R') != std::string::npos)
-        {
-            mask |= 1 << 0;
-        }
-
-        if (colorMask.find('G') != std::string::npos)
-        {
-            mask |= 1 << 1;
-        }
-
-        if (colorMask.find('B') != std::string::npos)
-        {
-            mask |= 1 << 2;
-        }
-
-        if (colorMask.find('A') != std::string::npos)
-        {
-            mask |= 1 << 3;
-        }
-
-        return mask;
-    }
-
-    static PKCullMode GetCullModeFromString(const std::string& cull)
-    {
-        if (cull.empty() || cull == "Off")
-        {
-            return PKCullMode::Off;
-        }
-        else if (cull == "Front")
-        {
-            return PKCullMode::Front;
-        }
-        else if (cull == "Back")
-        {
-            return PKCullMode::Back;
-        }
-
-        return PKCullMode::Off;
-    }
-
-    static PKShaderStage GetShaderStageFromString(const std::string& type)
-    {
-        if (type == "VERTEX")
-        {
-            return PKShaderStage::Vertex;
-        }
-
-        if (type == "FRAGMENT")
-        {
-            return PKShaderStage::Fragment;
-        }
-
-        if (type == "GEOMETRY")
-        {
-            return PKShaderStage::Geometry;
-        }
-
-        if (type == "TESSELATION_CONTROL")
-        {
-            return PKShaderStage::TesselationControl;
-        }
-
-        if (type == "TESSELATION_EVALUATE")
-        {
-            return PKShaderStage::TesselationEvaluation;
-        }
-
-        if (type == "COMPUTE")
-        {
-            return PKShaderStage::Compute;
-        }
-
-        if (type == "RAY_GENERATION")
-        {
-            return PKShaderStage::RayGeneration;
-        }
-
-        if (type == "RAY_MISS")
-        {
-            return PKShaderStage::RayMiss;
-        }
-
-        if (type == "RAY_CLOSEST_HIT")
-        {
-            return PKShaderStage::RayClosestHit;
-        }
-
-        if (type == "RAY_ANY_HIT")
-        {
-            return PKShaderStage::RayAnyHit;
-        }
-
-        if (type == "RAY_INTERSECTION")
-        {
-            return PKShaderStage::RayIntersection;
-        }
-
-        return PKShaderStage::MaxCount;
-    }
-
-    static PKDescriptorType GetResourceType(SpvReflectDescriptorType type)
-    {
-        switch (type)
-        {
-            case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER: return PKDescriptorType::Sampler;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: return PKDescriptorType::SamplerTexture;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE: return PKDescriptorType::Texture;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE: return PKDescriptorType::Image;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER: return PKDescriptorType::ConstantBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER: return PKDescriptorType::StorageBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: return PKDescriptorType::DynamicConstantBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: return PKDescriptorType::DynamicStorageBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT: return PKDescriptorType::InputAttachment;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: return PKDescriptorType::AccelerationStructure;
-        }
-
-        return PKDescriptorType::Invalid;
-    }
-
-
     static void ReadFile(const std::string& filepath, std::string& ouput)
     {
         ouput = StringUtilities::ReadFileRecursiveInclude(filepath);
-    }
-
-    static void ConvertHLSLTypesToGLSL(std::string& source)
-    {
-        const std::string surroundMask = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";
-        StringUtilities::ReplaceAll(source, surroundMask, "lerp", "mix");
-        StringUtilities::ReplaceAll(source, surroundMask, "tex2D", "texture");
-        StringUtilities::ReplaceAll(source, surroundMask, "tex2DLod", "textureLod");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "bool2", "bvec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "bool3", "bvec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "bool4", "bvec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "half", "float16_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "half2", "f16vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "half3", "f16vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "half4", "f16vec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "float2", "vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "float3", "vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "float4", "vec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "double", "float64_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "double2", "f64vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "double3", "f64vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "double4", "f64vec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "short", "int16_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "short2", "i16vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "short3", "i16vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "short4", "i16vec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "ushort", "uint16_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "ushort2", "u16vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "ushort3", "u16vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "ushort4", "u16vec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "fixed", "uint8_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "fixed2", "u8vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "fixed3", "u8vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "fixed4", "i8vec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "int2", "ivec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "int3", "ivec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "int4", "ivec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "uint2", "uvec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "uint3", "uvec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "uint4", "uvec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "long", "int64_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "long2", "i64vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "long3", "i64vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "long4", "i64vec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "ulong", "uint64_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "ulong2", "u64vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "ulong3", "u64vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "ulong4", "u64vec4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "half2x2", "f16mat2");
-        StringUtilities::ReplaceAll(source, surroundMask, "half3x3", "f16mat3");
-        StringUtilities::ReplaceAll(source, surroundMask, "half4x4", "f16mat4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "float2x2", "mat2");
-        StringUtilities::ReplaceAll(source, surroundMask, "float3x3", "mat3");
-        StringUtilities::ReplaceAll(source, surroundMask, "float4x4", "mat4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "double2x2", "f64mat2");
-        StringUtilities::ReplaceAll(source, surroundMask, "double3x3", "f64mat3");
-        StringUtilities::ReplaceAll(source, surroundMask, "double4x4", "f64mat4");
     }
 
     static void ExtractMulticompiles(std::string& source, 
@@ -758,9 +295,7 @@ namespace PK::Assets::Shader
 
     static void InsertRequiredExtensions(std::string& source, PKShaderStage stage)
     {
-        source.insert(0, "#extension GL_EXT_shader_explicit_arithmetic_types : require \n");
-        source.insert(0, "#extension GL_EXT_nonuniform_qualifier : require \n");
-        source.insert(0, "#extension GL_ARB_shader_viewport_layer_array : require \n");
+        source.insert(0, PK_GL_EXTENSIONS_COMMON);
 
         if (stage == PKShaderStage::RayGeneration ||
             stage == PKShaderStage::RayMiss ||
@@ -768,7 +303,7 @@ namespace PK::Assets::Shader
             stage == PKShaderStage::RayAnyHit ||
             stage == PKShaderStage::RayIntersection)
         {
-            source.insert(0, "#extension GL_EXT_ray_tracing : enable \n");
+            source.insert(0, PK_GL_EXTENSIONS_RAYTRACING);
         }
     }
 
@@ -846,25 +381,6 @@ namespace PK::Assets::Shader
         }
     }
 
-    static void ProcessShaderStageDefine(PKShaderStage stage, std::string& source)
-    {
-        switch (stage)
-        {
-            case PKShaderStage::Vertex: source.insert(0, "#define SHADER_STAGE_VERTEX\n"); return;
-            case PKShaderStage::Fragment: source.insert(0, "#define SHADER_STAGE_FRAGMENT\n"); return;
-            case PKShaderStage::Geometry: source.insert(0, "#define SHADER_STAGE_GEOMETRY\n"); return;
-            case PKShaderStage::TesselationControl: source.insert(0, "#define SHADER_STAGE_TESSELATION_CONTROL\n"); return;
-            case PKShaderStage::TesselationEvaluation: source.insert(0, "#define SHADER_STAGE_TESSELATION_EVALUATE\n"); return;
-            case PKShaderStage::Compute: source.insert(0, "#define SHADER_STAGE_COMPUTE\n"); return;
-
-            case PKShaderStage::RayGeneration: source.insert(0, "#define SHADER_STAGE_RAY_GENERATION\n"); return;
-            case PKShaderStage::RayMiss: source.insert(0, "#define SHADER_STAGE_RAY_MISS\n"); return;
-            case PKShaderStage::RayClosestHit: source.insert(0, "#define SHADER_STAGE_RAY_CLOSEST_HIT\n"); return;
-            case PKShaderStage::RayAnyHit: source.insert(0, "#define SHADER_STAGE_RAY_ANY_HIT\n"); return;
-            case PKShaderStage::RayIntersection: source.insert(0, "#define SHADER_STAGE_RAY_INTERSECTION\n"); return;
-        }
-    }
-
     static int ProcessStageSources(const std::string& source, 
                                    const std::string& sharedInclude, 
                                    const std::string& variantDefines, 
@@ -874,9 +390,8 @@ namespace PK::Assets::Shader
     {
         shaderSources.clear();
 
-        auto typeToken = "#pragma PROGRAM_";
-        auto typeTokenLength = strlen(typeToken);
-        auto pos = source.find(typeToken, 0); //Start of shader type declaration line
+        auto typeTokenLength = strlen(PK_GL_STAGE_BEGIN);
+        auto pos = source.find(PK_GL_STAGE_BEGIN, 0); //Start of shader type declaration line
 
         while (pos != std::string::npos)
         {
@@ -900,7 +415,7 @@ namespace PK::Assets::Shader
                 return -1;
             }
 
-            pos = source.find(typeToken, nextLinePos); //Start of next shader type declaration line
+            pos = source.find(PK_GL_STAGE_BEGIN, nextLinePos); //Start of next shader type declaration line
 
             shaderSources[stage] = pos == std::string::npos ? source.substr(nextLinePos) : source.substr(nextLinePos, pos - nextLinePos);
         }
@@ -909,7 +424,7 @@ namespace PK::Assets::Shader
         {
             kv.second.insert(0, sharedInclude);
             InsertInstancingDefine(kv.second, kv.first, enableInstancing);
-            ProcessShaderStageDefine(kv.first, kv.second);
+            kv.second.insert(0, PK_SHADER_STAGE_DEFINES[(uint32_t)kv.first]);
             kv.second.insert(0, variantDefines);
             InsertRequiredExtensions(kv.second, kv.first);
             ProcessShaderVersion(kv.second);
@@ -920,24 +435,8 @@ namespace PK::Assets::Shader
 
     static int CompileGLSLToSpirV(const ShaderCompiler& compiler, PKShaderStage stage, const std::string& source_name, const std::string& source, ShaderSpriV& spirvd, ShaderSpriV& spirvr)
     {
-        auto kind = shaderc_shader_kind::shaderc_glsl_infer_from_source;
-
-        switch (stage)
-        {
-            case PKShaderStage::Vertex: kind = shaderc_vertex_shader; break;
-            case PKShaderStage::TesselationControl: kind = shaderc_tess_control_shader; break;
-            case PKShaderStage::TesselationEvaluation: kind = shaderc_tess_evaluation_shader; break;
-            case PKShaderStage::Geometry: kind = shaderc_geometry_shader; break;
-            case PKShaderStage::Fragment: kind = shaderc_fragment_shader; break;
-            case PKShaderStage::Compute: kind = shaderc_compute_shader; break;
-
-            case PKShaderStage::RayGeneration: kind = shaderc_raygen_shader; break;
-            case PKShaderStage::RayMiss: kind = shaderc_miss_shader; break;
-            case PKShaderStage::RayClosestHit: kind = shaderc_closesthit_shader; break;
-            case PKShaderStage::RayAnyHit: kind = shaderc_anyhit_shader; break;
-            case PKShaderStage::RayIntersection: kind = shaderc_intersection_shader; break;
-        }
-
+        auto kind = ConvertToShadercKind(stage);
+        
         shaderc::CompileOptions options;
 
         options.SetAutoBindUniforms(true);
@@ -1040,9 +539,16 @@ namespace PK::Assets::Shader
             binding.maxBinding = binding.maxBinding > releaseBinding->binding ? binding.maxBinding : releaseBinding->binding;
             binding.name = name;
             binding.count = desc->type_description->op == SpvOpTypeRuntimeArray ? PK::Assets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
+
+            if (ReflectResourceWrite(debugModule->_internal->spirv_code, debugModule->_internal->spirv_word_count, desc->spirv_id, GetResourceType(desc->descriptor_type)))
+            {
+                binding.writeStageMask |= 1 << (int)stage;
+            }
+
             binding.bindings[(int)stage] = releaseBinding;
         }
     }
+
 
     static void GetVertexAttributes(SpvReflectShaderModule* debugModule, PKShaderStage stage, PKVertexAttribute* attributes)
     {
@@ -1329,6 +835,7 @@ namespace PK::Assets::Shader
                     PKDescriptor descriptor{};
                     descriptor.count = binding.count;
                     descriptor.type = GetResourceType(desc->descriptor_type);
+                    descriptor.writeStageMask = (uint8_t)binding.writeStageMask;
                     WriteName(descriptor.name, binding.name.c_str());
                     descriptors[desc->set].push_back(descriptor);
                 }
