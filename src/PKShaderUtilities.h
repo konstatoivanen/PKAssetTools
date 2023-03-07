@@ -81,8 +81,9 @@ namespace PK::Assets::Shader
     PKComparison GetZTestFromString(const std::string& ztest);
     PKBlendFactor GetBlendFactorFromString(const std::string& blendMode);
     PKBlendOp GetBlendOpFromString(const std::string& blendOp);
-    uint16_t GetColorMaskFromString(const std::string& colorMask);
+    uint8_t GetColorMaskFromString(const std::string& colorMask);
     PKCullMode GetCullModeFromString(const std::string& cull);
+    PKRasterMode GetRasterModeFromString(const std::string& rasterMode);
     PKShaderStage GetShaderStageFromString(const std::string& type);
     PKDescriptorType GetResourceType(SpvReflectDescriptorType type);
     shaderc_shader_kind ConvertToShadercKind(PKShaderStage stage);

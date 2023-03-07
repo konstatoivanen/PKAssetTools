@@ -103,6 +103,7 @@ namespace PK::Assets::Shader
         auto valueColorMask = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_COLORMASK, source, false);
         auto valueCull = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_CULL, source, false);
         auto valueOffset = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_OFFSET, source, false);
+        auto valueRasterMode = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_RASTERMODE, source, false);
 
         if (!valueZWrite.empty())
         {
@@ -160,6 +161,24 @@ namespace PK::Assets::Shader
                 attributes->zoffsets[0] = std::stof(keywords.at(0));
                 attributes->zoffsets[1] = std::stof(keywords.at(1));
                 attributes->zoffsets[2] = std::stof(keywords.at(2));
+            }
+        }
+
+        if (!valueRasterMode.empty())
+        {
+            auto keywords = StringUtilities::Split(valueRasterMode, " \n\r");
+            
+            attributes->rasterMode = PKRasterMode::Default;
+            attributes->overEstimation = 0x0;
+
+            if (keywords.size() > 0)
+            {
+                attributes->rasterMode = GetRasterModeFromString(keywords.at(0));
+            }
+
+            if (keywords.size() > 1)
+            {
+                attributes->overEstimation = (uint8_t)std::stoi(keywords.at(1));
             }
         }
 

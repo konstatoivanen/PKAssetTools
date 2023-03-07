@@ -223,14 +223,14 @@ namespace PK::Assets::Shader
         return PKBlendOp::None;
     }
 
-    uint16_t GetColorMaskFromString(const std::string& colorMask)
+    uint8_t GetColorMaskFromString(const std::string& colorMask)
     {
         if (colorMask.empty())
         {
             return 255;
         }
 
-        uint16_t mask = 0;
+        uint8_t mask = 0;
 
         if (colorMask.find('R') != std::string::npos)
         {
@@ -271,6 +271,24 @@ namespace PK::Assets::Shader
         }
 
         return PKCullMode::Off;
+    }
+
+    PKRasterMode GetRasterModeFromString(const std::string& rasterMode)
+    {
+        if (rasterMode.empty() || rasterMode == "Default")
+        {
+            return PKRasterMode::Default;
+        }
+        else if (rasterMode == "OverEstimate")
+        {
+            return PKRasterMode::OverEstimate;
+        }
+        else if (rasterMode == "UnderEstimate")
+        {
+            return PKRasterMode::UnderEstimate;
+        }
+
+        return PKRasterMode::Default;
     }
 
     PKShaderStage GetShaderStageFromString(const std::string& type)
