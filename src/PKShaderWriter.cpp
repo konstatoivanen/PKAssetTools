@@ -631,6 +631,15 @@ namespace PK::Assets::Shader
         }
     }
 
+    static void GetComputeGroupSize(SpvReflectShaderModule* shaderModule, uint32_t* outSize)
+    {
+        auto entryPoint = shaderModule->entry_points;
+        entryPoint->local_size;
+        outSize[0] = entryPoint->local_size.x;
+        outSize[1] = entryPoint->local_size.y;
+        outSize[2] = entryPoint->local_size.z;
+    }
+
     static void CompressBindIndices(ReflectionData& reflection)
     {
         std::map<uint32_t, uint32_t> setRemap;
@@ -707,7 +716,7 @@ namespace PK::Assets::Shader
     int WriteShader(const char* pathSrc, const char* pathDst)
     {
         auto filename = StringUtilities::ReadFileName(pathSrc);
-        
+
         printf("Preprocessing shader: %s \n", filename.c_str());
 
         auto buffer = PKAssetBuffer();
@@ -795,7 +804,7 @@ namespace PK::Assets::Shader
                 GetUniqueBindings(reflectionData, &moduled, kv.first);
                 GetVertexAttributes(&moduled, kv.first, pVariants[i].vertexAttributes);
                 GetPushConstants(reflectionData, &moduled, kv.first);
-
+                GetComputeGroupSize(&moduled, pVariants[i].groupSize);
                 spvReflectDestroyShaderModule(&moduled);
             }
 

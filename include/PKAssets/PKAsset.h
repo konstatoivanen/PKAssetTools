@@ -314,6 +314,7 @@ namespace PK::Assets
         {
             uint32_t descriptorSetCount;
             uint32_t constantVariableCount;
+            uint32_t groupSize[4]{}; // 32 bit padding
             RelativePtr<PKDescriptorSet> descriptorSets;
             RelativePtr<PKConstantVariable> constantVariables;
             PKVertexAttribute vertexAttributes[PK_ASSET_MAX_VERTEX_ATTRIBUTES];
