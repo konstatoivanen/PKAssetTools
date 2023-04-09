@@ -7,30 +7,30 @@ namespace PK::Assets::Shader
     {
         switch (format)
         {
-            case SPV_REFLECT_FORMAT_R32_SFLOAT: return PKElementType::Float;
-            case SPV_REFLECT_FORMAT_R32G32_SFLOAT: return PKElementType::Float2;
-            case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT: return PKElementType::Float3;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT: return PKElementType::Float4;
-            case SPV_REFLECT_FORMAT_R64_SFLOAT: return PKElementType::Double;
-            case SPV_REFLECT_FORMAT_R64G64_SFLOAT: return PKElementType::Double2;
-            case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT: return PKElementType::Double3;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT: return PKElementType::Double4;
-            case SPV_REFLECT_FORMAT_R32_SINT: return PKElementType::Int;
-            case SPV_REFLECT_FORMAT_R32G32_SINT: return PKElementType::Int2;
-            case SPV_REFLECT_FORMAT_R32G32B32_SINT: return PKElementType::Int3;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_SINT: return PKElementType::Int4;
-            case SPV_REFLECT_FORMAT_R32_UINT: return PKElementType::Uint;
-            case SPV_REFLECT_FORMAT_R32G32_UINT: return PKElementType::Uint2;
-            case SPV_REFLECT_FORMAT_R32G32B32_UINT: return PKElementType::Uint3;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_UINT: return PKElementType::Uint4;
-            case SPV_REFLECT_FORMAT_R64_SINT: return PKElementType::Long;
-            case SPV_REFLECT_FORMAT_R64G64_SINT: return PKElementType::Long2;
-            case SPV_REFLECT_FORMAT_R64G64B64_SINT: return PKElementType::Long3;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_SINT: return PKElementType::Long4;
-            case SPV_REFLECT_FORMAT_R64_UINT: return PKElementType::Ulong;
-            case SPV_REFLECT_FORMAT_R64G64_UINT: return PKElementType::Ulong2;
-            case SPV_REFLECT_FORMAT_R64G64B64_UINT: return PKElementType::Ulong3;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_UINT: return PKElementType::Ulong4;
+        case SPV_REFLECT_FORMAT_R32_SFLOAT: return PKElementType::Float;
+        case SPV_REFLECT_FORMAT_R32G32_SFLOAT: return PKElementType::Float2;
+        case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT: return PKElementType::Float3;
+        case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT: return PKElementType::Float4;
+        case SPV_REFLECT_FORMAT_R64_SFLOAT: return PKElementType::Double;
+        case SPV_REFLECT_FORMAT_R64G64_SFLOAT: return PKElementType::Double2;
+        case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT: return PKElementType::Double3;
+        case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT: return PKElementType::Double4;
+        case SPV_REFLECT_FORMAT_R32_SINT: return PKElementType::Int;
+        case SPV_REFLECT_FORMAT_R32G32_SINT: return PKElementType::Int2;
+        case SPV_REFLECT_FORMAT_R32G32B32_SINT: return PKElementType::Int3;
+        case SPV_REFLECT_FORMAT_R32G32B32A32_SINT: return PKElementType::Int4;
+        case SPV_REFLECT_FORMAT_R32_UINT: return PKElementType::Uint;
+        case SPV_REFLECT_FORMAT_R32G32_UINT: return PKElementType::Uint2;
+        case SPV_REFLECT_FORMAT_R32G32B32_UINT: return PKElementType::Uint3;
+        case SPV_REFLECT_FORMAT_R32G32B32A32_UINT: return PKElementType::Uint4;
+        case SPV_REFLECT_FORMAT_R64_SINT: return PKElementType::Long;
+        case SPV_REFLECT_FORMAT_R64G64_SINT: return PKElementType::Long2;
+        case SPV_REFLECT_FORMAT_R64G64B64_SINT: return PKElementType::Long3;
+        case SPV_REFLECT_FORMAT_R64G64B64A64_SINT: return PKElementType::Long4;
+        case SPV_REFLECT_FORMAT_R64_UINT: return PKElementType::Ulong;
+        case SPV_REFLECT_FORMAT_R64G64_UINT: return PKElementType::Ulong2;
+        case SPV_REFLECT_FORMAT_R64G64B64_UINT: return PKElementType::Ulong3;
+        case SPV_REFLECT_FORMAT_R64G64B64A64_UINT: return PKElementType::Ulong4;
         }
 
         return PKElementType::Invalid;
@@ -40,54 +40,54 @@ namespace PK::Assets::Shader
     {
         switch (type)
         {
-            case PKElementType::Float: return "float";
-            case PKElementType::Float2: return "vec2";
-            case PKElementType::Float3: return "vec3";
-            case PKElementType::Float4: return "vec4";
-            case PKElementType::Double: return "float64_t";
-            case PKElementType::Double2: return "f64vec2";
-            case PKElementType::Double3: return "f64vec3";
-            case PKElementType::Double4: return "f64vec4";
-            case PKElementType::Half: return "float16_t";
-            case PKElementType::Half2: return "f16vec2";
-            case PKElementType::Half3: return "f16vec3";
-            case PKElementType::Half4: return "f16vec4";
-            case PKElementType::Int: return "int";
-            case PKElementType::Int2: return "ivec2";
-            case PKElementType::Int3: return "ivec3";
-            case PKElementType::Int4: return "ivec4";
-            case PKElementType::Uint: return "uint";
-            case PKElementType::Uint2: return "uvec2";
-            case PKElementType::Uint3: return "uvec3";
-            case PKElementType::Uint4: return "uvec4";
-            case PKElementType::Short: return "int16_t";
-            case PKElementType::Short2: return "i16vec2";
-            case PKElementType::Short3: return "i16vec3";
-            case PKElementType::Short4: return "i16vec4";
-            case PKElementType::Ushort: return "u16int";
-            case PKElementType::Ushort2: return "u16vec2";
-            case PKElementType::Ushort3: return "u16vec3";
-            case PKElementType::Ushort4: return "u16vec4";
-            case PKElementType::Long: return "int64_t";
-            case PKElementType::Long2: return "i64vec2";
-            case PKElementType::Long3: return "i64vec3";
-            case PKElementType::Long4: return "i64vec4";
-            case PKElementType::Ulong: return "uint64_t";
-            case PKElementType::Ulong2: return "u64vec2";
-            case PKElementType::Ulong3: return "u64vec3";
-            case PKElementType::Ulong4: return "u64vec4";
-            case PKElementType::Float2x2: return "mat2";
-            case PKElementType::Float3x3: return "mat3";
-            case PKElementType::Float4x4: return "mat4";
-            case PKElementType::Double2x2: return "f64mat2";
-            case PKElementType::Double3x3: return "f64mat3";
-            case PKElementType::Double4x4: return "f64mat4";
-            case PKElementType::Half2x2: return "f16mat2";
-            case PKElementType::Half3x3: return "f16mat3";
-            case PKElementType::Half4x4: return "f16mat4";
-            case PKElementType::Texture2DHandle: return "uint";
-            case PKElementType::Texture3DHandle: return "uint";
-            case PKElementType::TextureCubeHandle: return "uint";
+        case PKElementType::Float: return "float";
+        case PKElementType::Float2: return "vec2";
+        case PKElementType::Float3: return "vec3";
+        case PKElementType::Float4: return "vec4";
+        case PKElementType::Double: return "float64_t";
+        case PKElementType::Double2: return "f64vec2";
+        case PKElementType::Double3: return "f64vec3";
+        case PKElementType::Double4: return "f64vec4";
+        case PKElementType::Half: return "float16_t";
+        case PKElementType::Half2: return "f16vec2";
+        case PKElementType::Half3: return "f16vec3";
+        case PKElementType::Half4: return "f16vec4";
+        case PKElementType::Int: return "int";
+        case PKElementType::Int2: return "ivec2";
+        case PKElementType::Int3: return "ivec3";
+        case PKElementType::Int4: return "ivec4";
+        case PKElementType::Uint: return "uint";
+        case PKElementType::Uint2: return "uvec2";
+        case PKElementType::Uint3: return "uvec3";
+        case PKElementType::Uint4: return "uvec4";
+        case PKElementType::Short: return "int16_t";
+        case PKElementType::Short2: return "i16vec2";
+        case PKElementType::Short3: return "i16vec3";
+        case PKElementType::Short4: return "i16vec4";
+        case PKElementType::Ushort: return "u16int";
+        case PKElementType::Ushort2: return "u16vec2";
+        case PKElementType::Ushort3: return "u16vec3";
+        case PKElementType::Ushort4: return "u16vec4";
+        case PKElementType::Long: return "int64_t";
+        case PKElementType::Long2: return "i64vec2";
+        case PKElementType::Long3: return "i64vec3";
+        case PKElementType::Long4: return "i64vec4";
+        case PKElementType::Ulong: return "uint64_t";
+        case PKElementType::Ulong2: return "u64vec2";
+        case PKElementType::Ulong3: return "u64vec3";
+        case PKElementType::Ulong4: return "u64vec4";
+        case PKElementType::Float2x2: return "mat2";
+        case PKElementType::Float3x3: return "mat3";
+        case PKElementType::Float4x4: return "mat4";
+        case PKElementType::Double2x2: return "f64mat2";
+        case PKElementType::Double3x3: return "f64mat3";
+        case PKElementType::Double4x4: return "f64mat4";
+        case PKElementType::Half2x2: return "f16mat2";
+        case PKElementType::Half3x3: return "f16mat3";
+        case PKElementType::Half4x4: return "f16mat4";
+        case PKElementType::Texture2DHandle: return "uint";
+        case PKElementType::Texture3DHandle: return "uint";
+        case PKElementType::TextureCubeHandle: return "uint";
         }
 
         return "INVALID";
@@ -355,16 +355,16 @@ namespace PK::Assets::Shader
     {
         switch (type)
         {
-            case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER: return PKDescriptorType::Sampler;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: return PKDescriptorType::SamplerTexture;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE: return PKDescriptorType::Texture;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE: return PKDescriptorType::Image;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER: return PKDescriptorType::ConstantBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER: return PKDescriptorType::StorageBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: return PKDescriptorType::DynamicConstantBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: return PKDescriptorType::DynamicStorageBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT: return PKDescriptorType::InputAttachment;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: return PKDescriptorType::AccelerationStructure;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER: return PKDescriptorType::Sampler;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: return PKDescriptorType::SamplerTexture;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE: return PKDescriptorType::Texture;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE: return PKDescriptorType::Image;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER: return PKDescriptorType::ConstantBuffer;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER: return PKDescriptorType::StorageBuffer;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: return PKDescriptorType::DynamicConstantBuffer;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: return PKDescriptorType::DynamicStorageBuffer;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT: return PKDescriptorType::InputAttachment;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: return PKDescriptorType::AccelerationStructure;
         }
 
         return PKDescriptorType::Invalid;
@@ -374,18 +374,18 @@ namespace PK::Assets::Shader
     {
         switch (stage)
         {
-            case PKShaderStage::Vertex: return shaderc_vertex_shader; 
-            case PKShaderStage::TesselationControl: return shaderc_tess_control_shader; 
-            case PKShaderStage::TesselationEvaluation: return shaderc_tess_evaluation_shader; 
-            case PKShaderStage::Geometry: return shaderc_geometry_shader; 
-            case PKShaderStage::Fragment: return shaderc_fragment_shader; 
-            case PKShaderStage::Compute: return shaderc_compute_shader; 
+        case PKShaderStage::Vertex: return shaderc_vertex_shader;
+        case PKShaderStage::TesselationControl: return shaderc_tess_control_shader;
+        case PKShaderStage::TesselationEvaluation: return shaderc_tess_evaluation_shader;
+        case PKShaderStage::Geometry: return shaderc_geometry_shader;
+        case PKShaderStage::Fragment: return shaderc_fragment_shader;
+        case PKShaderStage::Compute: return shaderc_compute_shader;
 
-            case PKShaderStage::RayGeneration: return shaderc_raygen_shader; 
-            case PKShaderStage::RayMiss: return shaderc_miss_shader; 
-            case PKShaderStage::RayClosestHit: return shaderc_closesthit_shader; 
-            case PKShaderStage::RayAnyHit: return shaderc_anyhit_shader; 
-            case PKShaderStage::RayIntersection: return shaderc_intersection_shader; 
+        case PKShaderStage::RayGeneration: return shaderc_raygen_shader;
+        case PKShaderStage::RayMiss: return shaderc_miss_shader;
+        case PKShaderStage::RayClosestHit: return shaderc_closesthit_shader;
+        case PKShaderStage::RayAnyHit: return shaderc_anyhit_shader;
+        case PKShaderStage::RayIntersection: return shaderc_intersection_shader;
         }
 
         return shaderc_shader_kind::shaderc_glsl_infer_from_source;

@@ -29,7 +29,7 @@ namespace PK::Assets
         }
 
         template <class T2 = T>
-        [[nodiscard]] T2* operator->() const noexcept 
+        [[nodiscard]] T2* operator->() const noexcept
         {
             return get();
         }
@@ -44,7 +44,7 @@ namespace PK::Assets
     struct PKAssetBuffer : std::vector<char>
     {
         PKAssetBuffer() : header(Allocate<PKAssetHeader>())
-        {    
+        {
             header->magicNumber = PK_ASSET_MAGIC_NUMBER;
         }
 
@@ -73,7 +73,7 @@ namespace PK::Assets
     };
 
     void WriteName(char* dst, const char* src);
-    
+
     int WriteAsset(const char* filepath, const PKAssetBuffer& buffer);
 
     PKAssetBuffer CompressBuffer(const void* src, size_t srcSize, size_t* outSize);

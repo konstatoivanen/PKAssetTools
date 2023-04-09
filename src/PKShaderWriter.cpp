@@ -50,11 +50,11 @@ namespace PK::Assets::Shader
         ouput = StringUtilities::ReadFileRecursiveInclude(filepath);
     }
 
-    static void ExtractMulticompiles(std::string& source, 
-                                     std::vector<std::vector<std::string>>& keywords, 
-                                     std::vector<PKShaderKeyword>& outKeywords, 
-                                     uint32_t* outVariantCount, 
-                                     uint32_t* outDirectiveCount)
+    static void ExtractMulticompiles(std::string& source,
+        std::vector<std::vector<std::string>>& keywords,
+        std::vector<PKShaderKeyword>& outKeywords,
+        uint32_t* outVariantCount,
+        uint32_t* outDirectiveCount)
     {
         std::string output;
         size_t pos = 0;
@@ -167,7 +167,7 @@ namespace PK::Assets::Shader
         if (!valueRasterMode.empty())
         {
             auto keywords = StringUtilities::Split(valueRasterMode, " \n\r");
-            
+
             attributes->rasterMode = PKRasterMode::Default;
             attributes->overEstimation = 0x0;
 
@@ -226,7 +226,7 @@ namespace PK::Assets::Shader
         if (materialProperties.size() == 0)
         {
             auto standaloneToken = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_INSTANCING_PROP, source, true);
-            
+
             if (!standaloneToken.empty())
             {
                 source.insert(0, Instancing_Standalone_GLSL);
@@ -251,18 +251,18 @@ namespace PK::Assets::Shader
 
             switch (prop.type)
             {
-                case PKElementType::Texture2DHandle:
-                    block += "uint " + name + "_Handle;\n";
-                    break;
-                case PKElementType::Texture3DHandle:
-                    block += "uint " + name + "_Handle;\n";
-                    break;
-                case PKElementType::TextureCubeHandle:
-                    block += "uint " + name + "_Handle;\n";
-                    break;
-                default:
-                    block += GetGLSLType(prop.type) + " " + name + ";\n";
-                    break;
+            case PKElementType::Texture2DHandle:
+                block += "uint " + name + "_Handle;\n";
+                break;
+            case PKElementType::Texture3DHandle:
+                block += "uint " + name + "_Handle;\n";
+                break;
+            case PKElementType::TextureCubeHandle:
+                block += "uint " + name + "_Handle;\n";
+                break;
+            default:
+                block += GetGLSLType(prop.type) + " " + name + ";\n";
+                break;
             }
         }
 
@@ -274,18 +274,18 @@ namespace PK::Assets::Shader
 
             switch (prop.type)
             {
-                case PKElementType::Texture2DHandle:
-                case PKElementType::Texture3DHandle:
-                case PKElementType::TextureCubeHandle:
-                    block += "    " + name + "_Handle = prop." + name + ";\n";
-                    break;
+            case PKElementType::Texture2DHandle:
+            case PKElementType::Texture3DHandle:
+            case PKElementType::TextureCubeHandle:
+                block += "    " + name + "_Handle = prop." + name + ";\n";
+                break;
 
-                default:
-                    block += "    " + name + " = prop." + name + ";\n";
-                    break;
+            default:
+                block += "    " + name + " = prop." + name + ";\n";
+                break;
             }
         }
-        
+
         block += "}\n";
 
         for (auto& prop : materialProperties)
@@ -294,17 +294,17 @@ namespace PK::Assets::Shader
 
             switch (prop.type)
             {
-                case PKElementType::Texture2DHandle:
-                    block += "#define " + name + " pk_Instancing_Textures2D[" + name + "_Handle]\n";
-                    break;
-                case PKElementType::Texture3DHandle:
-                    block += "#define " + name + " pk_Instancing_Textures3D[" + name + "_Handle]\n";
-                    break;
-                case PKElementType::TextureCubeHandle:
-                    block += "#define " + name + " pk_Instancing_TexturesCube[" + name + "_Handle]\n";
-                    break;
-                default:
-                    break;
+            case PKElementType::Texture2DHandle:
+                block += "#define " + name + " pk_Instancing_Textures2D[" + name + "_Handle]\n";
+                break;
+            case PKElementType::Texture3DHandle:
+                block += "#define " + name + " pk_Instancing_Textures3D[" + name + "_Handle]\n";
+                break;
+            case PKElementType::TextureCubeHandle:
+                block += "#define " + name + " pk_Instancing_TexturesCube[" + name + "_Handle]\n";
+                break;
+            default:
+                break;
             }
         }
 
@@ -335,9 +335,9 @@ namespace PK::Assets::Shader
 
         switch (stage)
         {
-            case PKShaderStage::Vertex: source.insert(0, Instancing_Vertex_GLSL); break;
-            case PKShaderStage::Fragment: source.insert(0, Instancing_Fragment_GLSL); break;
-            default: return;
+        case PKShaderStage::Vertex: source.insert(0, Instancing_Vertex_GLSL); break;
+        case PKShaderStage::Fragment: source.insert(0, Instancing_Fragment_GLSL); break;
+        default: return;
         }
 
         auto pos = source.find("main()");
@@ -400,12 +400,12 @@ namespace PK::Assets::Shader
         }
     }
 
-    static int ProcessStageSources(const std::string& source, 
-                                   const std::string& sharedInclude, 
-                                   const std::string& variantDefines, 
-                                   std::unordered_map<PKShaderStage, 
-                                   std::string>& shaderSources,
-                                   bool enableInstancing)
+    static int ProcessStageSources(const std::string& source,
+        const std::string& sharedInclude,
+        const std::string& variantDefines,
+        std::unordered_map<PKShaderStage,
+        std::string>& shaderSources,
+        bool enableInstancing)
     {
         shaderSources.clear();
 
@@ -455,7 +455,7 @@ namespace PK::Assets::Shader
     static int CompileGLSLToSpirV(const ShaderCompiler& compiler, PKShaderStage stage, const std::string& source_name, const std::string& source, ShaderSpriV& spirvd, ShaderSpriV& spirvr)
     {
         auto kind = ConvertToShadercKind(stage);
-        
+
         shaderc::CompileOptions options;
 
         options.SetAutoBindUniforms(true);
@@ -685,7 +685,7 @@ namespace PK::Assets::Shader
         {
             sortedBindingMap.insert(std::make_pair(kv.second.maxBinding, kv.second));
         }
-        
+
         reflection.sortedBindings.clear();
 
         for (auto& kv : sortedBindingMap)
@@ -701,7 +701,7 @@ namespace PK::Assets::Shader
             auto desc = binding.get();
             auto bindId = setCounters[desc->set];
             setCounters[desc->set]++;
-            
+
             for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
             {
                 if (binding.bindings[i] != nullptr)
@@ -745,7 +745,7 @@ namespace PK::Assets::Shader
 
         shader->keywordCount = (uint32_t)keywords.size();
         shader->materialPropertyCount = (uint32_t)materialProperties.size();
-        
+
         if (keywords.size() > 0)
         {
             auto pKeywords = buffer.Write<PKShaderKeyword>(keywords.data(), keywords.size());
@@ -859,7 +859,7 @@ namespace PK::Assets::Shader
                         printf("Warning has a descriptor set outside of supported range (%i / %i) \n", desc->set, PK_ASSET_MAX_DESCRIPTOR_SETS);
                         continue;
                     }
-    
+
                     PKDescriptor descriptor{};
                     descriptor.count = binding.count;
                     descriptor.type = GetResourceType(desc->descriptor_type);

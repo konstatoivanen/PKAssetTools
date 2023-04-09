@@ -236,14 +236,14 @@ namespace PK::Assets
         constexpr const static char* PK_SHADER_ATTRIB_MULTI_COMPILE = "#multi_compile ";
         constexpr const static char* PK_SHADER_ATTRIB_MATERIAL_PROP = "#MaterialProperty ";
         constexpr const static char* PK_SHADER_ATTRIB_INSTANCING_PROP = "#EnableInstancing";
-        
+
         constexpr const static char* PK_SHADER_INSTANCING_TRANSFORMS = "pk_Instancing_Transforms";
         constexpr const static char* PK_SHADER_INSTANCING_INDICES = "pk_Instancing_Indices";
         constexpr const static char* PK_SHADER_INSTANCING_PROPERTIES = "pk_Instancing_Properties";
         constexpr const static char* PK_SHADER_INSTANCING_TEXTURES2D = "pk_Instancing_Textures2D";
         constexpr const static char* PK_SHADER_INSTANCING_TEXTURES3D = "pk_Instancing_Textures3D";
         constexpr const static char* PK_SHADER_INSTANCING_TEXTURESCUBE = "pk_Instancing_TexturesCube";
-        
+
         enum class Type : unsigned char
         {
             Graphics,

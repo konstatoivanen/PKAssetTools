@@ -28,8 +28,8 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
 } named;
 
 layout(push_constant) uniform offset
-{ 
-    float4 offset_x; 
+{
+    float4 offset_x;
     float4 unused_x;
 };
 
@@ -49,7 +49,7 @@ void main()
 
 #pragma PROGRAM_FRAGMENT
 
-layout(r16f, set = PK_SET_SHADER) uniform image2DArray pk_ScreenGI_Hits;
+layout(rg16f, set = PK_SET_SHADER) uniform image2D pk_ScreenGI_Hits;
 
 PK_DECLARE_BUFFER(float4, _WriteBuffer, PK_SET_DRAW);
 
@@ -62,6 +62,6 @@ out float4 outColor;
 void main()
 {
     outColor = float4(tex2D(_AlbedoTex, vs_TEXCOORD0).xyz * tex2D(tex1, vs_TEXCOORD0).xyz * vs_COLOR * _Color.rgb, 1.0);
-    imageStore(pk_ScreenGI_Hits, int3(outColor.xyz * 1024), float4(outColor.x, 0, 0, 0));
+    imageStore(pk_ScreenGI_Hits, int2(outColor.xy * 1024), float4(outColor.x, 0, 0, 0));
     PK_BUFFER_DATA(_WriteBuffer, uint(outColor.x * 1024)) = outColor;
 }

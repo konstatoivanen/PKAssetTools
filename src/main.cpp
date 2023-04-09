@@ -41,7 +41,7 @@ void GetLastWriteTimeRecursive(const std::filesystem::path& dir, std::filesystem
         }
 
         auto time = std::filesystem::last_write_time(entryPath);
-    
+
         if (time > lastTime)
         {
             lastTime = time;
@@ -119,7 +119,7 @@ int main(int argc, char** argv)
     if (argc < 2 || argc > 3)
     {
         printf("Invalid number of arguments. current: %i \n", argc);
-        
+
         for (auto i = 0; i < argc; ++i)
         {
             printf("%s \n", argv[i]);

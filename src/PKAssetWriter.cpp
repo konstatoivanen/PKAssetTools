@@ -165,7 +165,7 @@ namespace PK::Assets
     void WriteName(char* dst, const char* src)
     {
         auto c = strlen(src);
-        
+
         if (c >= PK_ASSET_NAME_MAX_LENGTH)
         {
             c = PK_ASSET_NAME_MAX_LENGTH - 1;
@@ -230,7 +230,7 @@ namespace PK::Assets
             return -1;
         }
 
-        #if PK_DEBUG
+#if PK_DEBUG
         PKAsset asset;
         Assets::OpenAsset(filepath, &asset);
 
@@ -246,7 +246,7 @@ namespace PK::Assets
 
         auto compare = memcmp(asset.rawData, buffer.data(), buffer.size());
         Assets::CloseAsset(&asset);
-        #endif
+#endif
 
         return 0;
     }

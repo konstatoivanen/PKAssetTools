@@ -39,37 +39,37 @@ namespace PK::Assets::Shader
         std::vector<OpLoad> opLoads;
         std::vector<OpAccessChain> opAccessChains;
 
-        while(i < wordCount)
+        while (i < wordCount)
         {
             SpvOp opcode = (SpvOp)(code[i] & 0xFFFF);
             uint16_t wcount = (code[i] >> 16) & 0xFFFF;
             const uint32_t* params = code + i + 1;
-        
+
             switch (opcode)
             {
-                case SpvOp::SpvOpLoad:
-                {
-                    opLoads.push_back({ params[0], params[1], params[2] });
-                }
-                break;
+            case SpvOp::SpvOpLoad:
+            {
+                opLoads.push_back({ params[0], params[1], params[2] });
+            }
+            break;
 
-                case SpvOp::SpvOpAccessChain:
-                {
-                    opAccessChains.push_back({ params[0], params[1], params[2] });
-                }
-                break;
+            case SpvOp::SpvOpAccessChain:
+            {
+                opAccessChains.push_back({ params[0], params[1], params[2] });
+            }
+            break;
 
-                case SpvOp::SpvOpImageWrite:
-                {
-                    opImageWrites.push_back({ params[0] });
-                }
-                break;
+            case SpvOp::SpvOpImageWrite:
+            {
+                opImageWrites.push_back({ params[0] });
+            }
+            break;
 
-                case SpvOp::SpvOpStore:
-                {
-                    opStores.push_back({ params[0], params[1] });
-                }
-                break;
+            case SpvOp::SpvOpStore:
+            {
+                opStores.push_back({ params[0], params[1] });
+            }
+            break;
             }
 
             i += wcount;
@@ -88,37 +88,37 @@ namespace PK::Assets::Shader
 
             switch (opcode)
             {
-                case SpvOp::SpvOpStore:
-                case SpvOp::SpvOpAtomicStore:
+            case SpvOp::SpvOpStore:
+            case SpvOp::SpvOpAtomicStore:
+            {
+                if (params[0] == accessChainId)
                 {
-                    if (params[0] == accessChainId)
-                    {
-                        return true;
-                    }
+                    return true;
                 }
-                break;
+            }
+            break;
 
-                case SpvOp::SpvOpAtomicExchange:
-                case SpvOp::SpvOpAtomicCompareExchange:
-                case SpvOp::SpvOpAtomicCompareExchangeWeak:
-                case SpvOp::SpvOpAtomicIIncrement:
-                case SpvOp::SpvOpAtomicIDecrement:
-                case SpvOp::SpvOpAtomicIAdd:
-                case SpvOp::SpvOpAtomicISub:
-                case SpvOp::SpvOpAtomicSMin:
-                case SpvOp::SpvOpAtomicUMin:
-                case SpvOp::SpvOpAtomicSMax:
-                case SpvOp::SpvOpAtomicUMax:
-                case SpvOp::SpvOpAtomicAnd:
-                case SpvOp::SpvOpAtomicOr:
-                case SpvOp::SpvOpAtomicXor:
-                case SpvOp::SpvOpAtomicFAddEXT:
+            case SpvOp::SpvOpAtomicExchange:
+            case SpvOp::SpvOpAtomicCompareExchange:
+            case SpvOp::SpvOpAtomicCompareExchangeWeak:
+            case SpvOp::SpvOpAtomicIIncrement:
+            case SpvOp::SpvOpAtomicIDecrement:
+            case SpvOp::SpvOpAtomicIAdd:
+            case SpvOp::SpvOpAtomicISub:
+            case SpvOp::SpvOpAtomicSMin:
+            case SpvOp::SpvOpAtomicUMin:
+            case SpvOp::SpvOpAtomicSMax:
+            case SpvOp::SpvOpAtomicUMax:
+            case SpvOp::SpvOpAtomicAnd:
+            case SpvOp::SpvOpAtomicOr:
+            case SpvOp::SpvOpAtomicXor:
+            case SpvOp::SpvOpAtomicFAddEXT:
+            {
+                if (params[2] == accessChainId)
                 {
-                    if (params[2] == accessChainId)
-                    {
-                        return true;
-                    }
+                    return true;
                 }
+            }
             }
 
             i += wcount;
@@ -137,7 +137,7 @@ namespace PK::Assets::Shader
             uint16_t wcount = (code[i] >> 16) & 0xFFFFu;
             const uint32_t* params = code + i + 1;
 
-            if (opcode == SpvOp::SpvOpImageWrite && 
+            if (opcode == SpvOp::SpvOpImageWrite &&
                 params[0] == opLoadId)
             {
                 return true;
@@ -159,8 +159,8 @@ namespace PK::Assets::Shader
             uint16_t wcount = (code[i] >> 16) & 0xFFFFu;
             const uint32_t* params = code + i + 1;
 
-            if (opcode == SpvOp::SpvOpAccessChain && 
-                params[2] == variable && 
+            if (opcode == SpvOp::SpvOpAccessChain &&
+                params[2] == variable &&
                 ReflectAccessChainStore(code, wordCount, params[1]))
             {
                 return true;
@@ -183,7 +183,7 @@ namespace PK::Assets::Shader
             const uint32_t* params = code + i + 1;
 
             if (opcode == SpvOp::SpvOpLoad &&
-                params[2] == variable && 
+                params[2] == variable &&
                 ReflectOpLoadImageWrite(code, wordCount, params[1]))
             {
                 return true;
@@ -199,11 +199,11 @@ namespace PK::Assets::Shader
     {
         switch (type)
         {
-            case PKDescriptorType::Image: 
-                return ReflectImageWrite(code, wordCount, variable);
-            case PKDescriptorType::StorageBuffer:
-            case PKDescriptorType::DynamicStorageBuffer: 
-                return ReflectBufferWrite(code, wordCount, variable);
+        case PKDescriptorType::Image:
+            return ReflectImageWrite(code, wordCount, variable);
+        case PKDescriptorType::StorageBuffer:
+        case PKDescriptorType::DynamicStorageBuffer:
+            return ReflectBufferWrite(code, wordCount, variable);
         }
 
         return false;

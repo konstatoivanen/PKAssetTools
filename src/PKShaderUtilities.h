@@ -67,7 +67,7 @@ namespace PK::Assets::Shader
         "in flat uint vs_INSTANCE_ID;                                                           \n"
         "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS PK_INSTANCING_ASSIGN_LOCALS(vs_INSTANCE_ID); \n";
 
-    constexpr const static char* PK_GL_EXTENSIONS_COMMON = 
+    constexpr const static char* PK_GL_EXTENSIONS_COMMON =
         "#extension GL_EXT_shader_explicit_arithmetic_types : require \n"
         "#extension GL_EXT_nonuniform_qualifier : require \n"
         "#extension GL_ARB_shader_viewport_layer_array : require \n";
