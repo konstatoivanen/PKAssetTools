@@ -426,10 +426,15 @@ namespace PK::Assets::Shader
         StringUtilities::ReplaceAll(source, surroundMask, "ushort3", "u16vec3");
         StringUtilities::ReplaceAll(source, surroundMask, "ushort4", "u16vec4");
 
-        StringUtilities::ReplaceAll(source, surroundMask, "fixed", "uint8_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "fixed2", "u8vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "fixed3", "u8vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "fixed4", "i8vec4");
+        StringUtilities::ReplaceAll(source, surroundMask, "byte", "uint8_t");
+        StringUtilities::ReplaceAll(source, surroundMask, "byte2", "u8vec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "byte3", "u8vec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "byte4", "u8vec4");
+
+        StringUtilities::ReplaceAll(source, surroundMask, "sbyte", "int8_t");
+        StringUtilities::ReplaceAll(source, surroundMask, "sbyte2", "i8vec2");
+        StringUtilities::ReplaceAll(source, surroundMask, "sbyte3", "i8vec3");
+        StringUtilities::ReplaceAll(source, surroundMask, "sbyte4", "i8vec4");
 
         StringUtilities::ReplaceAll(source, surroundMask, "int2", "ivec2");
         StringUtilities::ReplaceAll(source, surroundMask, "int3", "ivec3");
