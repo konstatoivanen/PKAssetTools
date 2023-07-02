@@ -792,6 +792,7 @@ namespace PK::Assets::Shader
 
                 if (GetReflectionModule(moduler, spirvr) != 0)
                 {
+                    
                     printf("Failed to extract reflection data from shader variant source! \n");
                     return -1;
                 }
