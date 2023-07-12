@@ -67,6 +67,11 @@ namespace PK::Assets::Shader
         "in flat uint vs_INSTANCE_ID;                                                           \n"
         "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS PK_INSTANCING_ASSIGN_LOCALS(vs_INSTANCE_ID); \n";
 
+    constexpr const static char* AtomicCounter_GLSL =
+        "layout(std430, set = 3) buffer pk_BuiltInAtomicCounter { uint pk_BuiltInAtomicCounter_Data; };\n"
+        "uint PK_AtomicCounterAdd(uint increment) { return atomicAdd(pk_BuiltInAtomicCounter_Data, increment); }\n"
+        "uint PK_AtomicCounterNext() { return atomicAdd(pk_BuiltInAtomicCounter_Data, 1u); }\n";
+
     constexpr const static char* PK_GL_EXTENSIONS_COMMON =
         "#extension GL_EXT_shader_explicit_arithmetic_types : require \n"
         "#extension GL_EXT_nonuniform_qualifier : require \n"

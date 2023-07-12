@@ -186,6 +186,16 @@ namespace PK::Assets::Shader
         attributes->cull = GetCullModeFromString(StringUtilities::Trim(valueCull));
     }
 
+    static void ProcessAtomicCounter(std::string& source)
+    {
+        auto valueAtomic = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ATOMICCOUNTER, source, true);
+
+        if (!valueAtomic.empty())
+        {
+            source.insert(0, AtomicCounter_GLSL);
+        }
+    }
+
     static void ProcessInstancingProperties(std::string& source, std::vector<PKMaterialProperty>& materialProperties, bool* enableInstancing)
     {
         *enableInstancing = false;
@@ -741,6 +751,7 @@ namespace PK::Assets::Shader
         ExtractMulticompiles(source, mckeywords, keywords, &shader->variantcount, &directiveCount);
         ExtractStateAttributes(source, &shader->attributes);
         ProcessInstancingProperties(source, materialProperties, &enableInstancing);
+        ProcessAtomicCounter(source);
         ConvertHLSLTypesToGLSL(source);
         GetSharedInclude(source, sharedInclude);
 
