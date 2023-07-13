@@ -73,6 +73,7 @@ namespace PK::Assets::Shader
         "uint PK_AtomicCounterNext() { return atomicAdd(pk_BuiltInAtomicCounter_Data, 1u); }\n";
 
     constexpr const static char* PK_GL_EXTENSIONS_COMMON =
+        "#extension GL_EXT_control_flow_attributes : require \n"
         "#extension GL_EXT_shader_explicit_arithmetic_types : require \n"
         "#extension GL_EXT_nonuniform_qualifier : require \n"
         "#extension GL_ARB_shader_viewport_layer_array : require \n";
