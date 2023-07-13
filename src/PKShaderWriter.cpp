@@ -470,8 +470,8 @@ namespace PK::Assets::Shader
 
         options.SetAutoBindUniforms(true);
         options.SetAutoMapLocations(true);
-        options.SetTargetEnvironment(shaderc_target_env_default, shaderc_env_version_vulkan_1_2);
-        options.SetTargetSpirv(shaderc_spirv_version_1_5);
+        options.SetTargetEnvironment(shaderc_target_env_default, shaderc_env_version_vulkan_1_3);
+        options.SetTargetSpirv(shaderc_spirv_version_1_6);
 
         // Will crash to buffer owerflow on variable name syntax errors :/
         auto module = compiler.CompileGlslToSpv(source, kind, source_name.c_str(), options);
@@ -645,6 +645,12 @@ namespace PK::Assets::Shader
     static void GetComputeGroupSize(SpvReflectShaderModule* shaderModule, uint32_t* outSize)
     {
         auto entryPoint = shaderModule->entry_points;
+
+        if (ReflectLocalSize(shaderModule->_internal->spirv_code, shaderModule->_internal->spirv_word_count, outSize))
+        {
+            return;
+        }
+
         entryPoint->local_size;
         outSize[0] = entryPoint->local_size.x;
         outSize[1] = entryPoint->local_size.y;

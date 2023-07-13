@@ -15,7 +15,6 @@ namespace PK::Assets::Shader
         uint32_t image;
     };
 
-
     struct OpLoad
     {
         uint32_t resultType;
@@ -47,29 +46,29 @@ namespace PK::Assets::Shader
 
             switch (opcode)
             {
-            case SpvOp::SpvOpLoad:
-            {
-                opLoads.push_back({ params[0], params[1], params[2] });
-            }
-            break;
+                case SpvOp::SpvOpLoad:
+                {
+                    opLoads.push_back({ params[0], params[1], params[2] });
+                }
+                break;
 
-            case SpvOp::SpvOpAccessChain:
-            {
-                opAccessChains.push_back({ params[0], params[1], params[2] });
-            }
-            break;
+                case SpvOp::SpvOpAccessChain:
+                {
+                    opAccessChains.push_back({ params[0], params[1], params[2] });
+                }
+                break;
 
-            case SpvOp::SpvOpImageWrite:
-            {
-                opImageWrites.push_back({ params[0] });
-            }
-            break;
+                case SpvOp::SpvOpImageWrite:
+                {
+                    opImageWrites.push_back({ params[0] });
+                }
+                break;
 
-            case SpvOp::SpvOpStore:
-            {
-                opStores.push_back({ params[0], params[1] });
-            }
-            break;
+                case SpvOp::SpvOpStore:
+                {
+                    opStores.push_back({ params[0], params[1] });
+                }
+                break;
             }
 
             i += wcount;
@@ -88,37 +87,37 @@ namespace PK::Assets::Shader
 
             switch (opcode)
             {
-            case SpvOp::SpvOpStore:
-            case SpvOp::SpvOpAtomicStore:
-            {
-                if (params[0] == accessChainId)
+                case SpvOp::SpvOpStore:
+                case SpvOp::SpvOpAtomicStore:
                 {
-                    return true;
+                    if (params[0] == accessChainId)
+                    {
+                        return true;
+                    }
                 }
-            }
-            break;
+                break;
 
-            case SpvOp::SpvOpAtomicExchange:
-            case SpvOp::SpvOpAtomicCompareExchange:
-            case SpvOp::SpvOpAtomicCompareExchangeWeak:
-            case SpvOp::SpvOpAtomicIIncrement:
-            case SpvOp::SpvOpAtomicIDecrement:
-            case SpvOp::SpvOpAtomicIAdd:
-            case SpvOp::SpvOpAtomicISub:
-            case SpvOp::SpvOpAtomicSMin:
-            case SpvOp::SpvOpAtomicUMin:
-            case SpvOp::SpvOpAtomicSMax:
-            case SpvOp::SpvOpAtomicUMax:
-            case SpvOp::SpvOpAtomicAnd:
-            case SpvOp::SpvOpAtomicOr:
-            case SpvOp::SpvOpAtomicXor:
-            case SpvOp::SpvOpAtomicFAddEXT:
-            {
-                if (params[2] == accessChainId)
+                case SpvOp::SpvOpAtomicExchange:
+                case SpvOp::SpvOpAtomicCompareExchange:
+                case SpvOp::SpvOpAtomicCompareExchangeWeak:
+                case SpvOp::SpvOpAtomicIIncrement:
+                case SpvOp::SpvOpAtomicIDecrement:
+                case SpvOp::SpvOpAtomicIAdd:
+                case SpvOp::SpvOpAtomicISub:
+                case SpvOp::SpvOpAtomicSMin:
+                case SpvOp::SpvOpAtomicUMin:
+                case SpvOp::SpvOpAtomicSMax:
+                case SpvOp::SpvOpAtomicUMax:
+                case SpvOp::SpvOpAtomicAnd:
+                case SpvOp::SpvOpAtomicOr:
+                case SpvOp::SpvOpAtomicXor:
+                case SpvOp::SpvOpAtomicFAddEXT:
                 {
-                    return true;
+                    if (params[2] == accessChainId)
+                    {
+                        return true;
+                    }
                 }
-            }
             }
 
             i += wcount;
@@ -140,6 +139,28 @@ namespace PK::Assets::Shader
             if (opcode == SpvOp::SpvOpImageWrite &&
                 params[0] == opLoadId)
             {
+                return true;
+            }
+
+            i += wcount;
+        }
+
+        return false;
+    }
+
+    static bool FindOpConstUint(const uint32_t* code, const uint32_t wordCount, uint32_t constId, uint32_t* outValue)
+    {
+        uint32_t i = 5u; // Bytecode starts at word index 5, after the header.
+
+        while (i < wordCount)
+        {
+            SpvOp opcode = (SpvOp)(code[i] & 0xFFFFu);
+            uint16_t wcount = (code[i] >> 16) & 0xFFFFu;
+            const uint32_t* params = code + i + 1;
+
+            if (opcode == SpvOp::SpvOpConstant && params[1] == constId)
+            {
+                *outValue = params[2];
                 return true;
             }
 
@@ -199,11 +220,35 @@ namespace PK::Assets::Shader
     {
         switch (type)
         {
-        case PKDescriptorType::Image:
-            return ReflectImageWrite(code, wordCount, variable);
-        case PKDescriptorType::StorageBuffer:
-        case PKDescriptorType::DynamicStorageBuffer:
-            return ReflectBufferWrite(code, wordCount, variable);
+            case PKDescriptorType::Image:
+                return ReflectImageWrite(code, wordCount, variable);
+            case PKDescriptorType::StorageBuffer:
+            case PKDescriptorType::DynamicStorageBuffer:
+                return ReflectBufferWrite(code, wordCount, variable);
+        }
+
+        return false;
+    }
+
+    bool ReflectLocalSize(const uint32_t* code, const uint32_t wordCount, uint32_t* localSize)
+    {
+        uint32_t i = 5u; // Bytecode starts at word index 5, after the header.
+
+        while (i < wordCount)
+        {
+            SpvOp opcode = (SpvOp)(code[i] & 0xFFFFu);
+            uint16_t wcount = (code[i] >> 16) & 0xFFFFu;
+            const uint32_t* params = code + i + 1;
+            
+            if (opcode == SpvOp::SpvOpExecutionModeId && params[1] == SpvExecutionMode::SpvExecutionModeLocalSizeId)
+            {
+                const bool foundX = FindOpConstUint(code, wordCount, params[2], &localSize[0]);
+                const bool foundY = FindOpConstUint(code, wordCount, params[3], &localSize[1]);
+                const bool foundZ = FindOpConstUint(code, wordCount, params[4], &localSize[2]);
+                return foundX && foundY && foundZ;
+            }
+
+            i += wcount;
         }
 
         return false;
