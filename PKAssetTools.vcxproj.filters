@@ -162,7 +162,7 @@
     <None Include="LICENSE" />
     <None Include="README.md" />
     <None Include="debug_res\models\MDL_Debug.mdl" />
-    <None Include="debug_res\shaders\includes\Utilities.glsl" />
+    <None Include="debug_res\shaders\includes\DebugUtilities.glsl" />
     <None Include="debug_res\shaders\SH_WS_Debug.shader" />
     <None Include="debug_res\models\MDL_Debug.mdl.pkmeta" />
     <None Include="debug_res\shaders\CS_Debug.shader" />

@@ -391,6 +391,47 @@ namespace PK::Assets::Shader
         return shaderc_shader_kind::shaderc_glsl_infer_from_source;
     }
 
+    void FindLineRange(const std::string& name, const std::string& message, int* outMin, int* outMax)
+    {
+        *outMin = 0xFFFF;
+        *outMax = -0xFFFF;
+
+        auto token = name + std::string(":");
+        auto pos = message.find(token.c_str(), 0);
+
+        while (pos != std::string::npos)
+        {
+            auto eol = message.find_first_of("\r\n", pos);
+            auto sol = message.find_first_not_of("\r\n", eol);
+            
+            auto spos = pos + strlen(token.c_str());
+            auto eot = message.find_first_of(":", spos);
+            
+            if (eot != std::string::npos)
+            {
+                auto number = std::stoi(message.substr(spos, eot - spos));
+
+                if (number < *outMin)
+                {
+                    *outMin = number;
+                }
+
+                if (number > *outMax)
+                {
+                    *outMax = number;
+                }
+            }
+
+            if (eol == std::string::npos ||
+                sol == std::string::npos)
+            {
+                return;
+            }
+
+            pos = message.find(token.c_str(), sol);
+        }
+    }
+
     void ConvertHLSLTypesToGLSL(std::string& source)
     {
         const std::string surroundMask = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";

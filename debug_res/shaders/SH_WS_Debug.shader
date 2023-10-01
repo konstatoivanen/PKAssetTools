@@ -11,7 +11,7 @@
 #MaterialProperty texture3D _LutTex
 #WithAtomicCounter
 
-#include includes/Utilities.glsl
+#include includes/DebugUtilities.glsl
 
 #pragma PROGRAM_VERTEX
 

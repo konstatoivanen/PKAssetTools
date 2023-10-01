@@ -477,20 +477,36 @@ namespace PK::Assets::Shader
         auto module = compiler.CompileGlslToSpv(source, kind, source_name.c_str(), options);
         auto status = module.GetCompilationStatus();
 
-        if (status != shaderc_compilation_status_success)
+        if (status != shaderc_compilation_status_success || module.GetNumWarnings() > 0)
         {
+            int minLine, maxLine;
+            FindLineRange(source_name, module.GetErrorMessage(), &minLine, &maxLine);
+
+            printf("\n ----------BEGIN ERROR---------- \n\n");
             printf(module.GetErrorMessage().c_str());
-            printf("\n ----------BEGIN SOURCE---------- \n");
+            printf("\n");
 
             std::istringstream iss(source);
-            auto index = -1;
+            auto index = 0;
+            const auto linePadding = 5;
+            minLine -= linePadding;
+            maxLine += linePadding;
 
-            for (std::string line; std::getline(iss, line); )
+            for (std::string line; std::getline(iss, line);)
             {
-                printf("%i: %s \n", index++, line.c_str());
+                if (index > minLine && index < maxLine)
+                {
+                    printf("%i: %s \n", index, line.c_str());
+                }
+
+                index++;
             }
 
-            printf("\n ----------END SOURCE---------- \n");
+            printf("\n ----------END ERROR---------- \n\n");
+        }
+
+        if (status != shaderc_compilation_status_success)
+        {
             return -1;
         }
 

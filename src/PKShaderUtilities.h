@@ -73,6 +73,7 @@ namespace PK::Assets::Shader
         "uint PK_AtomicCounterNext() { return atomicAdd(pk_BuiltInAtomicCounter_Data, 1u); }\n";
 
     constexpr const static char* PK_GL_EXTENSIONS_COMMON =
+        "#extension GL_EXT_shader_16bit_storage : require \n"
         "#extension GL_EXT_control_flow_attributes : require \n"
         "#extension GL_EXT_shader_explicit_arithmetic_types : require \n"
         "#extension GL_EXT_nonuniform_qualifier : require \n"
@@ -93,6 +94,7 @@ namespace PK::Assets::Shader
     PKShaderStage GetShaderStageFromString(const std::string& type);
     PKDescriptorType GetResourceType(SpvReflectDescriptorType type);
     shaderc_shader_kind ConvertToShadercKind(PKShaderStage stage);
+    void FindLineRange(const std::string& name, const std::string& message, int* outMin, int* outMax);
     void ConvertHLSLTypesToGLSL(std::string& source);
 
 }
