@@ -79,6 +79,7 @@ namespace PK::Assets::Shader
             case PKElementType::Float2x2: return "mat2";
             case PKElementType::Float3x3: return "mat3";
             case PKElementType::Float4x4: return "mat4";
+            case PKElementType::Float3x4: return "mat3x4";
             case PKElementType::Double2x2: return "f64mat2";
             case PKElementType::Double3x3: return "f64mat3";
             case PKElementType::Double4x4: return "f64mat4";
