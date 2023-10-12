@@ -28,13 +28,13 @@ namespace PK::Assets::Shader
         "struct PK_Draw { uint material; uint transform; uint mesh; uint userdata; };                                                                   \n"
         "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { mat4 pk_Instancing_Transforms_Data[]; };                     \n"
         "layout(std430, set = 3, binding = 101) readonly buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                        \n"
-        "mat4 pk_MATRIX_M;                                                                                                                              \n"
-        "#define pk_MATRIX_I_M inverse(pk_MATRIX_M)                                                                                                     \n"
+        "mat4 pk_ObjectToWorld;                                                                                                                         \n"
+        "#define pk_WorldToObject inverse(pk_ObjectToWorld)                                                                                             \n"
         "uint pk_Instancing_Userdata;                                                                                                                   \n"
         "void PK_INSTANCING_ASSIGN_LOCALS(uint index)                                                                                                   \n"
         "{                                                                                                                                              \n"
         "    PK_Draw draw = pk_Instancing_Indices_Data[index];                                                                                          \n"
-        "    pk_MATRIX_M = pk_Instancing_Transforms_Data[draw.transform];                                                                               \n"
+        "    pk_ObjectToWorld = pk_Instancing_Transforms_Data[draw.transform];                                                                          \n"
         "    pk_Instancing_Userdata = draw.userdata;                                                                                                    \n"
         "}                                                                                                                                              \n";
 
@@ -47,13 +47,13 @@ namespace PK::Assets::Shader
         "layout(set = 3, binding = 103) uniform sampler2D pk_Instancing_Textures2D[];                                                                   \n"
         "layout(set = 3, binding = 104) uniform sampler3D pk_Instancing_Textures3D[];                                                                   \n"
         "layout(set = 3, binding = 105) uniform samplerCube pk_Instancing_TexturesCube[];                                                               \n"
-        "mat4 pk_MATRIX_M;                                                                                                                              \n"
-        "#define pk_MATRIX_I_M inverse(pk_MATRIX_M)                                                                                                     \n"
+        "mat4 pk_ObjectToWorld;                                                                                                                         \n"
+        "#define pk_WorldToObject inverse(pk_ObjectToWorld)                                                                                             \n"
         "uint pk_Instancing_Userdata;                                                                                                                   \n"
         "void PK_INSTANCING_ASSIGN_LOCALS(uint index)                                                                                                   \n"
         "{                                                                                                                                              \n"
         "    PK_Draw draw = pk_Instancing_Indices_Data[index];                                                                                          \n"
-        "    pk_MATRIX_M = pk_Instancing_Transforms_Data[draw.transform];                                                                               \n"
+        "    pk_ObjectToWorld = pk_Instancing_Transforms_Data[draw.transform];                                                                          \n"
         "    pk_Instancing_Userdata = draw.userdata;                                                                                                    \n"
         "    PK_MaterialPropertyBlock prop = pk_Instancing_Properties_Data[draw.material];                                                              \n";
 
