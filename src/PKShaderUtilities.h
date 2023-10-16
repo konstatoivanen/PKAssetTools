@@ -44,9 +44,9 @@ namespace PK::Assets::Shader
         "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { mat4 pk_Instancing_Transforms_Data[]; };                     \n"
         "layout(std430, set = 3, binding = 101) readonly buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                        \n"
         "layout(std430, set = 3, binding = 102) readonly buffer pk_Instancing_Properties { PK_MaterialPropertyBlock pk_Instancing_Properties_Data[]; }; \n"
-        "layout(set = 3, binding = 103) uniform sampler2D pk_Instancing_Textures2D[];                                                                   \n"
-        "layout(set = 3, binding = 104) uniform sampler3D pk_Instancing_Textures3D[];                                                                   \n"
-        "layout(set = 3, binding = 105) uniform samplerCube pk_Instancing_TexturesCube[];                                                               \n"
+        "layout(set = 3, binding = 103) uniform texture2D pk_Instancing_Textures2D[];                                                                   \n"
+        "layout(set = 3, binding = 104) uniform texture3D pk_Instancing_Textures3D[];                                                                   \n"
+        "layout(set = 3, binding = 105) uniform textureCube pk_Instancing_TexturesCube[];                                                               \n"
         "mat4 pk_ObjectToWorld;                                                                                                                         \n"
         "#define pk_WorldToObject inverse(pk_ObjectToWorld)                                                                                             \n"
         "uint pk_Instancing_Userdata;                                                                                                                   \n"
@@ -73,6 +73,7 @@ namespace PK::Assets::Shader
         "uint PK_AtomicCounterNext() { return atomicAdd(pk_BuiltInAtomicCounter_Data, 1u); }\n";
 
     constexpr const static char* PK_GL_EXTENSIONS_COMMON =
+        "#extension GL_EXT_samplerless_texture_functions : require \n"
         "#extension GL_EXT_shader_16bit_storage : require \n"
         "#extension GL_EXT_control_flow_attributes : require \n"
         "#extension GL_EXT_shader_explicit_arithmetic_types : require \n"

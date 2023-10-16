@@ -437,8 +437,6 @@ namespace PK::Assets::Shader
     {
         const std::string surroundMask = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";
         StringUtilities::ReplaceAll(source, surroundMask, "lerp", "mix");
-        StringUtilities::ReplaceAll(source, surroundMask, "tex2D", "texture");
-        StringUtilities::ReplaceAll(source, surroundMask, "tex2DLod", "textureLod");
 
         StringUtilities::ReplaceAll(source, surroundMask, "bool2", "bvec2");
         StringUtilities::ReplaceAll(source, surroundMask, "bool3", "bvec3");

@@ -61,7 +61,7 @@ out float4 outColor;
 
 void main()
 {
-    outColor = float4(tex2D(_AlbedoTex, vs_TEXCOORD0).xyz * tex2D(tex1, vs_TEXCOORD0).xyz * vs_COLOR * _Color.rgb, 1.0);
+    outColor = float4(texture(_AlbedoTex, vs_TEXCOORD0).xyz * texture(tex1, vs_TEXCOORD0).xyz * vs_COLOR * _Color.rgb, 1.0);
     imageStore(pk_DebugImage, int2(outColor.xy * 1024), float4(outColor.x, 0, 0, 0));
     PK_BUFFER_DATA(_WriteBuffer, uint(outColor.x * 1024)) = outColor;
 }
