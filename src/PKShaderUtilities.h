@@ -22,40 +22,39 @@ namespace PK::Assets::Shader
         "#define SHADER_STAGE_RAY_ANY_HIT\n",           //RayAnyHit,
         "#define SHADER_STAGE_RAY_INTERSECTION\n"       //RayIntersection,
     };
-
+    
+    // @TODO NOTE that for optimization purposes PK_Draw uses uint4(material, transform, mesh, userdata) internally (this saves a redundant struct descriptor)
     constexpr const static char* Instancing_Standalone_GLSL =
         "#define PK_INSTANCING_ENABLED                                                                                                                  \n"
-        "struct PK_Draw { uint material; uint transform; uint mesh; uint userdata; };                                                                   \n"
-        "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { mat4 pk_Instancing_Transforms_Data[]; };                     \n"
-        "layout(std430, set = 3, binding = 101) readonly buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                        \n"
-        "mat4 pk_ObjectToWorld;                                                                                                                         \n"
-        "#define pk_WorldToObject inverse(pk_ObjectToWorld)                                                                                             \n"
+        "#define PK_Draw uint4                                                                                                                          \n"
+        "layout(std430, set = 0, binding = 100) readonly restrict buffer pk_Instancing_Transforms { mat3x4 pk_Instancing_Transforms_Data[]; };          \n"
+        "layout(std430, set = 3, binding = 101) readonly restrict buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };               \n"
+        "mat3x4 pk_ObjectToWorld;                                                                                                                       \n"
         "uint pk_Instancing_Userdata;                                                                                                                   \n"
         "void PK_INSTANCING_ASSIGN_LOCALS(uint index)                                                                                                   \n"
         "{                                                                                                                                              \n"
         "    PK_Draw draw = pk_Instancing_Indices_Data[index];                                                                                          \n"
-        "    pk_ObjectToWorld = pk_Instancing_Transforms_Data[draw.transform];                                                                          \n"
-        "    pk_Instancing_Userdata = draw.userdata;                                                                                                    \n"
+        "    pk_ObjectToWorld = pk_Instancing_Transforms_Data[draw.y];                                                                                  \n"
+        "    pk_Instancing_Userdata = draw.w;                                                                                                           \n"
         "}                                                                                                                                              \n";
 
     constexpr const static char* Instancing_Base_GLSL =
-        "#define PK_INSTANCING_ENABLED                                                                                                                  \n"
-        "struct PK_Draw { uint material; uint transform; uint mesh; uint userdata; };                                                                   \n"
-        "layout(std430, set = 0, binding = 100) readonly buffer pk_Instancing_Transforms { mat4 pk_Instancing_Transforms_Data[]; };                     \n"
-        "layout(std430, set = 3, binding = 101) readonly buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                        \n"
-        "layout(std430, set = 3, binding = 102) readonly buffer pk_Instancing_Properties { PK_MaterialPropertyBlock pk_Instancing_Properties_Data[]; }; \n"
-        "layout(set = 3, binding = 103) uniform texture2D pk_Instancing_Textures2D[];                                                                   \n"
-        "layout(set = 3, binding = 104) uniform texture3D pk_Instancing_Textures3D[];                                                                   \n"
-        "layout(set = 3, binding = 105) uniform textureCube pk_Instancing_TexturesCube[];                                                               \n"
-        "mat4 pk_ObjectToWorld;                                                                                                                         \n"
-        "#define pk_WorldToObject inverse(pk_ObjectToWorld)                                                                                             \n"
-        "uint pk_Instancing_Userdata;                                                                                                                   \n"
-        "void PK_INSTANCING_ASSIGN_LOCALS(uint index)                                                                                                   \n"
-        "{                                                                                                                                              \n"
-        "    PK_Draw draw = pk_Instancing_Indices_Data[index];                                                                                          \n"
-        "    pk_ObjectToWorld = pk_Instancing_Transforms_Data[draw.transform];                                                                          \n"
-        "    pk_Instancing_Userdata = draw.userdata;                                                                                                    \n"
-        "    PK_MaterialPropertyBlock prop = pk_Instancing_Properties_Data[draw.material];                                                              \n";
+        "#define PK_INSTANCING_ENABLED                                                                                                                              \n"
+        "#define PK_Draw uint4                                                                                                                                      \n"
+        "layout(std430, set = 0, binding = 100) readonly restrict buffer pk_Instancing_Transforms { mat3x4 pk_Instancing_Transforms_Data[]; };                      \n"
+        "layout(std430, set = 3, binding = 101) readonly restrict buffer pk_Instancing_Indices { PK_Draw pk_Instancing_Indices_Data[]; };                           \n"
+        "layout(std430, set = 3, binding = 102) readonly restrict buffer pk_Instancing_Properties { PK_MaterialPropertyBlock pk_Instancing_Properties_Data[]; };    \n"
+        "layout(set = 3, binding = 103) uniform texture2D pk_Instancing_Textures2D[];                                                                               \n"
+        "layout(set = 3, binding = 104) uniform texture3D pk_Instancing_Textures3D[];                                                                               \n"
+        "layout(set = 3, binding = 105) uniform textureCube pk_Instancing_TexturesCube[];                                                                           \n"
+        "mat3x4 pk_ObjectToWorld;                                                                                                                                   \n"
+        "uint pk_Instancing_Userdata;                                                                                                                               \n"
+        "void PK_INSTANCING_ASSIGN_LOCALS(uint index)                                                                                                               \n"
+        "{                                                                                                                                                          \n"
+        "    PK_Draw draw = pk_Instancing_Indices_Data[index];                                                                                                      \n"
+        "    pk_ObjectToWorld = pk_Instancing_Transforms_Data[draw.y];                                                                                              \n"
+        "    pk_Instancing_Userdata = draw.w;                                                                                                                       \n"
+        "    PK_MaterialPropertyBlock prop = pk_Instancing_Properties_Data[draw.x];                                                                                 \n";
 
     constexpr const static char* Instancing_Stage_GLSL = "PK_INSTANCING_ASSIGN_STAGE_LOCALS \n";
 
