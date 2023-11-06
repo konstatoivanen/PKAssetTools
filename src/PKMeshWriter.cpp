@@ -179,6 +179,8 @@ namespace PK::Assets::Mesh
         meshopt_remapIndexBuffer(indices.data(), indices.data(), indices.size(), &remap[0]);
         meshopt_remapVertexBuffer(vertices.data(), vertices.data(), vcount, stride, &remap[0]);
 
+        auto submeshIndex = 0u;
+
         for (const auto& sm : submeshes)
         {
             auto pSmIndices = &indices[sm.firstIndex];
@@ -186,9 +188,15 @@ namespace PK::Assets::Mesh
 
             // Assumes that positions are the first attribute in a vertex.
             meshopt_optimizeOverdraw(pSmIndices, pSmIndices, sm.indexCount, reinterpret_cast<float*>(vertices.data()), total_vertices, stride, 1.05f);
+            
+            auto statisticsOverdraw = meshopt_analyzeOverdraw(pSmIndices, sm.indexCount, reinterpret_cast<float*>(vertices.data()), total_vertices, stride);
+            printf("    Submesh: %i Overdraw: %4.2f, Covered: %ipx, Shared: %ipx\n", submeshIndex++, statisticsOverdraw.overdraw, statisticsOverdraw.pixels_covered, statisticsOverdraw.pixels_shaded);
         }
 
         meshopt_optimizeVertexFetch(vertices.data(), indices.data(), indices.size(), vertices.data(), total_vertices, stride);
+
+        auto statisticsVertexFetch = meshopt_analyzeVertexFetch(indices.data(), indices.size(), vcount, stride);
+        printf("    OverFetch: %4.2f, Fetched: %ibytes\n", statisticsVertexFetch.overfetch, statisticsVertexFetch.bytes_fetched);
     }
 
     void SplitPositionStream(Buffer& vertices, size_t stride, size_t vertexCount)
