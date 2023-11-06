@@ -2,6 +2,7 @@
 #include "PKAssetWriter.h"
 #include "PKStringUtilities.h"
 #include "PKShaderUtilities.h"
+#include "PKShaderInstancing.h"
 #include "PKSPVUtilities.h"
 #include <shaderc/shaderc.hpp>
 #include <SPIRV-Reflect/spirv_reflect.h>
@@ -44,6 +45,7 @@ namespace PK::Assets::Shader
         std::map<uint32_t, uint32_t> setStageFlags;
         uint32_t setCount = 0u;
     };
+
 
     static void ReadFile(const std::string& filepath, std::string& ouput)
     {
@@ -196,135 +198,14 @@ namespace PK::Assets::Shader
         }
     }
 
-    static void ProcessInstancingProperties(std::string& source, std::vector<PKMaterialProperty>& materialProperties, bool* enableInstancing)
-    {
-        *enableInstancing = false;
-        std::string output;
-        size_t pos = 0;
-
-        materialProperties.clear();
-
-        while (true)
-        {
-            pos = StringUtilities::ExtractToken(pos, PK_SHADER_ATTRIB_MATERIAL_PROP, source, output, false);
-
-            if (pos == std::string::npos)
-            {
-                break;
-            }
-
-            auto parts = StringUtilities::Split(output, " ");
-
-            if (parts.size() != 2)
-            {
-                continue;
-            }
-
-            auto type = PK::Assets::GetElementType(parts.at(0).c_str());
-
-            if (type == PKElementType::Invalid)
-            {
-                continue;
-            }
-
-            PKMaterialProperty prop;
-            prop.type = type;
-            WriteName(prop.name, parts.at(1).c_str());
-            materialProperties.push_back(prop);
-        }
-
-        if (materialProperties.size() == 0)
-        {
-            auto standaloneToken = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_INSTANCING_PROP, source, true);
-
-            if (!standaloneToken.empty())
-            {
-                source.insert(0, Instancing_Standalone_GLSL);
-                *enableInstancing = true;
-            }
-
-            return;
-        }
-
-        std::string block = "struct PK_MaterialPropertyBlock\n{\n";
-
-        for (auto& prop : materialProperties)
-        {
-            block += "    " + GetGLSLType(prop.type) + " " + std::string(prop.name) + ";\n";
-        }
-
-        block += "};\n";
-
-        for (auto& prop : materialProperties)
-        {
-            auto name = std::string(prop.name);
-
-            switch (prop.type)
-            {
-            case PKElementType::Texture2DHandle:
-                block += "uint " + name + "_Handle;\n";
-                break;
-            case PKElementType::Texture3DHandle:
-                block += "uint " + name + "_Handle;\n";
-                break;
-            case PKElementType::TextureCubeHandle:
-                block += "uint " + name + "_Handle;\n";
-                break;
-            default:
-                block += GetGLSLType(prop.type) + " " + name + ";\n";
-                break;
-            }
-        }
-
-        block += Instancing_Base_GLSL;
-
-        for (auto& prop : materialProperties)
-        {
-            auto name = std::string(prop.name);
-
-            switch (prop.type)
-            {
-            case PKElementType::Texture2DHandle:
-            case PKElementType::Texture3DHandle:
-            case PKElementType::TextureCubeHandle:
-                block += "    " + name + "_Handle = prop." + name + ";\n";
-                break;
-
-            default:
-                block += "    " + name + " = prop." + name + ";\n";
-                break;
-            }
-        }
-
-        block += "}\n";
-
-        for (auto& prop : materialProperties)
-        {
-            auto name = std::string(prop.name);
-
-            switch (prop.type)
-            {
-            case PKElementType::Texture2DHandle:
-                block += "#define " + name + " pk_Instancing_Textures2D[" + name + "_Handle]\n";
-                break;
-            case PKElementType::Texture3DHandle:
-                block += "#define " + name + " pk_Instancing_Textures3D[" + name + "_Handle]\n";
-                break;
-            case PKElementType::TextureCubeHandle:
-                block += "#define " + name + " pk_Instancing_TexturesCube[" + name + "_Handle]\n";
-                break;
-            default:
-                break;
-            }
-        }
-
-        source.insert(0, block);
-        *enableInstancing = true;
-    }
-
     static void InsertRequiredExtensions(std::string& source, PKShaderStage stage)
     {
         source.insert(0, PK_GL_EXTENSIONS_COMMON);
+
+        if (stage == PKShaderStage::MeshTask || stage == PKShaderStage::MeshAssembly)
+        {
+            source.insert(0, PK_GL_EXTENSIONS_MESHSHADING);
+        }
 
         if (stage == PKShaderStage::RayGeneration ||
             stage == PKShaderStage::RayMiss ||
@@ -333,33 +214,6 @@ namespace PK::Assets::Shader
             stage == PKShaderStage::RayIntersection)
         {
             source.insert(0, PK_GL_EXTENSIONS_RAYTRACING);
-        }
-    }
-
-    static void InsertInstancingDefine(std::string& source, PKShaderStage stage, bool enableInstancing)
-    {
-        if (!enableInstancing)
-        {
-            return;
-        }
-
-        switch (stage)
-        {
-        case PKShaderStage::Vertex: source.insert(0, Instancing_Vertex_GLSL); break;
-        case PKShaderStage::Fragment: source.insert(0, Instancing_Fragment_GLSL); break;
-        default: return;
-        }
-
-        auto pos = source.find("main()");
-
-        // Source might contain multiple mains
-        while (pos != std::string::npos)
-        {
-            pos = source.find('{', pos);
-            auto eol = source.find_first_of("\r\n", pos);
-            auto nextLinePos = source.find_first_not_of("\r\n", eol);
-            source.insert(nextLinePos, Instancing_Stage_GLSL);
-            pos = source.find("main()", nextLinePos);
         }
     }
 
@@ -420,21 +274,20 @@ namespace PK::Assets::Shader
         shaderSources.clear();
 
         auto typeTokenLength = strlen(PK_GL_STAGE_BEGIN);
-        auto pos = source.find(PK_GL_STAGE_BEGIN, 0); //Start of shader type declaration line
+        auto currentPos = source.find(PK_GL_STAGE_BEGIN, 0); //Start of shader type declaration line
 
-        while (pos != std::string::npos)
+        while (currentPos != std::string::npos)
         {
-            auto eol = source.find_first_of("\r\n", pos); //End of shader type declaration line
+            auto eol = source.find_first_of("\r\n", currentPos); //End of shader type declaration line
             auto nextLinePos = source.find_first_not_of("\r\n", eol); //Start of shader code after shader type declaration line
 
-            if (eol == std::string::npos ||
-                nextLinePos == std::string::npos)
+            if (eol == std::string::npos || nextLinePos == std::string::npos)
             {
                 printf("Syntax error! \n");
                 return -1;
             }
 
-            auto begin = pos + typeTokenLength; //Start of shader type name (after "#pragma PROGRAM_" keyword)
+            auto begin = currentPos + typeTokenLength; //Start of shader type name (after "#pragma PROGRAM_" keyword)
             auto type = source.substr(begin, eol - begin);
             auto stage = GetShaderStageFromString(type);
 
@@ -444,15 +297,14 @@ namespace PK::Assets::Shader
                 return -1;
             }
 
-            pos = source.find(PK_GL_STAGE_BEGIN, nextLinePos); //Start of next shader type declaration line
-
-            shaderSources[stage] = pos == std::string::npos ? source.substr(nextLinePos) : source.substr(nextLinePos, pos - nextLinePos);
+            currentPos = source.find(PK_GL_STAGE_BEGIN, nextLinePos); //Start of next shader type declaration line
+            shaderSources[stage] = currentPos == std::string::npos ? source.substr(nextLinePos) : source.substr(nextLinePos, currentPos - nextLinePos);
         }
 
         for (auto& kv : shaderSources)
         {
             kv.second.insert(0, sharedInclude);
-            InsertInstancingDefine(kv.second, kv.first, enableInstancing);
+            Instancing::InsertEntryPoint(kv.second, kv.first, enableInstancing);
             kv.second.insert(0, PK_SHADER_STAGE_DEFINES[(uint32_t)kv.first]);
             kv.second.insert(0, variantDefines);
             InsertRequiredExtensions(kv.second, kv.first);
@@ -461,6 +313,7 @@ namespace PK::Assets::Shader
 
         return 0;
     }
+
 
     static int CompileGLSLToSpirV(const ShaderCompiler& compiler, PKShaderStage stage, const std::string& source_name, const std::string& source, ShaderSpriV& spirvd, ShaderSpriV& spirvr)
     {
@@ -746,6 +599,7 @@ namespace PK::Assets::Shader
         }
     }
 
+
     int WriteShader(const char* pathSrc, const char* pathDst)
     {
         auto filename = StringUtilities::ReadFileName(pathSrc);
@@ -772,7 +626,7 @@ namespace PK::Assets::Shader
         ReadFile(pathSrc, source);
         ExtractMulticompiles(source, mckeywords, keywords, &shader->variantcount, &directiveCount);
         ExtractStateAttributes(source, &shader->attributes);
-        ProcessInstancingProperties(source, materialProperties, &enableInstancing);
+        Instancing::InsertMaterialAssembly(source, materialProperties, &enableInstancing);
         ProcessAtomicCounter(source);
         ConvertHLSLTypesToGLSL(source);
         GetSharedInclude(source, sharedInclude);
@@ -809,38 +663,40 @@ namespace PK::Assets::Shader
 
             for (auto& kv : shaderSources)
             {
-                printf("Compiling %s variant %i stage % i \n", filename.c_str(), i, (int)kv.first);
+                printf("Compiling %s variant %i stage %s \n", filename.c_str(), i, PK_SHADER_STAGE_NAMES[(int)kv.first]);
 
-                ShaderSpriV spirvd;
-                ShaderSpriV spirvr;
+                ShaderSpriV spirvDebug;
+                ShaderSpriV spirvRelease;
 
-                if (CompileGLSLToSpirV(compiler, kv.first, filename, kv.second, spirvd, spirvr) != 0)
+                if (CompileGLSLToSpirV(compiler, kv.first, filename, kv.second, spirvDebug, spirvRelease) != 0)
                 {
                     printf("Failed to compile spirv from shader variant source! \n");
                     return -1;
                 }
 
-                SpvReflectShaderModule moduled;
-                auto* moduler = &reflectionData.modules[(uint32_t)kv.first];
+                auto* moduleRelease = &reflectionData.modules[(uint32_t)kv.first];
+                // Moved to heap due to reduce stack size.
+                auto* moduleDebug = new SpvReflectShaderModule();
 
-                if (GetReflectionModule(moduler, spirvr) != 0)
-                {
-                    
-                    printf("Failed to extract reflection data from shader variant source! \n");
-                    return -1;
-                }
-
-                if (GetReflectionModule(&moduled, spirvd) != 0)
+                if (GetReflectionModule(moduleRelease, spirvRelease) != 0)
                 {
                     printf("Failed to extract reflection data from shader variant source! \n");
                     return -1;
                 }
 
-                GetUniqueBindings(reflectionData, &moduled, kv.first);
-                GetVertexAttributes(&moduled, kv.first, pVariants[i].vertexAttributes);
-                GetPushConstants(reflectionData, &moduled, kv.first);
-                GetComputeGroupSize(&moduled, pVariants[i].groupSize);
-                spvReflectDestroyShaderModule(&moduled);
+                if (GetReflectionModule(moduleDebug, spirvDebug) != 0)
+                {
+                    printf("Failed to extract reflection data from shader variant source! \n");
+                    return -1;
+                }
+
+                GetUniqueBindings(reflectionData, moduleDebug, kv.first);
+                GetVertexAttributes(moduleDebug, kv.first, pVariants[i].vertexAttributes);
+                GetPushConstants(reflectionData, moduleDebug, kv.first);
+                GetComputeGroupSize(moduleDebug, pVariants[i].groupSize);
+                spvReflectDestroyShaderModule(moduleDebug);
+
+                delete moduleDebug;
             }
 
             CompressBindIndices(reflectionData);
@@ -852,13 +708,6 @@ namespace PK::Assets::Shader
                 auto pSpirv = buffer.Write(code, size / sizeof(uint32_t));
                 pVariants[i].sprivSizes[(int)kv.first] = size;
                 pVariants[i].sprivBuffers[(int)kv.first].Set(buffer.data(), pSpirv.get());
-            }
-
-            if (i == 0)
-            {
-                auto hasCompute = pVariants[i].sprivSizes[(int)PKShaderStage::Compute] != 0;
-                auto hasRayTrace = pVariants[i].sprivSizes[(int)PKShaderStage::RayGeneration] != 0;
-                shader->type = hasCompute ? Type::Compute : hasRayTrace ? Type::RayTracing : Type::Graphics;
             }
 
             if (reflectionData.uniqueVariables.size() > 0)

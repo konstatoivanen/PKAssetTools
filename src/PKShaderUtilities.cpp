@@ -299,16 +299,6 @@ namespace PK::Assets::Shader
             return PKShaderStage::Vertex;
         }
 
-        if (type == "FRAGMENT")
-        {
-            return PKShaderStage::Fragment;
-        }
-
-        if (type == "GEOMETRY")
-        {
-            return PKShaderStage::Geometry;
-        }
-
         if (type == "TESSELATION_CONTROL")
         {
             return PKShaderStage::TesselationControl;
@@ -319,9 +309,29 @@ namespace PK::Assets::Shader
             return PKShaderStage::TesselationEvaluation;
         }
 
+        if (type == "GEOMETRY")
+        {
+            return PKShaderStage::Geometry;
+        }
+
+        if (type == "FRAGMENT")
+        {
+            return PKShaderStage::Fragment;
+        }
+
         if (type == "COMPUTE")
         {
             return PKShaderStage::Compute;
+        }
+
+        if (type == "MESH_TASK")
+        {
+            return PKShaderStage::MeshTask;
+        }
+
+        if (type == "MESH_ASSEMBLY")
+        {
+            return PKShaderStage::MeshAssembly;
         }
 
         if (type == "RAY_GENERATION")
@@ -381,6 +391,8 @@ namespace PK::Assets::Shader
             case PKShaderStage::Geometry: return shaderc_geometry_shader;
             case PKShaderStage::Fragment: return shaderc_fragment_shader;
             case PKShaderStage::Compute: return shaderc_compute_shader;
+            case PKShaderStage::MeshTask: return shaderc_task_shader;
+            case PKShaderStage::MeshAssembly: return shaderc_mesh_shader;
 
             case PKShaderStage::RayGeneration: return shaderc_raygen_shader;
             case PKShaderStage::RayMiss: return shaderc_miss_shader;
