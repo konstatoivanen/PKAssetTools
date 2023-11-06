@@ -1,9 +1,7 @@
 #pragma once
-
 #include "PKAssets/PKAsset.h"
 #include <shaderc/shaderc.hpp>
 #include <SPIRV-Reflect/spirv_reflect.h>
-#include <sstream>
 
 namespace PK::Assets::Shader
 {

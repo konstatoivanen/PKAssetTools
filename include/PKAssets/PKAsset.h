@@ -256,6 +256,7 @@ namespace PK::Assets
 
     namespace Shader
     {
+        constexpr const static char* PK_SHADER_ATTRIB_LOGVERBOSE = "#LogVerbose";
         constexpr const static char* PK_SHADER_ATTRIB_ZWRITE = "#ZWrite ";
         constexpr const static char* PK_SHADER_ATTRIB_ZTEST = "#ZTest ";
         constexpr const static char* PK_SHADER_ATTRIB_BLENDCOLOR = "#BlendColor ";

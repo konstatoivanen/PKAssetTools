@@ -1,9 +1,7 @@
 #pragma once
-
 #include "PKAssets/PKAsset.h"
-#include <shaderc/shaderc.hpp>
-#include <SPIRV-Reflect/spirv_reflect.h>
-#include <sstream>
+#include <string>
+#include <vector>
 
 namespace PK::Assets::Shader::Instancing
 {

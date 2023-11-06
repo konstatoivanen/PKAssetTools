@@ -5,11 +5,16 @@
 #include "PKShaderInstancing.h"
 #include "PKSPVUtilities.h"
 #include <shaderc/shaderc.hpp>
-#include <SPIRV-Reflect/spirv_reflect.h>
 #include <unordered_map>
 #include <map>
 #include <stdexcept>
 #include <sstream>
+
+#ifdef _WIN32
+#include <Windows.h>
+#undef far
+#undef near
+#endif
 
 namespace PK::Assets::Shader
 {
@@ -44,8 +49,8 @@ namespace PK::Assets::Shader
         std::map<std::string, ReflectPushConstant> uniqueVariables;
         std::map<uint32_t, uint32_t> setStageFlags;
         uint32_t setCount = 0u;
+        bool logVerbose;
     };
-
 
     static void ReadFile(const std::string& filepath, std::string& ouput)
     {
@@ -94,6 +99,12 @@ namespace PK::Assets::Shader
 
         *outDirectiveCount = (uint32_t)dcount;
         *outVariantCount = (uint32_t)vcount;
+    }
+
+    static void ExtractLogVerbose(std::string& source, bool* outValue)
+    {
+        auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_LOGVERBOSE, source, true);
+        *outValue = !value.empty();
     }
 
     static void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes)
@@ -190,9 +201,9 @@ namespace PK::Assets::Shader
 
     static void ProcessAtomicCounter(std::string& source)
     {
-        auto valueAtomic = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ATOMICCOUNTER, source, true);
+        auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ATOMICCOUNTER, source, true);
 
-        if (!valueAtomic.empty())
+        if (!value.empty())
         {
             source.insert(0, AtomicCounter_GLSL);
         }
@@ -335,6 +346,10 @@ namespace PK::Assets::Shader
             int minLine, maxLine;
             FindLineRange(source_name, module.GetErrorMessage(), &minLine, &maxLine);
 
+            #if defined(WIN32)
+            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
+            #endif
+
             printf("\n ----------BEGIN ERROR---------- \n\n");
             printf(module.GetErrorMessage().c_str());
             printf("\n");
@@ -356,6 +371,10 @@ namespace PK::Assets::Shader
             }
 
             printf("\n ----------END ERROR---------- \n\n");
+
+            #if defined(WIN32)
+            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+            #endif
         }
 
         if (status != shaderc_compilation_status_success)
@@ -438,18 +457,23 @@ namespace PK::Assets::Shader
             binding.maxBinding = binding.maxBinding > releaseBinding->binding ? binding.maxBinding : releaseBinding->binding;
             binding.name = name;
             binding.count = desc->type_description->op == SpvOpTypeRuntimeArray ? PK::Assets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
+            auto isWritten = ReflectResourceWrite(debugModule->_internal->spirv_code, debugModule->_internal->spirv_word_count, desc->spirv_id, GetResourceType(desc->descriptor_type));
 
-            if (ReflectResourceWrite(debugModule->_internal->spirv_code, debugModule->_internal->spirv_word_count, desc->spirv_id, GetResourceType(desc->descriptor_type)))
+            if (isWritten)
             {
                 binding.writeStageMask |= 1 << (int)stage;
             }
 
             binding.bindings[(int)stage] = releaseBinding;
+
+            if (reflection.logVerbose)
+            {
+                printf("    Resource %s: %s \n", isWritten ? "Write" : "Read", name.c_str());
+            }
         }
     }
 
-
-    static void GetVertexAttributes(SpvReflectShaderModule* debugModule, PKShaderStage stage, PKVertexAttribute* attributes)
+    static void GetVertexAttributes(SpvReflectShaderModule* debugModule, PKShaderStage stage, PKVertexAttribute* attributes, bool logVerbose)
     {
         if (stage != PKShaderStage::Vertex)
         {
@@ -466,6 +490,11 @@ namespace PK::Assets::Shader
 
         auto i = 0;
 
+        if (count > 0 && logVerbose)
+        {
+            printf("    Interface:");
+        }
+
         for (auto* variable : variables)
         {
             // Ignore built in variables
@@ -477,6 +506,16 @@ namespace PK::Assets::Shader
             attributes[i].location = variable->location;
             WriteName(attributes[i].name, variable->name);
             attributes[i++].type = GetElementType(variable->format);
+            
+            if (logVerbose)
+            {
+                printf(" %s ", variable->name);
+            }
+        }
+
+        if (count > 0 && logVerbose)
+        {
+            printf("\n");
         }
     }
 
@@ -494,13 +533,25 @@ namespace PK::Assets::Shader
 
         auto i = 0u;
 
+        if (count > 0 && reflection.logVerbose)
+        {
+            printf("    Constants:");
+        }
+
         for (auto* block : blocks)
         {
-            auto name = std::string(block->name);
+            // auto name = std::string(block->name);
+            // This has moved down to a be under type description
+            auto name = std::string(block->type_description->type_name);
 
             if (reflection.uniqueVariables.count(name) <= 0)
             {
                 reflection.uniqueVariables[name] = { spvReflectGetPushConstantBlock(module, i, nullptr), (1u << (uint32_t)stage) };
+                
+                if (reflection.logVerbose)
+                {
+                    printf(" %s", name.c_str());
+                }
             }
             else
             {
@@ -509,15 +560,23 @@ namespace PK::Assets::Shader
 
             ++i;
         }
+
+        if (count > 0 && reflection.logVerbose)
+        {
+            printf("\n");
+        }
     }
 
-    static void GetComputeGroupSize(SpvReflectShaderModule* shaderModule, uint32_t* outSize)
+    static void GetComputeGroupSize(SpvReflectShaderModule* shaderModule, uint32_t* outSize, bool logVerbose)
     {
         auto entryPoint = shaderModule->entry_points;
 
         if (ReflectLocalSize(shaderModule->_internal->spirv_code, shaderModule->_internal->spirv_word_count, outSize))
         {
-            return;
+            if (logVerbose)
+            {
+                printf("    GroupSize: %i,%i,%i\n", outSize[0], outSize[1], outSize[2]);
+            }
         }
 
         entryPoint->local_size;
@@ -604,8 +663,6 @@ namespace PK::Assets::Shader
     {
         auto filename = StringUtilities::ReadFileName(pathSrc);
 
-        printf("Preprocessing shader: %s \n", filename.c_str());
-
         auto buffer = PKAssetBuffer();
         buffer.header->type = PKAssetType::Shader;
         WriteName(buffer.header->name, filename.c_str());
@@ -622,8 +679,17 @@ namespace PK::Assets::Shader
         std::vector<PKMaterialProperty> materialProperties;
         std::unordered_map<PKShaderStage, std::string> shaderSources;
         auto enableInstancing = false;
+        auto logVerbose = false;
 
         ReadFile(pathSrc, source);
+        ExtractLogVerbose(source, &logVerbose);
+
+        // Sadly this happens after includes :/
+        if (logVerbose)
+        {
+            printf("Preprocessing shader: %s \n", filename.c_str());
+        }
+
         ExtractMulticompiles(source, mckeywords, keywords, &shader->variantcount, &directiveCount);
         ExtractStateAttributes(source, &shader->attributes);
         Instancing::InsertMaterialAssembly(source, materialProperties, &enableInstancing);
@@ -660,10 +726,14 @@ namespace PK::Assets::Shader
             }
 
             ReflectionData reflectionData{};
+            reflectionData.logVerbose = logVerbose;
 
             for (auto& kv : shaderSources)
             {
-                printf("Compiling %s variant %i stage %s \n", filename.c_str(), i, PK_SHADER_STAGE_NAMES[(int)kv.first]);
+                if (logVerbose)
+                {
+                    printf("Compiling %s:%i %s \n", filename.c_str(), i, PK_SHADER_STAGE_NAMES[(int)kv.first]);
+                }
 
                 ShaderSpriV spirvDebug;
                 ShaderSpriV spirvRelease;
@@ -691,9 +761,9 @@ namespace PK::Assets::Shader
                 }
 
                 GetUniqueBindings(reflectionData, moduleDebug, kv.first);
-                GetVertexAttributes(moduleDebug, kv.first, pVariants[i].vertexAttributes);
+                GetVertexAttributes(moduleDebug, kv.first, pVariants[i].vertexAttributes, logVerbose);
                 GetPushConstants(reflectionData, moduleDebug, kv.first);
-                GetComputeGroupSize(moduleDebug, pVariants[i].groupSize);
+                GetComputeGroupSize(moduleDebug, pVariants[i].groupSize, logVerbose);
                 spvReflectDestroyShaderModule(moduleDebug);
 
                 delete moduleDebug;
