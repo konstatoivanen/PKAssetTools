@@ -158,6 +158,9 @@
     <ClCompile Include="src\PKShaderInstancing.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="include\meshoptimizer\quantization.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Library Include="libs\shaderc_combined.lib" />
