@@ -27,7 +27,7 @@ namespace PK::Assets::Shader
         uint32_t firstStage = (uint32_t)PKShaderStage::MaxCount;
         uint32_t maxBinding = 0u;
         uint32_t count = 0u;
-        uint32_t writeStageMask = 0u;
+        uint32_t writeStageMask = (uint32_t)PKShaderStageFlags::None;
         std::string name;
         const SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount]{};
         const SpvReflectDescriptorBinding* get() { return bindings[firstStage]; }
@@ -36,7 +36,7 @@ namespace PK::Assets::Shader
     struct ReflectPushConstant
     {
         const SpvReflectBlockVariable* block = nullptr;
-        uint32_t stageFlags = 0u;
+        uint32_t stageFlags = (uint32_t)PKShaderStageFlags::None;
     };
 
     typedef std::vector<uint32_t> ShaderSpriV;
@@ -47,7 +47,7 @@ namespace PK::Assets::Shader
         std::vector<ReflectBinding> sortedBindings;
         std::map<std::string, ReflectBinding> uniqueBindings;
         std::map<std::string, ReflectPushConstant> uniqueVariables;
-        std::map<uint32_t, uint32_t> setStageFlags;
+        std::map<uint32_t, uint32_t> setStageFlags; //PKShaderStageFlags
         uint32_t setCount = 0u;
         bool logVerbose;
     };
@@ -521,6 +521,7 @@ namespace PK::Assets::Shader
 
     static void GetPushConstants(ReflectionData& reflection, SpvReflectShaderModule* debugModule, PKShaderStage stage)
     {
+        auto stageFlag = (1u << (uint32_t)stage); // PKShaderStageFlags
         auto* module = &reflection.modules[(uint32_t)stage];
 
         auto count = 0u;
@@ -546,7 +547,7 @@ namespace PK::Assets::Shader
 
             if (reflection.uniqueVariables.count(name) <= 0)
             {
-                reflection.uniqueVariables[name] = { spvReflectGetPushConstantBlock(module, i, nullptr), (1u << (uint32_t)stage) };
+                reflection.uniqueVariables[name] = { spvReflectGetPushConstantBlock(module, i, nullptr), stageFlag };
                 
                 if (reflection.logVerbose)
                 {
@@ -555,7 +556,7 @@ namespace PK::Assets::Shader
             }
             else
             {
-                reflection.uniqueVariables[name].stageFlags |= 1u << (uint32_t)stage;
+                reflection.uniqueVariables[name].stageFlags |= stageFlag;
             }
 
             ++i;
@@ -791,7 +792,7 @@ namespace PK::Assets::Shader
                 {
                     WriteName(pConstantVariables[j].name, kv.first.c_str());
                     pConstantVariables[j].offset = (unsigned short)kv.second.block->offset;
-                    pConstantVariables[j].stageFlags = kv.second.stageFlags;
+                    pConstantVariables[j].stageFlags = (PKShaderStageFlags)kv.second.stageFlags;
                     pConstantVariables[j++].size = kv.second.block->size;
                 }
             }
@@ -817,7 +818,7 @@ namespace PK::Assets::Shader
                     PKDescriptor descriptor{};
                     descriptor.count = binding.count;
                     descriptor.type = GetResourceType(desc->descriptor_type);
-                    descriptor.writeStageMask = (uint8_t)binding.writeStageMask;
+                    descriptor.writeStageMask = (PKShaderStageFlags)binding.writeStageMask;
                     WriteName(descriptor.name, binding.name.c_str());
                     descriptors[desc->set].push_back(descriptor);
                 }
@@ -825,7 +826,7 @@ namespace PK::Assets::Shader
                 for (auto& kv : descriptors)
                 {
                     pDescriptorSets[kv.first].descriptorCount = (uint32_t)kv.second.size();
-                    pDescriptorSets[kv.first].stageflags = reflectionData.setStageFlags[kv.first];
+                    pDescriptorSets[kv.first].stageflags = (PKShaderStageFlags)reflectionData.setStageFlags[kv.first];
                     auto pDescriptors = buffer.Write(kv.second.data(), kv.second.size());
                     pDescriptorSets[kv.first].descriptors.Set(buffer.data(), pDescriptors.get());
                 }

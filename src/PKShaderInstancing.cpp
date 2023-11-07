@@ -67,7 +67,7 @@ namespace PK::Assets::Shader::Instancing
                 continue;
             }
 
-            PKMaterialProperty prop;
+            PKMaterialProperty prop{};
             prop.type = type;
             WriteName(prop.name, parts.at(1).c_str());
             materialProperties.push_back(prop);
