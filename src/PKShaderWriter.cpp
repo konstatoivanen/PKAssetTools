@@ -1,14 +1,14 @@
-#include "PKShaderWriter.h"
-#include "PKAssetWriter.h"
-#include "PKStringUtilities.h"
-#include "PKShaderUtilities.h"
-#include "PKShaderInstancing.h"
-#include "PKSPVUtilities.h"
 #include <shaderc/shaderc.hpp>
 #include <unordered_map>
 #include <map>
 #include <stdexcept>
 #include <sstream>
+#include "PKStringUtilities.h"
+#include "PKSPVUtilities.h"
+#include "PKShaderUtilities.h"
+#include "PKShaderInstancing.h"
+#include "PKAssetWriter.h"
+#include "PKShaderWriter.h"
 
 #ifdef _WIN32
 #include <Windows.h>

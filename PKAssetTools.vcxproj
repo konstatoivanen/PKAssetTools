@@ -183,7 +183,9 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\include\PKAssets\*.*" "$(SolutionDir)PKR
     <ClInclude Include="include\SPIRV-Reflect\spirv.h" />
     <ClInclude Include="include\SPIRV-Reflect\spirv_reflect.h" />
     <ClInclude Include="include\tinyobjloader\tiny_obj_loader.h" />
+    <ClInclude Include="src\PKMeshletWriter.h" />
     <ClInclude Include="src\PKAssetWriter.h" />
+    <ClInclude Include="src\PKMeshUtilities.h" />
     <ClInclude Include="src\PKMeshWriter.h" />
     <ClInclude Include="src\PKShaderInstancing.h" />
     <ClInclude Include="src\PKShaderUtilities.h" />
@@ -215,6 +217,8 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\include\PKAssets\*.*" "$(SolutionDir)PKR
     <ClCompile Include="include\tinyobjloader\tiny_obj_loader.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\PKAssetWriter.cpp" />
+    <ClCompile Include="src\PKMeshletWriter.cpp" />
+    <ClCompile Include="src\PKMeshUtilities.cpp" />
     <ClCompile Include="src\PKMeshWriter.cpp" />
     <ClCompile Include="src\PKShaderInstancing.cpp" />
     <ClCompile Include="src\PKShaderUtilities.cpp" />
