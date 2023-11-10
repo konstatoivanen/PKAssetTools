@@ -105,18 +105,19 @@ namespace PK::Assets::Mesh
         auto totalTriangles = 0ull;
 
         // no offset for attributes. @TODO maybe they should have.
-        auto sm_positions = vertices + offsetPosition;
-        auto sm_texcoords = hasTexcoords ? vertices + offsetTexcoord : nullptr;
-        auto sm_normals = hasNormals ? vertices + offsetNormal : nullptr;
-        auto sm_tangents = hasTangents ? vertices + offsetTangent : nullptr;
+        auto sm_stridef32 = vertexStride / sizeof(float);
+        auto sm_positionsf32 = vertices + (offsetPosition / sizeof(float));
+        auto sm_texcoordsf32 = hasTexcoords ? vertices + (offsetTexcoord / sizeof(float)) : nullptr;
+        auto sm_normalsf32 = hasNormals ? vertices + (offsetNormal / sizeof(float)) : nullptr;
+        auto sm_tangentsf32 = hasTangents ? vertices + (offsetTangent / sizeof(float)) : nullptr;
+            
+        size_t max_meshlets = meshopt_buildMeshletsBound(indexCount, max_vertices, max_triangles);
+        std::vector<meshopt_Meshlet> meshlets(max_meshlets);
+        std::vector<unsigned int> meshlet_vertices(max_meshlets * max_vertices);
+        std::vector<unsigned char> meshlet_triangles(max_meshlets * max_triangles * 3);
 
         for (const auto& sm : submeshes)
         {
-            size_t max_meshlets = meshopt_buildMeshletsBound(sm.indexCount, max_vertices, max_triangles);
-            std::vector<meshopt_Meshlet> meshlets(max_meshlets);
-            std::vector<unsigned int> meshlet_vertices(max_meshlets * max_vertices);
-            std::vector<unsigned char> meshlet_triangles(max_meshlets * max_triangles * 3);
-
             auto sm_indices = indices + sm.firstIndex;
 
             size_t meshlet_count = meshopt_buildMeshlets
@@ -126,7 +127,7 @@ namespace PK::Assets::Mesh
                 meshlet_triangles.data(), 
                 sm_indices,
                 sm.indexCount, 
-                sm_positions,
+                sm_positionsf32,
                 vertexCount, 
                 vertexStride, 
                 max_vertices, 
@@ -142,13 +143,13 @@ namespace PK::Assets::Mesh
             meshletSubmesh.vertexCount = 0u;
             meshletSubmesh.meshletCount = (uint32_t)meshlet_count;
             
-            meshletSubmesh.bbmin[0] = PackHalf(sm.bbmin[0]);
-            meshletSubmesh.bbmin[1] = PackHalf(sm.bbmin[1]);
-            meshletSubmesh.bbmin[2] = PackHalf(sm.bbmin[2]);
+            meshletSubmesh.bbmin[0] = sm.bbmin[0];
+            meshletSubmesh.bbmin[1] = sm.bbmin[1];
+            meshletSubmesh.bbmin[2] = sm.bbmin[2];
 
-            meshletSubmesh.bbmax[0] = PackHalf(sm.bbmax[0]);
-            meshletSubmesh.bbmax[1] = PackHalf(sm.bbmax[1]);
-            meshletSubmesh.bbmax[2] = PackHalf(sm.bbmax[2]);
+            meshletSubmesh.bbmax[0] = sm.bbmax[0];
+            meshletSubmesh.bbmax[1] = sm.bbmax[1];
+            meshletSubmesh.bbmax[2] = sm.bbmax[2];
 
             //float center[3] =
             //{
@@ -157,15 +158,17 @@ namespace PK::Assets::Mesh
             //    (sm.bbmin[2] + sm.bbmax[2]) / 2.0f,
             //};
 
-            for (const auto& meshlet : meshlets)
+            for (auto i = 0u; i < meshlet_count; ++i)
             {
+                const auto& meshlet = meshlets.at(i);
+
                 auto bounds = meshopt_computeMeshletBounds
                 (
                     meshlet_vertices.data() + meshlet.vertex_offset,
                     meshlet_triangles.data() + meshlet.triangle_offset,
                     meshlet.triangle_count,
-                    sm_positions,
-                    meshlet.vertex_count,
+                    sm_positionsf32,
+                    vertexCount,
                     vertexStride
                 );
 
@@ -199,13 +202,13 @@ namespace PK::Assets::Mesh
                 out_indices.resize(out_indices.size() + meshlet.triangle_count * 3);
                 memcpy(out_indices.data() + indicesOffset, meshlet_triangles.data() + meshlet.triangle_offset * 3u, meshlet.triangle_count * 3u);
 
-                for (auto i = 0u; i < meshlet.vertex_count; ++i)
+                for (auto j = 0u; j < meshlet.vertex_count; ++j)
                 {
-                    auto vertexIndex = meshlet_vertices[meshlet.vertex_offset + i];
-                    auto pPosition = sm_positions + vertexIndex * vertexStride;
-                    auto pTexcoord = sm_texcoords + vertexIndex * vertexStride;
-                    auto pNormal = sm_normals + vertexIndex * vertexStride;
-                    auto pTangent = sm_tangents + vertexIndex * vertexStride;
+                    auto vertexIndex = meshlet_vertices[meshlet.vertex_offset + j];
+                    auto pPosition = sm_positionsf32 + vertexIndex * sm_stridef32;
+                    auto pTexcoord = sm_texcoordsf32 + vertexIndex * sm_stridef32;
+                    auto pNormal = sm_normalsf32 + vertexIndex * sm_stridef32;
+                    auto pTangent = sm_tangentsf32 + vertexIndex * sm_stridef32;
                     
                     Meshlet::PKVertex vertex = { 0u, 0u, 0u };
                     vertex.position = EncodeVertexPosition(pPosition, bounds);
@@ -236,7 +239,11 @@ namespace PK::Assets::Mesh
         mesh->triangleCount = (uint32_t)(out_indices.size() / 3ull);
         mesh->vertexCount = (uint32_t)out_vertices.size();
         mesh->submeshCount = (uint32_t)out_submeshes.size();
+        mesh->meshletCount = (uint32_t)out_meshlets.size();
         
+        auto pMeshlets = buffer.Write(out_meshlets.data(), out_meshlets.size());
+        mesh->meshlets.Set(buffer.data(), pMeshlets.get());
+
         auto pSubmeshes = buffer.Write(out_submeshes.data(), out_submeshes.size());
         mesh->submeshes.Set(buffer.data(), pSubmeshes.get());
 
@@ -245,6 +252,13 @@ namespace PK::Assets::Mesh
 
         auto pIndices = buffer.Write(out_indices.data(), out_indices.size());
         mesh->indices.Set(buffer.data(), pIndices.get());
+
+        printf("    Meshlet Statistics:\n");
+        printf("        Vertex Count: %i -> %i\n", vertexCount, (uint32_t)out_vertices.size());
+        printf("        Triangle Count: %i -> %i\n", indexCount / 3u, (uint32_t)(out_indices.size() / 3ull));
+        printf("        Vertex Buffer Size: %i -> %i\n", (uint32_t)(vertexCount * vertexStride), (uint32_t)(out_vertices.size() * sizeof(Meshlet::PKVertex)));
+        printf("        Triangle Buffer Size: %i -> %i\n", (uint32_t)(indexCount * sizeof(uint32_t)), (uint32_t)(out_indices.size()));
+        printf("        Meshlet Count: %i\n", (uint32_t)out_meshlets.size());
 
         return mesh;
     }

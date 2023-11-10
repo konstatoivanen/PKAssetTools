@@ -181,6 +181,8 @@ namespace PK::Assets::Mesh
 
         auto submeshIndex = 0u;
 
+        printf("    Statistics:\n");
+
         for (const auto& sm : submeshes)
         {
             auto pSmIndices = &indices[sm.firstIndex];
@@ -190,13 +192,13 @@ namespace PK::Assets::Mesh
             meshopt_optimizeOverdraw(pSmIndices, pSmIndices, sm.indexCount, reinterpret_cast<float*>(vertices.data()), total_vertices, stride, 1.05f);
             
             auto statisticsOverdraw = meshopt_analyzeOverdraw(pSmIndices, sm.indexCount, reinterpret_cast<float*>(vertices.data()), total_vertices, stride);
-            printf("    Submesh: %i Overdraw: %4.2f, Covered: %ipx, Shared: %ipx\n", submeshIndex++, statisticsOverdraw.overdraw, statisticsOverdraw.pixels_covered, statisticsOverdraw.pixels_shaded);
+            printf("        Submesh: %i Overdraw: %4.2f, Covered: %ipx, Shared: %ipx\n", submeshIndex++, statisticsOverdraw.overdraw, statisticsOverdraw.pixels_covered, statisticsOverdraw.pixels_shaded);
         }
 
         meshopt_optimizeVertexFetch(vertices.data(), indices.data(), indices.size(), vertices.data(), total_vertices, stride);
 
         auto statisticsVertexFetch = meshopt_analyzeVertexFetch(indices.data(), indices.size(), vcount, stride);
-        printf("    OverFetch: %4.2f, Fetched: %ibytes\n", statisticsVertexFetch.overfetch, statisticsVertexFetch.bytes_fetched);
+        printf("        OverFetch: %4.2f, Fetched: %ibytes\n", statisticsVertexFetch.overfetch, statisticsVertexFetch.bytes_fetched);
     }
 
     void SplitPositionStream(Buffer& vertices, size_t stride, size_t vertexCount)
@@ -539,7 +541,6 @@ namespace PK::Assets::Mesh
             }
         }
 
-        /*
         // Create meshlets last to ensure better read coherency
         auto meshletMesh = CreateMeshletMesh
         (
@@ -548,16 +549,15 @@ namespace PK::Assets::Mesh
             verticesMeshlet.data(),
             indicesMeshlet.data(),
             0u,
+            offsetUvsMeshlet,
             offsetNormalsMeshlet,
             offsetTangentsMeshlet,
-            offsetNormalsMeshlet,
             strideMeshlet,
             vcount,
             indices.size()
         );
 
         mesh->meshletMesh.Set(buffer.data(), meshletMesh.get());
-        */
 
         return WriteAsset(pathDst, buffer);
     }
