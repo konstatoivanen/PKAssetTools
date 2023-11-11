@@ -554,7 +554,7 @@ namespace PK::Assets::Mesh
             offsetTangentsMeshlet,
             strideMeshlet,
             vcount,
-            indices.size()
+            (uint32_t)indices.size()
         );
 
         mesh->meshletMesh.Set(buffer.data(), meshletMesh.get());
