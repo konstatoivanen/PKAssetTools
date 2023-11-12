@@ -175,7 +175,7 @@ namespace PK::Assets
         memset(dst + c, '\0', PK_ASSET_NAME_MAX_LENGTH - c);
     }
 
-    int WriteAsset(const char* filepath, const PKAssetBuffer& buffer)
+    int WriteAsset(const char* filepath, const PKAssetBuffer& buffer, bool forceNoCompression)
     {
         printf("writing file: %s \n", filepath);
 
@@ -214,7 +214,7 @@ namespace PK::Assets
             return -1;
         }
 
-        if (buffer.size() > MIN_COMPRESSABLE_SIZE)
+        if (buffer.size() > MIN_COMPRESSABLE_SIZE && !forceNoCompression)
         {
             auto compact = CompressBuffer(buffer);
             fwrite(compact.data(), sizeof(char), compact.size(), file);

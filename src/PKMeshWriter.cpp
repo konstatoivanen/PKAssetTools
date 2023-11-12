@@ -559,6 +559,6 @@ namespace PK::Assets::Mesh
 
         mesh->meshletMesh.Set(buffer.data(), meshletMesh.get());
 
-        return WriteAsset(pathDst, buffer);
+        return WriteAsset(pathDst, buffer, false);
     }
 }

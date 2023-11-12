@@ -835,6 +835,6 @@ namespace PK::Assets::Shader
             ReleaseReflectionData(reflectionData);
         }
 
-        return WriteAsset(pathDst, buffer);
+        return WriteAsset(pathDst, buffer, false);
     }
 }
