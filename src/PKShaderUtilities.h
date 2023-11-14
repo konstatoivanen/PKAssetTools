@@ -55,7 +55,12 @@ namespace PK::Assets::Shader
         "#extension GL_ARB_shader_viewport_layer_array : require \n";
 
     constexpr const static char* PK_GL_EXTENSIONS_RAYTRACING = "#extension GL_EXT_ray_tracing : require \n";
-    constexpr const static char* PK_GL_EXTENSIONS_MESHSHADING = "#extension GL_EXT_mesh_shader : require \n";
+    constexpr const static char* PK_GL_EXTENSIONS_MESHSHADING = 
+        "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
+        "#extension GL_KHR_shader_subgroup_basic : require\n"
+        "#extension GL_KHR_shader_subgroup_ballot : require\n"
+        "#extension GL_KHR_shader_subgroup_vote : require\n"
+        "#extension GL_EXT_mesh_shader : require \n";
 
     constexpr const static char* PK_GL_STAGE_BEGIN = "#pragma PROGRAM_";
 

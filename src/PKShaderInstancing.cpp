@@ -18,6 +18,7 @@ namespace PK::Assets::Shader::Instancing
         {
             //@TODO Mesh shading support
             case PKShaderStage::Vertex: source.insert(0, Instancing_Vertex_GLSL); break;
+            case PKShaderStage::MeshTask: source.insert(0, Instancing_MeshTask_GLSL); break;
             case PKShaderStage::MeshAssembly: source.insert(0, Instancing_MeshAssembly_GLSL); break;
             case PKShaderStage::Fragment: source.insert(0, Instancing_Fragment_GLSL); break;
             default: return;

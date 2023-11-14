@@ -4,6 +4,41 @@
 
 namespace PK::Assets::Mesh
 {
+    static void CalculateMeshletAABB(const float* positions, 
+                                     const uint32_t* vertexIndices, 
+                                     uint32_t vertexStridef32,
+                                     uint32_t vertexFirst, 
+                                     uint32_t vertexCount, 
+                                     float* bbmin, 
+                                     float* bbmax)
+    {
+        bbmin[0] = std::numeric_limits<float>().max();
+        bbmin[1] = std::numeric_limits<float>().max();
+        bbmin[2] = std::numeric_limits<float>().max();
+        bbmax[0] = -std::numeric_limits<float>().max();
+        bbmax[1] = -std::numeric_limits<float>().max();
+        bbmax[2] = -std::numeric_limits<float>().max();
+
+        for (auto i = 0u; i < vertexCount; ++i)
+        {
+            auto vertexIndex = vertexIndices[vertexFirst + i];
+            auto pPosition = positions + vertexIndex * vertexStridef32;
+
+            for (auto j = 0u; j < 3u; ++j)
+            {
+                if (pPosition[j] < bbmin[j])
+                {
+                    bbmin[j] = pPosition[j];
+                }
+
+                if (pPosition[j] > bbmax[j])
+                {
+                    bbmax[j] = pPosition[j];
+                }
+            }
+        }
+    }
+
     WritePtr<Meshlet::PKMesh> CreateMeshletMesh(PKAssetBuffer& buffer,
                                                 const std::vector<PKSubmesh>& submeshes,
                                                 float* vertices,
@@ -60,11 +95,7 @@ namespace PK::Assets::Mesh
             );
 
             Meshlet::PKSubmesh meshletSubmesh{};
-            meshletSubmesh.firstTriangle = (uint32_t)(out_indices.size() / 3ull);
-            meshletSubmesh.firstVertex = (uint32_t)out_vertices.size();
             meshletSubmesh.firstMeshlet = (uint32_t)out_meshlets.size();
-            meshletSubmesh.triangleCount = 0u;
-            meshletSubmesh.vertexCount = 0u;
             meshletSubmesh.meshletCount = (uint32_t)meshlet_count;
             
             meshletSubmesh.bbmin[0] = sm.bbmin[0];
@@ -89,22 +120,25 @@ namespace PK::Assets::Mesh
                     vertexStride
                 );
 
+                float bbmin[3];
+                float bbmax[3];
+                CalculateMeshletAABB(sm_positionsf32, meshlet_vertices.data(), (uint32_t)sm_stridef32, meshlet.vertex_offset, meshlet.vertex_count, bbmin, bbmax);
+
                 auto indicesOffset = out_indices.size();
                 auto triangleOffset = indicesOffset / 3ull;
                 auto verticesOffset = out_vertices.size();
                 
-                meshletSubmesh.triangleCount += meshlet.triangle_count;
-                meshletSubmesh.vertexCount += meshlet.vertex_count;
-
                 Meshlet::PKMeshlet pkmeshlet = Meshlet::PackMeshlet
                 (
                     (uint32_t)verticesOffset,
                     (uint32_t)triangleOffset,
                     meshlet.vertex_count,
                     meshlet.triangle_count,
+                    bbmin,
+                    bbmax,
+                    sm.bbmin,
+                    sm.bbmax,
                     bounds.cone_axis,
-                    bounds.center,
-                    bounds.radius,
                     bounds.cone_apex,
                     bounds.cone_cutoff
                 );
@@ -126,8 +160,8 @@ namespace PK::Assets::Mesh
                         hasTexcoords ? pTexcoord : nullptr,
                         hasNormals ? pNormal : nullptr,
                         hasTangents ? pTangent : nullptr,
-                        bounds.center,
-                        bounds.radius
+                        bbmin,
+                        bbmax
                     );
 
                     out_vertices.push_back(vertex);
