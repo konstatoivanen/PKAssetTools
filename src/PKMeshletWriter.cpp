@@ -4,41 +4,6 @@
 
 namespace PK::Assets::Mesh
 {
-    static void CalculateMeshletAABB(const float* positions, 
-                                     const uint32_t* vertexIndices, 
-                                     uint32_t vertexStridef32,
-                                     uint32_t vertexFirst, 
-                                     uint32_t vertexCount, 
-                                     float* bbmin, 
-                                     float* bbmax)
-    {
-        bbmin[0] = std::numeric_limits<float>().max();
-        bbmin[1] = std::numeric_limits<float>().max();
-        bbmin[2] = std::numeric_limits<float>().max();
-        bbmax[0] = -std::numeric_limits<float>().max();
-        bbmax[1] = -std::numeric_limits<float>().max();
-        bbmax[2] = -std::numeric_limits<float>().max();
-
-        for (auto i = 0u; i < vertexCount; ++i)
-        {
-            auto vertexIndex = vertexIndices[vertexFirst + i];
-            auto pPosition = positions + vertexIndex * vertexStridef32;
-
-            for (auto j = 0u; j < 3u; ++j)
-            {
-                if (pPosition[j] < bbmin[j])
-                {
-                    bbmin[j] = pPosition[j];
-                }
-
-                if (pPosition[j] > bbmax[j])
-                {
-                    bbmax[j] = pPosition[j];
-                }
-            }
-        }
-    }
-
     WritePtr<Meshlet::PKMesh> CreateMeshletMesh(PKAssetBuffer& buffer,
                                                 const std::vector<PKSubmesh>& submeshes,
                                                 float* vertices,
@@ -110,6 +75,8 @@ namespace PK::Assets::Mesh
             {
                 const auto& meshlet = meshlets.at(i);
 
+                //const unsigned int* meshlet_vertices, const unsigned char* meshlet_triangles, size_t triangle_count, const float* vertex_positions, size_t vertex_count, size_t vertex_positions_stride)
+
                 auto bounds = meshopt_computeMeshletBounds
                 (
                     meshlet_vertices.data() + meshlet.vertex_offset,
@@ -119,10 +86,6 @@ namespace PK::Assets::Mesh
                     vertexCount,
                     vertexStride
                 );
-
-                float bbmin[3];
-                float bbmax[3];
-                CalculateMeshletAABB(sm_positionsf32, meshlet_vertices.data(), (uint32_t)sm_stridef32, meshlet.vertex_offset, meshlet.vertex_count, bbmin, bbmax);
 
                 auto indicesOffset = out_indices.size();
                 auto triangleOffset = indicesOffset / 3ull;
@@ -134,10 +97,8 @@ namespace PK::Assets::Mesh
                     (uint32_t)triangleOffset,
                     meshlet.vertex_count,
                     meshlet.triangle_count,
-                    bbmin,
-                    bbmax,
-                    sm.bbmin,
-                    sm.bbmax,
+                    bounds.center,
+                    bounds.radius,
                     bounds.cone_axis,
                     bounds.cone_apex,
                     bounds.cone_cutoff
@@ -160,8 +121,8 @@ namespace PK::Assets::Mesh
                         hasTexcoords ? pTexcoord : nullptr,
                         hasNormals ? pNormal : nullptr,
                         hasTangents ? pTangent : nullptr,
-                        bbmin,
-                        bbmax
+                        sm.bbmin,
+                        sm.bbmax
                     );
 
                     out_vertices.push_back(vertex);
