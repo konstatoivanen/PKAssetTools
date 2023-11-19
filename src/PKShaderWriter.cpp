@@ -107,6 +107,12 @@ namespace PK::Assets::Shader
         *outValue = !value.empty();
     }
 
+    static void ExtractGenerateDebugInfo(std::string& source, bool* outValue)
+    {
+        auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_GENERATEDEBUGINFO, source, true);
+        *outValue = !value.empty();
+    }
+
     static void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes)
     {
         auto valueZWrite = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZWRITE, source, false);
@@ -280,7 +286,8 @@ namespace PK::Assets::Shader
         const std::string& variantDefines,
         std::unordered_map<PKShaderStage,
         std::string>& shaderSources,
-        bool enableInstancing)
+        bool enableInstancing,
+        bool nofragInstancing)
     {
         shaderSources.clear();
 
@@ -315,7 +322,7 @@ namespace PK::Assets::Shader
         for (auto& kv : shaderSources)
         {
             kv.second.insert(0, sharedInclude);
-            Instancing::InsertEntryPoint(kv.second, kv.first, enableInstancing);
+            Instancing::InsertEntryPoint(kv.second, kv.first, enableInstancing, nofragInstancing);
             kv.second.insert(0, PK_SHADER_STAGE_DEFINES[(uint32_t)kv.first]);
             kv.second.insert(0, variantDefines);
             InsertRequiredExtensions(kv.second, kv.first);
@@ -326,7 +333,13 @@ namespace PK::Assets::Shader
     }
 
 
-    static int CompileGLSLToSpirV(const ShaderCompiler& compiler, PKShaderStage stage, const std::string& source_name, const std::string& source, ShaderSpriV& spirvd, ShaderSpriV& spirvr)
+    static int CompileGLSLToSpirV(const ShaderCompiler& compiler, 
+                                  PKShaderStage stage, 
+                                  const std::string& source_name, 
+                                  const std::string& source, 
+                                  bool generateDebugInfo,
+                                  ShaderSpriV& spirvd, 
+                                  ShaderSpriV& spirvr)
     {
         auto kind = ConvertToShadercKind(stage);
 
@@ -385,6 +398,11 @@ namespace PK::Assets::Shader
         spirvd = { module.cbegin(), module.cend() };
 
         options.SetOptimizationLevel(shaderc_optimization_level::shaderc_optimization_level_performance);
+        
+        if (generateDebugInfo)
+        {
+            options.SetGenerateDebugInfo();
+        }
 
         module = compiler.CompileGlslToSpv(source, kind, source_name.c_str(), options);
 
@@ -680,10 +698,13 @@ namespace PK::Assets::Shader
         std::vector<PKMaterialProperty> materialProperties;
         std::unordered_map<PKShaderStage, std::string> shaderSources;
         auto enableInstancing = false;
+        auto nofragInstancing = false;
+        auto generateDebugInfo = false;
         auto logVerbose = false;
 
         ReadFile(pathSrc, source);
         ExtractLogVerbose(source, &logVerbose);
+        ExtractGenerateDebugInfo(source, &generateDebugInfo);
 
         // Sadly this happens after includes :/
         if (logVerbose)
@@ -693,7 +714,7 @@ namespace PK::Assets::Shader
 
         ExtractMulticompiles(source, mckeywords, keywords, &shader->variantcount, &directiveCount);
         ExtractStateAttributes(source, &shader->attributes);
-        Instancing::InsertMaterialAssembly(source, materialProperties, &enableInstancing);
+        Instancing::InsertMaterialAssembly(source, materialProperties, &enableInstancing, &nofragInstancing);
         ProcessAtomicCounter(source);
         ConvertHLSLTypesToGLSL(source);
         GetSharedInclude(source, sharedInclude);
@@ -720,7 +741,7 @@ namespace PK::Assets::Shader
         {
             GetVariantDefines(mckeywords, i, variantDefines);
 
-            if (ProcessStageSources(source, sharedInclude, variantDefines, shaderSources, enableInstancing) != 0)
+            if (ProcessStageSources(source, sharedInclude, variantDefines, shaderSources, enableInstancing, nofragInstancing) != 0)
             {
                 printf("Failed to preprocess shader variant glsl stage sources! \n");
                 return -1;
@@ -739,7 +760,7 @@ namespace PK::Assets::Shader
                 ShaderSpriV spirvDebug;
                 ShaderSpriV spirvRelease;
 
-                if (CompileGLSLToSpirV(compiler, kv.first, filename, kv.second, spirvDebug, spirvRelease) != 0)
+                if (CompileGLSLToSpirV(compiler, kv.first, filename, kv.second, generateDebugInfo, spirvDebug, spirvRelease) != 0)
                 {
                     printf("Failed to compile spirv from shader variant source! \n");
                     return -1;

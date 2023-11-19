@@ -7,7 +7,7 @@ namespace PK::Assets::Shader::Instancing
 {
     using namespace PK::Assets::StringUtilities;
 
-    void InsertEntryPoint(std::string& source, PKShaderStage stage, bool enableInstancing)
+    void InsertEntryPoint(std::string& source, PKShaderStage stage, bool enableInstancing, bool noFragmentInstancing)
     {
         if (!enableInstancing)
         {
@@ -17,10 +17,32 @@ namespace PK::Assets::Shader::Instancing
         switch (stage)
         {
             //@TODO Mesh shading support
-            case PKShaderStage::Vertex: source.insert(0, Instancing_Vertex_GLSL); break;
-            case PKShaderStage::MeshTask: source.insert(0, Instancing_MeshTask_GLSL); break;
-            case PKShaderStage::MeshAssembly: source.insert(0, Instancing_MeshAssembly_GLSL); break;
-            case PKShaderStage::Fragment: source.insert(0, Instancing_Fragment_GLSL); break;
+            case PKShaderStage::Vertex:
+                source.insert(0, Instancing_Vertex_GLSL);
+                break;
+            case PKShaderStage::MeshTask: 
+                source.insert(0, Instancing_MeshTask_GLSL); 
+                break;
+            case PKShaderStage::MeshAssembly: 
+                if (noFragmentInstancing)
+                {
+                    source.insert(0, Instancing_MeshAssembly_NoFrag_GLSL); 
+                }
+                else
+                {
+                    source.insert(0, Instancing_MeshAssembly_GLSL); 
+                }
+                break;
+            case PKShaderStage::Fragment: 
+                if (noFragmentInstancing)
+                {
+                    source.insert(0, Instancing_Fragment_NoFrag_GLSL); 
+                }
+                else
+                {
+                    source.insert(0, Instancing_Fragment_GLSL); 
+                }
+                break;
             default: return;
         }
 
@@ -37,11 +59,14 @@ namespace PK::Assets::Shader::Instancing
         }
     }
     
-    void InsertMaterialAssembly(std::string& source, std::vector<PKMaterialProperty>& materialProperties, bool* enableInstancing)
+    void InsertMaterialAssembly(std::string& source, std::vector<PKMaterialProperty>& materialProperties, bool* outUseInstancing, bool* outNoFragInstancing)
     {
-        *enableInstancing = false;
+        *outUseInstancing = false;
         std::string output;
         size_t pos = 0;
+
+        auto nofragToken = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_INSTANCING_NOFRAG_PROP, source, true);
+        *outNoFragInstancing = !nofragToken.empty();
 
         materialProperties.clear();
 
@@ -81,7 +106,7 @@ namespace PK::Assets::Shader::Instancing
             if (!standaloneToken.empty())
             {
                 source.insert(0, Instancing_Standalone_GLSL);
-                *enableInstancing = true;
+                *outUseInstancing = true;
             }
 
             return;
@@ -145,6 +170,6 @@ namespace PK::Assets::Shader::Instancing
         }
 
         source.insert(0, block);
-        *enableInstancing = true;
+        *outUseInstancing = true;
     }
 }

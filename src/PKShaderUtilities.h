@@ -47,6 +47,9 @@ namespace PK::Assets::Shader
         "uint PK_AtomicCounterNext() { return atomicAdd(pk_BuiltInAtomicCounter_Data, 1u); }\n";
 
     constexpr const static char* PK_GL_EXTENSIONS_COMMON =
+        "#extension GL_KHR_shader_subgroup_basic : require\n"
+        "#extension GL_KHR_shader_subgroup_ballot : require\n"
+        "#extension GL_KHR_shader_subgroup_vote : require\n"
         "#extension GL_EXT_samplerless_texture_functions : require \n"
         "#extension GL_EXT_shader_16bit_storage : require \n"
         "#extension GL_EXT_control_flow_attributes : require \n"
@@ -57,9 +60,6 @@ namespace PK::Assets::Shader
     constexpr const static char* PK_GL_EXTENSIONS_RAYTRACING = "#extension GL_EXT_ray_tracing : require \n";
     constexpr const static char* PK_GL_EXTENSIONS_MESHSHADING = 
         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-        "#extension GL_KHR_shader_subgroup_basic : require\n"
-        "#extension GL_KHR_shader_subgroup_ballot : require\n"
-        "#extension GL_KHR_shader_subgroup_vote : require\n"
         "#extension GL_EXT_mesh_shader : require \n";
 
     constexpr const static char* PK_GL_STAGE_BEGIN = "#pragma PROGRAM_";
