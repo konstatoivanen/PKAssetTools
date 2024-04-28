@@ -5,7 +5,7 @@
 
 namespace PK::Assets::Shader::Instancing
 {
-    // @TODO NOTE that for optimization purposes PK_Draw uses uint4(material, transform, global meshlet submesh, userdata) internally (this saves a redundant struct descriptor)
+    // NOTE that for optimization purposes PK_Draw uses uint4(material, transform, global meshlet submesh, userdata) internally (this saves a redundant struct descriptor)
     constexpr const static char* Instancing_Standalone_GLSL =
         "#define PK_INSTANCING_ENABLED                                                                                                          \n"
         "#define PK_Draw uint4                                                                                                                  \n"

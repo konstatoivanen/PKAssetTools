@@ -16,7 +16,6 @@ namespace PK::Assets::Shader::Instancing
 
         switch (stage)
         {
-            //@TODO Mesh shading support
             case PKShaderStage::Vertex:
                 source.insert(0, Instancing_Vertex_GLSL);
                 break;
