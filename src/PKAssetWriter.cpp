@@ -54,7 +54,7 @@ namespace PK::Assets
         size_t length;
     };
 
-    WritePtr<PKEncNode> WriteNodeTree(PKAssetBuffer& buffer, std::map<char, PKBinaryKey>& vtable, size_t* sequence, size_t* depth, const PKTempNode* node)
+    WritePtr<PKEncNode> WriteNodeTree(PKAssetBuffer& buffer, size_t writeHead, std::map<char, PKBinaryKey>& vtable, size_t* sequence, size_t* depth, const PKTempNode* node)
     {
         auto pNode = buffer.Allocate<PKEncNode>();
         pNode->isLeaf = node->left == nullptr && node->right == nullptr;
@@ -71,8 +71,8 @@ namespace PK::Assets
         {
             (*sequence) &= ~(1ull << (*depth));
             (*depth)++;
-            auto newNode = WriteNodeTree(buffer, vtable, sequence, depth, node->left.get());
-            pNode->left.Set(buffer.data(), newNode.get());
+            auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->left.get());
+            pNode->left = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
             (*depth)--;
         }
 
@@ -80,8 +80,8 @@ namespace PK::Assets
         {
             (*sequence) |= 1ull << (*depth);
             (*depth)++;
-            auto newNode = WriteNodeTree(buffer, vtable, sequence, depth, node->right.get());
-            pNode->right.Set(buffer.data(), newNode.get());
+            auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->right.get());
+            pNode->right = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
             (*depth)--;
             (*sequence) &= ~(1ull << (*depth));
         }
@@ -124,25 +124,23 @@ namespace PK::Assets
         PKAssetBuffer buffer;
         buffer.header->type = src.header->type;
         buffer.header->isCompressed = true;
+        buffer.header->uncompressedSize = (uint32_t)src.size();
         WriteName(buffer.header->name, src.header->name);
 
-        *buffer.Allocate<uint32_t>() = (uint32_t)src.size();
-        auto binOffset = buffer.Allocate<uint32_t>();
-        auto binSize = buffer.Allocate<size_t>();
         auto sequence = 0ull;
         auto depth = 0ull;
         auto binLength = 0ull;
 
         auto rootNode = minHeap.top();
-        auto pRootNode = WriteNodeTree(buffer, vtable, &sequence, &depth, &rootNode);
-        *binOffset = (uint32_t)buffer.size();
+        auto pRootNode = WriteNodeTree(buffer, (uint32_t)buffer.size(), vtable, &sequence, &depth, &rootNode);
+        buffer.header->compressedOffset = (uint32_t)buffer.size();
 
         for (auto& kv : vtable)
         {
             binLength += kv.second.count * kv.second.length;
         }
 
-        *binSize = binLength;
+        buffer.header->compressedBitCount = binLength;
         auto pData = buffer.Allocate<char>((binLength + 7) / 8);
         auto pHead = reinterpret_cast<char*>(pData.get());
 
@@ -175,7 +173,7 @@ namespace PK::Assets
         memset(dst + c, '\0', PK_ASSET_NAME_MAX_LENGTH - c);
     }
 
-    int WriteAsset(const char* filepath, const PKAssetBuffer& buffer, bool forceNoCompression)
+    int WriteAsset(const char* filepath, PKAssetBuffer& buffer, bool forceNoCompression)
     {
         printf("writing file: %s \n", filepath);
 
@@ -213,6 +211,8 @@ namespace PK::Assets
             printf("Failed to open/create file! \n");
             return -1;
         }
+
+        buffer.header->uncompressedSize = (uint32_t)(buffer.size() - sizeof(PKAssetHeader));
 
         if (buffer.size() > MIN_COMPRESSABLE_SIZE && !forceNoCompression)
         {

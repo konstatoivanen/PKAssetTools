@@ -74,7 +74,7 @@ namespace PK::Assets
 
     void WriteName(char* dst, const char* src);
 
-    int WriteAsset(const char* filepath, const PKAssetBuffer& buffer, bool forceNoCompression);
+    int WriteAsset(const char* filepath, PKAssetBuffer& buffer, bool forceNoCompression);
 
     PKAssetBuffer CompressBuffer(const void* src, size_t srcSize, size_t* outSize);
 }
