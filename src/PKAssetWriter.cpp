@@ -175,7 +175,7 @@ namespace PK::Assets
 
     int WriteAsset(const char* filepath, PKAssetBuffer& buffer, bool forceNoCompression)
     {
-        printf("writing file: %s \n", filepath);
+        printf("Writing asset: %s \n", filepath);
 
         FILE* file = nullptr;
 
@@ -240,11 +240,10 @@ namespace PK::Assets
         {
             if (charData[i] != buffer.data()[i])
             {
-                printf("Compression missmatch at byte index: %lli", i);
+                printf("Read Write missmatch at byte index: %lli \n", i);
             }
         }
 
-        auto compare = memcmp(asset.rawData, buffer.data(), buffer.size());
         Assets::CloseAsset(&asset);
 #endif
 

@@ -54,7 +54,7 @@ namespace PK::Assets::StringUtilities
         return filepath.substr(0, lastSlash);
     }
 
-    std::string ReadFileRecursiveInclude(const std::string& filepath, std::vector<std::string>& includes)
+    std::string ReadFileRecursiveInclude(const std::string& filepath, std::vector<std::string>& outIncludes)
     {
         auto includeOnceToken = "#pragma once";
         auto includeToken = "#include ";
@@ -77,13 +77,13 @@ namespace PK::Assets::StringUtilities
             {
                 foundPragmaOnce = true;
 
-                if (std::find(includes.begin(), includes.end(), filepath) != includes.end())
+                if (std::find(outIncludes.begin(), outIncludes.end(), filepath) != outIncludes.end())
                 {
                     file.close();
                     return "";
                 }
 
-                includes.push_back(filepath);
+                outIncludes.push_back(filepath);
                 continue;
             }
 
@@ -93,7 +93,7 @@ namespace PK::Assets::StringUtilities
             {
                 lineBuffer.erase(0, includepos + includeTokenLength);
                 lineBuffer.insert(0, filepath.substr(0, filepath.find_last_of("/\\") + 1));
-                result += ReadFileRecursiveInclude(lineBuffer, includes);
+                result += ReadFileRecursiveInclude(lineBuffer, outIncludes);
                 continue;
             }
 
@@ -103,12 +103,6 @@ namespace PK::Assets::StringUtilities
         file.close();
 
         return result;
-    }
-
-    std::string ReadFileRecursiveInclude(const std::string& filepath)
-    {
-        std::vector<std::string> includes;
-        return ReadFileRecursiveInclude(filepath, includes);
     }
 
     std::string ExtractToken(const char* token, std::string& source, bool includeToken)

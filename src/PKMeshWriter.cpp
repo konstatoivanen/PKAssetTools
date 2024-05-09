@@ -7,6 +7,7 @@
 #include "PKAssets/PKAssetLoader.h"
 #include "PKAssetWriter.h"
 #include "PKStringUtilities.h"
+#include "PKFileVersionUtilities.h"
 #include "PKMeshUtilities.h"
 #include "PKMeshletWriter.h"
 
@@ -267,6 +268,11 @@ namespace PK::Assets::Mesh
 
     int WriteMesh(const char* pathSrc, const char* pathDst)
     {
+        if (!PKVersionUtilities::IsFileOutOfDate(pathSrc, pathDst))
+        {
+            return 1;
+        }
+
         auto filename = StringUtilities::ReadFileName(pathSrc);
         printf("Preprocessing mesh: %s \n", filename.c_str());
 

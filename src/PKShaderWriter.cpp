@@ -7,6 +7,7 @@
 #include "PKSPVUtilities.h"
 #include "PKShaderUtilities.h"
 #include "PKShaderInstancing.h"
+#include "PKFileVersionUtilities.h"
 #include "PKAssetWriter.h"
 #include "PKShaderWriter.h"
 
@@ -52,9 +53,11 @@ namespace PK::Assets::Shader
         bool logVerbose;
     };
 
-    static void ReadFile(const std::string& filepath, std::string& ouput)
+    static bool ReadFile(const std::string& filepath, std::string& ouput, std::filesystem::file_time_type lastDestWriteTime)
     {
-        ouput = StringUtilities::ReadFileRecursiveInclude(filepath);
+        std::vector<std::string> includes;
+        ouput = StringUtilities::ReadFileRecursiveInclude(filepath, includes);
+        return PKVersionUtilities::IsFileAnyOutOfDate(includes, lastDestWriteTime);
     }
 
     static void ExtractMulticompiles(std::string& source,
@@ -680,8 +683,18 @@ namespace PK::Assets::Shader
 
     int WriteShader(const char* pathSrc, const char* pathDst)
     {
-        auto filename = StringUtilities::ReadFileName(pathSrc);
+        std::string source;
+        
+        auto lastWriteTime = PKVersionUtilities::GetLastWriteTime(pathDst);
+        auto isOutOfDate = PKVersionUtilities::IsFileOutOfDate(pathSrc, pathDst);
+        isOutOfDate |= ReadFile(pathSrc, source, lastWriteTime);
 
+        if (!isOutOfDate)
+        {
+            return 1;
+        }
+
+        auto filename = StringUtilities::ReadFileName(pathSrc);
         auto buffer = PKAssetBuffer();
         buffer.header->type = PKAssetType::Shader;
         WriteName(buffer.header->name, filename.c_str());
@@ -690,7 +703,6 @@ namespace PK::Assets::Shader
 
         ShaderCompiler compiler;
         uint32_t directiveCount;
-        std::string source;
         std::string sharedInclude;
         std::string variantDefines;
         std::vector<std::vector<std::string>> mckeywords;
@@ -701,8 +713,6 @@ namespace PK::Assets::Shader
         auto nofragInstancing = false;
         auto generateDebugInfo = false;
         auto logVerbose = false;
-
-        ReadFile(pathSrc, source);
         ExtractLogVerbose(source, &logVerbose);
         ExtractGenerateDebugInfo(source, &generateDebugInfo);
 

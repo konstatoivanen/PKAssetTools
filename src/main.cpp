@@ -1,5 +1,6 @@
 #include "PKShaderWriter.h"
 #include "PKMeshWriter.h"
+#include "PKFileVersionUtilities.h"
 #include "PKAssets/PKAsset.h"
 #include <stdio.h>
 #include <filesystem>
@@ -28,47 +29,6 @@ static std::string ProcessPath(const std::string& path)
     return outpath;
 }
 
-void GetLastWriteTimeRecursive(const std::filesystem::path& dir, std::filesystem::file_time_type& lastTime)
-{
-    for (const auto& entry : std::filesystem::directory_iterator(dir))
-    {
-        auto& entryPath = entry.path();
-
-        if (!entryPath.has_extension())
-        {
-            GetLastWriteTimeRecursive(entryPath, lastTime);
-            continue;
-        }
-
-        auto time = std::filesystem::last_write_time(entryPath);
-
-        if (time > lastTime)
-        {
-            lastTime = time;
-        }
-    }
-}
-
-bool RequiresUpdate(const std::filesystem::path& src, const::std::filesystem::path& dst)
-{
-    if (!std::filesystem::exists(dst))
-    {
-        return true;
-    }
-
-    auto srctime = std::filesystem::file_time_type::min();
-    auto dsttime = std::filesystem::file_time_type::min();
-    GetLastWriteTimeRecursive(src, srctime);
-    GetLastWriteTimeRecursive(dst, dsttime);
-
-    if (srctime > dsttime)
-    {
-        return true;
-    }
-
-    return false;
-}
-
 void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::path& subdir, const std::string& dstdir)
 {
     for (const auto& entry : std::filesystem::directory_iterator(subdir))
@@ -88,10 +48,12 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
         {
             auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_SHADER).string();
             auto srcpathstr = entryPath.string();
+            auto writeStatus = Shader::WriteShader(srcpathstr.c_str(), dstpathstr.c_str());
 
-            if (Shader::WriteShader(srcpathstr.c_str(), dstpathstr.c_str()) != 0)
+            switch (writeStatus)
             {
-                printf("Failed to write shader: %s \n", dstpathstr.c_str());
+                case -1: printf("Failed to asset: %s \n", dstpathstr.c_str()); break;
+                case 1: printf("Asset was up to date: %s \n", dstpathstr.c_str()); break;
             }
 
             continue;
@@ -101,10 +63,12 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
         {
             auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_MESH).string();
             auto srcpathstr = entryPath.string();
+            auto writeStatus = Mesh::WriteMesh(srcpathstr.c_str(), dstpathstr.c_str());
 
-            if (Mesh::WriteMesh(srcpathstr.c_str(), dstpathstr.c_str()) != 0)
+            switch (writeStatus)
             {
-                printf("Failed to write mesh: %s \n", dstpathstr.c_str());
+                case -1: printf("Failed to asset: %s \n", dstpathstr.c_str()); break;
+                case 1: printf("Asset was up to date: %s \n", dstpathstr.c_str()); break;
             }
 
             continue;
@@ -142,7 +106,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    if (!RequiresUpdate(srcdir, dstdir))
+    if (!PKVersionUtilities::IsDirectoryOutOfDate(srcdir, dstdir))
     {
         printf("Assets are up to date.");
         return 0;
