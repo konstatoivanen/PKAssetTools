@@ -821,6 +821,12 @@ namespace PK::Assets::Shader
                 auto j = 0u;
                 for (auto& kv : reflectionData.uniqueVariables)
                 {
+                    if (j >= PK_ASSET_MAX_PUSH_CONSTANTS)
+                    {
+                        printf("Warning! Shader has more push constants than supported (%i / %i) \n", j, PK_ASSET_MAX_PUSH_CONSTANTS);
+                        continue;
+                    }
+
                     WriteName(pConstantVariables[j].name, kv.first.c_str());
                     pConstantVariables[j].offset = (unsigned short)kv.second.block->offset;
                     pConstantVariables[j].stageFlags = (PKShaderStageFlags)kv.second.stageFlags;
@@ -842,7 +848,7 @@ namespace PK::Assets::Shader
 
                     if (desc->set >= PK_ASSET_MAX_DESCRIPTOR_SETS)
                     {
-                        printf("Warning has a descriptor set outside of supported range (%i / %i) \n", desc->set, PK_ASSET_MAX_DESCRIPTOR_SETS);
+                        printf("Warning! Shader has a descriptor set outside of supported range (%i / %i) \n", desc->set, PK_ASSET_MAX_DESCRIPTOR_SETS);
                         continue;
                     }
 
