@@ -45,6 +45,7 @@ namespace PK::Assets::Shader
     struct ReflectionData
     {
         SpvReflectShaderModule modules[(int)PKShaderStage::MaxCount]{};
+        std::vector<PKVertexAttribute> vertexAttributes;
         std::vector<ReflectBinding> sortedBindings;
         std::map<std::string, ReflectBinding> uniqueBindings;
         std::map<std::string, ReflectPushConstant> uniqueVariables;
@@ -494,7 +495,7 @@ namespace PK::Assets::Shader
         }
     }
 
-    static void GetVertexAttributes(SpvReflectShaderModule* debugModule, PKShaderStage stage, PKVertexAttribute* attributes, bool logVerbose)
+    static void GetVertexAttributes(ReflectionData& reflection, SpvReflectShaderModule* debugModule, PKShaderStage stage)
     {
         if (stage != PKShaderStage::Vertex)
         {
@@ -509,9 +510,7 @@ namespace PK::Assets::Shader
 
         spvReflectEnumerateEntryPointInputVariables(debugModule, debugModule->entry_point_name, &count, variables.data());
 
-        auto i = 0;
-
-        if (count > 0 && logVerbose)
+        if (count > 0 && reflection.logVerbose)
         {
             printf("    Interface:");
         }
@@ -524,17 +523,25 @@ namespace PK::Assets::Shader
                 continue;
             }
 
-            attributes[i].location = variable->location;
-            WriteName(attributes[i].name, variable->name);
-            attributes[i++].type = GetElementType(variable->format);
-            
-            if (logVerbose)
+            if (reflection.vertexAttributes.size() >= PK_ASSET_MAX_VERTEX_ATTRIBUTES)
+            {
+                printf("Warning! Shader has more vertex attributes than supported (%i / %i) \n", (int)reflection.vertexAttributes.size(), PK_ASSET_MAX_VERTEX_ATTRIBUTES);
+                continue;
+            }
+
+            PKVertexAttribute attribute{};
+            WriteName(attribute.name, variable->name);
+            attribute.location = variable->location;
+            attribute.type = GetElementType(variable->format);
+            reflection.vertexAttributes.push_back(attribute);
+
+            if (reflection.logVerbose)
             {
                 printf(" %s ", variable->name);
             }
         }
 
-        if (count > 0 && logVerbose)
+        if (count > 0 && reflection.logVerbose)
         {
             printf("\n");
         }
@@ -793,7 +800,7 @@ namespace PK::Assets::Shader
                 }
 
                 GetUniqueBindings(reflectionData, moduleDebug, kv.first);
-                GetVertexAttributes(moduleDebug, kv.first, pVariants[i].vertexAttributes, logVerbose);
+                GetVertexAttributes(reflectionData, moduleDebug, kv.first);
                 GetPushConstants(reflectionData, moduleDebug, kv.first);
                 GetComputeGroupSize(moduleDebug, pVariants[i].groupSize, logVerbose);
                 spvReflectDestroyShaderModule(moduleDebug);
@@ -810,6 +817,13 @@ namespace PK::Assets::Shader
                 auto pSpirv = buffer.Write(code, size / sizeof(uint32_t));
                 pVariants[i].sprivSizes[(int)kv.first] = size;
                 pVariants[i].sprivBuffers[(int)kv.first].Set(buffer.data(), pSpirv.get());
+            }
+
+            if (reflectionData.vertexAttributes.size() > 0)
+            {
+                pVariants[i].vertexAttributeCount = (uint32_t)reflectionData.vertexAttributes.size();
+                auto pVertexAttributes = buffer.Write<PKVertexAttribute>(reflectionData.vertexAttributes.data(), reflectionData.vertexAttributes.size());
+                pVariants[i].vertexAttributes.Set(buffer.data(), pVertexAttributes.get());
             }
 
             if (reflectionData.uniqueVariables.size() > 0)
