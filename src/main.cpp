@@ -94,8 +94,8 @@ int main(int argc, char** argv)
 
     // Three arguments usually means that the working directory is included as the first argument.
     auto offs = argc == 3 ? 1 : 0;
-    auto srcdir = ProcessPath(argv[offs + 0]);
-    auto dstdir = ProcessPath(argv[offs + 1]);
+    auto srcdir = std::filesystem::absolute(ProcessPath(argv[offs + 0])).string();
+    auto dstdir = std::filesystem::absolute(ProcessPath(argv[offs + 1])).string();
 
     printf("Processing assets from: %s \n", srcdir.c_str());
     printf("to: %s \n", dstdir.c_str());
