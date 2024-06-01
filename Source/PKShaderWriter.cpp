@@ -1,8 +1,8 @@
-#include <shaderc/shaderc.hpp>
 #include <unordered_map>
 #include <map>
 #include <stdexcept>
 #include <sstream>
+#include <shaderc/shaderc.hpp>
 #include "PKStringUtilities.h"
 #include "PKSPVUtilities.h"
 #include "PKShaderUtilities.h"
@@ -83,7 +83,7 @@ namespace PK::Assets::Shader
 
             auto directive = StringUtilities::Split(output, " ");
 
-            for (auto i = 0; i < directive.size(); ++i)
+            for (auto i = 0u; i < directive.size(); ++i)
             {
                 auto& keyword = directive.at(i);
 
@@ -241,7 +241,6 @@ namespace PK::Assets::Shader
     static void GetSharedInclude(const std::string& source, std::string& sharedInclude)
     {
         auto typeToken = "#pragma PROGRAM_";
-        auto typeTokenLength = strlen(typeToken);
         auto pos = source.find(typeToken, 0); //Start of shader type declaration line
 
         // Treat code in the beginning of the source as shared include
@@ -255,7 +254,7 @@ namespace PK::Assets::Shader
     {
         defines.clear();
 
-        for (auto i = 0; i < keywords.size(); ++i)
+        for (auto i = 0u; i < keywords.size(); ++i)
         {
             auto& declares = keywords.at(i);
             auto& keyword = declares.at(index % declares.size());
@@ -368,7 +367,7 @@ namespace PK::Assets::Shader
             #endif
 
             printf("\n ----------BEGIN ERROR---------- \n\n");
-            printf(module.GetErrorMessage().c_str());
+            printf("%s", module.GetErrorMessage().c_str());
             printf("\n");
 
             std::istringstream iss(source);
@@ -441,7 +440,6 @@ namespace PK::Assets::Shader
         auto* module = &reflection.modules[(uint32_t)stage];
 
         uint32_t bindingCount = 0u;
-        uint32_t setCount = 0u;
 
         spvReflectEnumerateDescriptorBindings(debugModule, &bindingCount, nullptr);
 
@@ -475,7 +473,7 @@ namespace PK::Assets::Shader
             reflection.setStageFlags[desc->set] |= 1 << (int)stage;
 
             auto& binding = reflection.uniqueBindings[name];
-            binding.firstStage = binding.firstStage > (int)stage ? (int)stage : binding.firstStage;
+            binding.firstStage = binding.firstStage > (uint32_t)stage ? (int)stage : binding.firstStage;
             binding.maxBinding = binding.maxBinding > releaseBinding->binding ? binding.maxBinding : releaseBinding->binding;
             binding.name = name;
             binding.count = desc->type_description->op == SpvOpTypeRuntimeArray ? PK::Assets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
@@ -608,7 +606,6 @@ namespace PK::Assets::Shader
             }
         }
 
-        entryPoint->local_size;
         outSize[0] = entryPoint->local_size.x;
         outSize[1] = entryPoint->local_size.y;
         outSize[2] = entryPoint->local_size.z;
@@ -680,7 +677,6 @@ namespace PK::Assets::Shader
             {
                 if (binding.bindings[i] != nullptr)
                 {
-                    auto currentId = binding.bindings[i]->binding;
                     spvReflectChangeDescriptorBindingNumbers(&reflection.modules[i], binding.bindings[i], bindId, desc->set);
                 }
             }

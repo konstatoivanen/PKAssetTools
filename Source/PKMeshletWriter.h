@@ -1,5 +1,5 @@
 #pragma once
-#include "PKAssets/PKAsset.h"
+#include <PKAsset.h>
 #include "PKAssetWriter.h"
 
 namespace PK::Assets::Mesh

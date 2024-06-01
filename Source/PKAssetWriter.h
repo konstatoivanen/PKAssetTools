@@ -1,6 +1,6 @@
 #pragma once
-#include "PKAssets/PKAsset.h"
 #include <vector>
+#include <PKAsset.h>
 
 namespace PK::Assets
 {

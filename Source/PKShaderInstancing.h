@@ -1,7 +1,7 @@
 #pragma once
-#include "PKAssets/PKAsset.h"
 #include <string>
 #include <vector>
+#include <PKAsset.h>
 
 namespace PK::Assets::Shader::Instancing
 {

@@ -1,7 +1,7 @@
 #pragma once
-#include "PKAssets/PKAsset.h"
 #include <shaderc/shaderc.hpp>
 #include <SPIRV-Reflect/spirv_reflect.h>
+#include <PKAsset.h>
 
 namespace PK::Assets::Shader
 {
@@ -77,5 +77,4 @@ namespace PK::Assets::Shader
     shaderc_shader_kind ConvertToShadercKind(PKShaderStage stage);
     void FindLineRange(const std::string& name, const std::string& message, int* outMin, int* outMax);
     void ConvertHLSLTypesToGLSL(std::string& source);
-
 }

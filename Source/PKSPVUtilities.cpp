@@ -1,5 +1,5 @@
-#include "PKSPVUtilities.h"
 #include <SPIRV-Reflect/spirv_reflect.h>
+#include "PKSPVUtilities.h"
 
 namespace PK::Assets::Shader
 {
@@ -28,52 +28,6 @@ namespace PK::Assets::Shader
         uint32_t result;
         uint32_t base;
     };
-
-    static void GatherCommands(const uint32_t* code, const uint32_t wordCount)
-    {
-        uint32_t i = 5u; // Bytecode starts at word index 5, after the header.
-
-        std::vector<OpStore> opStores;
-        std::vector<OpImageWrite> opImageWrites;
-        std::vector<OpLoad> opLoads;
-        std::vector<OpAccessChain> opAccessChains;
-
-        while (i < wordCount)
-        {
-            SpvOp opcode = (SpvOp)(code[i] & 0xFFFF);
-            uint16_t wcount = (code[i] >> 16) & 0xFFFF;
-            const uint32_t* params = code + i + 1;
-
-            switch (opcode)
-            {
-                case SpvOp::SpvOpLoad:
-                {
-                    opLoads.push_back({ params[0], params[1], params[2] });
-                }
-                break;
-
-                case SpvOp::SpvOpAccessChain:
-                {
-                    opAccessChains.push_back({ params[0], params[1], params[2] });
-                }
-                break;
-
-                case SpvOp::SpvOpImageWrite:
-                {
-                    opImageWrites.push_back({ params[0] });
-                }
-                break;
-
-                case SpvOp::SpvOpStore:
-                {
-                    opStores.push_back({ params[0], params[1] });
-                }
-                break;
-            }
-
-            i += wcount;
-        }
-    }
 
     static bool ReflectAccessChainStore(const uint32_t* code, const uint32_t wordCount, uint32_t accessChainId)
     {
@@ -118,6 +72,7 @@ namespace PK::Assets::Shader
                         return true;
                     }
                 }
+                default: break;
             }
 
             i += wcount;
@@ -225,9 +180,9 @@ namespace PK::Assets::Shader
             case PKDescriptorType::StorageBuffer:
             case PKDescriptorType::DynamicStorageBuffer:
                 return ReflectBufferWrite(code, wordCount, variable);
+            default: 
+                return false;
         }
-
-        return false;
     }
 
     bool ReflectLocalSize(const uint32_t* code, const uint32_t wordCount, uint32_t* localSize)

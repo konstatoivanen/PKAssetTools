@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="ClangDebug|x64">
+      <Configuration>ClangDebug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="ClangRelease|x64">
+      <Configuration>ClangRelease</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
       <Platform>x64</Platform>
@@ -24,10 +32,24 @@
     <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ClangDebug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>ClangCL</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <EnableASAN>true</EnableASAN>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ClangRelease|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>ClangCL</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -39,7 +61,13 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ClangDebug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ClangRelease|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
@@ -48,7 +76,17 @@
     <OutDir>$(SolutionDir)Build\$(ProjectName)_$(Platform)_$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\Linker\$(ProjectName)_$(Platform)_$(Configuration)\</IntDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ClangDebug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)Build\$(ProjectName)_$(Platform)_$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)Build\Linker\$(ProjectName)_$(Platform)_$(Configuration)\</IntDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)Build\$(ProjectName)_$(Platform)_$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)Build\Linker\$(ProjectName)_$(Platform)_$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ClangRelease|x64'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)Build\$(ProjectName)_$(Platform)_$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\Linker\$(ProjectName)_$(Platform)_$(Configuration)\</IntDir>
@@ -61,19 +99,46 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty;$(ProjectDir)Include;</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shaderc_combinedd.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\libs;</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y /s "$(TargetDir)*.exe" "$(SolutionDir)Build\"
 
-xcopy /y /s "$(SolutionDir)PKAssetTools\include\PKAssets\*.*" "$(SolutionDir)PKRenderer\include\PKAssets\"</Command>
+xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\ThirdParty\PKAssets\"</Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>Copy Executable</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ClangDebug|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>PK_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty;$(ProjectDir)Include;</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <AdditionalOptions>-Wno-missing-field-initializers %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y /s "$(TargetDir)*.exe" "$(SolutionDir)Build\"
+
+xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\ThirdParty\PKAssets\"</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Copy Executable</Message>
@@ -89,7 +154,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\include\PKAssets\*.*" "$(SolutionDir)PKR
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty;$(ProjectDir)Include;</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -97,87 +162,118 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\include\PKAssets\*.*" "$(SolutionDir)PKR
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shaderc_combined.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\libs;</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y /s "$(TargetDir)*.exe" "$(SolutionDir)Build\"
 
-xcopy /y /s "$(SolutionDir)PKAssetTools\include\PKAssets\*.*" "$(SolutionDir)PKRenderer\include\PKAssets\"</Command>
+xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\ThirdParty\PKAssets\"</Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>Copy Executable</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ClangRelease|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty;$(ProjectDir)Include;</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalOptions>-Wno-missing-field-initializers %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y /s "$(TargetDir)*.exe" "$(SolutionDir)Build\"
+
+xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\ThirdParty\PKAssets\"</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Copy Executable</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="include\meshoptimizer\meshoptimizer.h" />
-    <ClInclude Include="include\mikktspace\mikktspace.h" />
-    <ClInclude Include="include\PKAssets\PKAsset.h" />
-    <ClInclude Include="include\PKAssets\PKAssetLoader.h" />
-    <ClInclude Include="include\shaderc\env.h" />
-    <ClInclude Include="include\shaderc\shaderc.h" />
-    <ClInclude Include="include\shaderc\shaderc.hpp" />
-    <ClInclude Include="include\shaderc\status.h" />
-    <ClInclude Include="include\shaderc\visibility.h" />
-    <ClInclude Include="include\SPIRV-Reflect\spirv.h" />
-    <ClInclude Include="include\SPIRV-Reflect\spirv_reflect.h" />
-    <ClInclude Include="include\tinyobjloader\tiny_obj_loader.h" />
-    <ClInclude Include="src\PKFileVersionUtilities.h" />
-    <ClInclude Include="src\PKMeshletWriter.h" />
-    <ClInclude Include="src\PKAssetWriter.h" />
-    <ClInclude Include="src\PKMeshUtilities.h" />
-    <ClInclude Include="src\PKMeshWriter.h" />
-    <ClInclude Include="src\PKShaderInstancing.h" />
-    <ClInclude Include="src\PKShaderUtilities.h" />
-    <ClInclude Include="src\PKShaderWriter.h" />
-    <ClInclude Include="src\PKSPVUtilities.h" />
-    <ClInclude Include="src\PKStringUtilities.h" />
+    <ClInclude Include="ThirdParty\meshoptimizer\meshoptimizer.h" />
+    <ClInclude Include="ThirdParty\mikktspace\mikktspace.h" />
+    <ClInclude Include="Include\PKAsset.h" />
+    <ClInclude Include="Include\PKAssetLoader.h" />
+    <ClInclude Include="ThirdParty\shaderc\env.h" />
+    <ClInclude Include="ThirdParty\shaderc\shaderc.h" />
+    <ClInclude Include="ThirdParty\shaderc\shaderc.hpp" />
+    <ClInclude Include="ThirdParty\shaderc\status.h" />
+    <ClInclude Include="ThirdParty\shaderc\visibility.h" />
+    <ClInclude Include="ThirdParty\SPIRV-Reflect\spirv.h" />
+    <ClInclude Include="ThirdParty\SPIRV-Reflect\spirv_reflect.h" />
+    <ClInclude Include="ThirdParty\tinyobjloader\tiny_obj_loader.h" />
+    <ClInclude Include="Source\PKFileVersionUtilities.h" />
+    <ClInclude Include="Source\PKMeshletWriter.h" />
+    <ClInclude Include="Source\PKAssetWriter.h" />
+    <ClInclude Include="Source\PKMeshUtilities.h" />
+    <ClInclude Include="Source\PKMeshWriter.h" />
+    <ClInclude Include="Source\PKShaderInstancing.h" />
+    <ClInclude Include="Source\PKShaderUtilities.h" />
+    <ClInclude Include="Source\PKShaderWriter.h" />
+    <ClInclude Include="Source\PKSPVUtilities.h" />
+    <ClInclude Include="Source\PKStringUtilities.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="include\meshoptimizer\allocator.cpp" />
-    <ClCompile Include="include\meshoptimizer\clusterizer.cpp" />
-    <ClCompile Include="include\meshoptimizer\indexcodec.cpp" />
-    <ClCompile Include="include\meshoptimizer\indexgenerator.cpp" />
-    <ClCompile Include="include\meshoptimizer\overdrawanalyzer.cpp" />
-    <ClCompile Include="include\meshoptimizer\overdrawoptimizer.cpp" />
-    <ClCompile Include="include\meshoptimizer\quantization.cpp" />
-    <ClCompile Include="include\meshoptimizer\simplifier.cpp" />
-    <ClCompile Include="include\meshoptimizer\spatialorder.cpp" />
-    <ClCompile Include="include\meshoptimizer\stripifier.cpp" />
-    <ClCompile Include="include\meshoptimizer\vcacheanalyzer.cpp" />
-    <ClCompile Include="include\meshoptimizer\vcacheoptimizer.cpp" />
-    <ClCompile Include="include\meshoptimizer\vertexcodec.cpp" />
-    <ClCompile Include="include\meshoptimizer\vertexfilter.cpp" />
-    <ClCompile Include="include\meshoptimizer\vfetchanalyzer.cpp" />
-    <ClCompile Include="include\meshoptimizer\vfetchoptimizer.cpp" />
-    <ClCompile Include="include\mikktspace\mikktspace.c" />
-    <ClCompile Include="include\PKAssets\PKAsset.cpp" />
-    <ClCompile Include="include\PKAssets\PKAssetLoader.cpp" />
-    <ClCompile Include="include\SPIRV-Reflect\spirv_reflect.cpp" />
-    <ClCompile Include="include\tinyobjloader\tiny_obj_loader.cpp" />
-    <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\PKAssetWriter.cpp" />
-    <ClCompile Include="src\PKFileVersionUtilities.cpp" />
-    <ClCompile Include="src\PKMeshletWriter.cpp" />
-    <ClCompile Include="src\PKMeshUtilities.cpp" />
-    <ClCompile Include="src\PKMeshWriter.cpp" />
-    <ClCompile Include="src\PKShaderInstancing.cpp" />
-    <ClCompile Include="src\PKShaderUtilities.cpp" />
-    <ClCompile Include="src\PKShaderWriter.cpp" />
-    <ClCompile Include="src\PKSPVUtilities.cpp" />
-    <ClCompile Include="src\PKStringUtilities.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\allocator.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\clusterizer.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\indexcodec.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\indexgenerator.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\overdrawanalyzer.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\overdrawoptimizer.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\quantization.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\simplifier.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\spatialorder.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\stripifier.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\vcacheanalyzer.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\vcacheoptimizer.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\vertexcodec.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\vertexfilter.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\vfetchanalyzer.cpp" />
+    <ClCompile Include="ThirdParty\meshoptimizer\vfetchoptimizer.cpp" />
+    <ClCompile Include="ThirdParty\mikktspace\mikktspace.c" />
+    <ClCompile Include="Include\PKAsset.cpp" />
+    <ClCompile Include="Include\PKAssetLoader.cpp" />
+    <ClCompile Include="ThirdParty\SPIRV-Reflect\spirv_reflect.cpp" />
+    <ClCompile Include="ThirdParty\tinyobjloader\tiny_obj_loader.cpp" />
+    <ClCompile Include="Source\main.cpp" />
+    <ClCompile Include="Source\PKAssetWriter.cpp" />
+    <ClCompile Include="Source\PKFileVersionUtilities.cpp" />
+    <ClCompile Include="Source\PKMeshletWriter.cpp" />
+    <ClCompile Include="Source\PKMeshUtilities.cpp" />
+    <ClCompile Include="Source\PKMeshWriter.cpp" />
+    <ClCompile Include="Source\PKShaderInstancing.cpp" />
+    <ClCompile Include="Source\PKShaderUtilities.cpp" />
+    <ClCompile Include="Source\PKShaderWriter.cpp" />
+    <ClCompile Include="Source\PKSPVUtilities.cpp" />
+    <ClCompile Include="Source\PKStringUtilities.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Library Include="libs\shaderc_combined.lib" />
-    <Library Include="libs\shaderc_combinedd.lib" />
+    <Library Include="ThirdParty\shaderc\Binaries\shaderc_combined.lib" />
+    <Library Include="ThirdParty\shaderc\Binaries\shaderc_combinedd.lib" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
-    <None Include="debug_res\models\MDL_Debug.mdl" />
-    <None Include="debug_res\models\MDL_Debug.mdl.pkmeta" />
-    <None Include="debug_res\shaders\CS_Debug.shader" />
-    <None Include="debug_res\shaders\includes\DebugUtilities.glsl" />
-    <None Include="debug_res\shaders\SH_WS_Debug.shader" />
+    <None Include="DebugContent\models\MDL_Debug.mdl" />
+    <None Include="DebugContent\models\MDL_Debug.mdl.pkmeta" />
+    <None Include="DebugContent\shaders\CS_Debug.shader" />
+    <None Include="DebugContent\shaders\includes\DebugUtilities.glsl" />
+    <None Include="DebugContent\shaders\SH_WS_Debug.shader" />
     <None Include="LICENSE" />
     <None Include="README.md" />
   </ItemGroup>

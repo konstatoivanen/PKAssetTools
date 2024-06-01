@@ -1,10 +1,9 @@
-#pragma once
 #include <unordered_map>
 #include <map>
 #include <mikktspace/mikktspace.h>
 #include <tinyobjloader/tiny_obj_loader.h>
 #include <meshoptimizer/meshoptimizer.h>
-#include "PKAssets/PKAssetLoader.h"
+#include <PKAssetLoader.h>
 #include "PKAssetWriter.h"
 #include "PKStringUtilities.h"
 #include "PKFileVersionUtilities.h"
@@ -36,7 +35,7 @@ namespace PK::Assets::Mesh
 
         // Returns the number of vertices on face number iFace
         // iFace is a number in the range {0, 1, ..., getNumFaces()-1}
-        int GetNumVerticesOfFace(const SMikkTSpaceContext* pContext, const int iFace)
+        int GetNumVerticesOfFace([[maybe_unused]] const SMikkTSpaceContext* pContext, [[maybe_unused]] const int iFace)
         {
             return 3;
         }
@@ -285,7 +284,7 @@ namespace PK::Assets::Mesh
 
         if (!err.empty())
         {
-            printf(err.c_str());
+            printf("%s", err.c_str());
             return -1;
         }
 
@@ -454,7 +453,6 @@ namespace PK::Assets::Mesh
         auto vcount = (uint32_t)(vertices.size() / stride);
         constexpr auto ushortmax = std::numeric_limits<uint16_t>().max();
         auto indexType = vcount > ushortmax ? PKElementType::Uint : PKElementType::Ushort;
-        auto indexSize = indexType == PKElementType::Uint ? sizeof(uint32_t) : sizeof(uint16_t);
 
         if (hasTangents)
         {
@@ -536,7 +534,7 @@ namespace PK::Assets::Mesh
             auto pIndices = pIndexBuffer.get();
             mesh->indexBuffer.Set(buffer.data(), pIndexBuffer.get());
 
-            for (auto i = 0; i < indices.size(); ++i)
+            for (auto i = 0u; i < indices.size(); ++i)
             {
                 pIndices[i] = (unsigned short)indices.at(i);
             }

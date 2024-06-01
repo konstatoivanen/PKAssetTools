@@ -68,9 +68,6 @@ namespace PK::Assets::Mesh
         std::vector<Meshlet::PKSubmesh> out_submeshes;
         std::vector<Meshlet::PKMeshlet> out_meshlets;
 
-        auto totalVertices = 0ull;
-        auto totalTriangles = 0ull;
-
         // no offset for attributes. @TODO maybe they should have.
         auto sm_stridef32 = vertexStride / sizeof(float);
         auto sm_positionsf32 = vertices + (offsetPosition / sizeof(float));

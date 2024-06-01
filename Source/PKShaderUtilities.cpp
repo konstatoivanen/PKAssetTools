@@ -7,30 +7,43 @@ namespace PK::Assets::Shader
     {
         switch (format)
         {
-            case SPV_REFLECT_FORMAT_R32_SFLOAT: return PKElementType::Float;
-            case SPV_REFLECT_FORMAT_R32G32_SFLOAT: return PKElementType::Float2;
-            case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT: return PKElementType::Float3;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT: return PKElementType::Float4;
-            case SPV_REFLECT_FORMAT_R64_SFLOAT: return PKElementType::Double;
-            case SPV_REFLECT_FORMAT_R64G64_SFLOAT: return PKElementType::Double2;
-            case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT: return PKElementType::Double3;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT: return PKElementType::Double4;
-            case SPV_REFLECT_FORMAT_R32_SINT: return PKElementType::Int;
-            case SPV_REFLECT_FORMAT_R32G32_SINT: return PKElementType::Int2;
-            case SPV_REFLECT_FORMAT_R32G32B32_SINT: return PKElementType::Int3;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_SINT: return PKElementType::Int4;
+            case SPV_REFLECT_FORMAT_UNDEFINED: return PKElementType::Invalid;
+            case SPV_REFLECT_FORMAT_R16_UINT: return PKElementType::Ushort;
+            case SPV_REFLECT_FORMAT_R16_SINT: return PKElementType::Short;
+            case SPV_REFLECT_FORMAT_R16_SFLOAT: return PKElementType::Half;
+            case SPV_REFLECT_FORMAT_R16G16_UINT: return PKElementType::Ushort2;
+            case SPV_REFLECT_FORMAT_R16G16_SINT: return PKElementType::Short2;
+            case SPV_REFLECT_FORMAT_R16G16_SFLOAT: return PKElementType::Half2;
+            case SPV_REFLECT_FORMAT_R16G16B16_UINT: return PKElementType::Ushort3;
+            case SPV_REFLECT_FORMAT_R16G16B16_SINT: return PKElementType::Short3;
+            case SPV_REFLECT_FORMAT_R16G16B16_SFLOAT: return PKElementType::Half3;
+            case SPV_REFLECT_FORMAT_R16G16B16A16_UINT: return PKElementType::Ushort4;
+            case SPV_REFLECT_FORMAT_R16G16B16A16_SINT: return PKElementType::Short4;
+            case SPV_REFLECT_FORMAT_R16G16B16A16_SFLOAT: return PKElementType::Half4;
             case SPV_REFLECT_FORMAT_R32_UINT: return PKElementType::Uint;
+            case SPV_REFLECT_FORMAT_R32_SINT: return PKElementType::Int;
+            case SPV_REFLECT_FORMAT_R32_SFLOAT: return PKElementType::Float;
             case SPV_REFLECT_FORMAT_R32G32_UINT: return PKElementType::Uint2;
+            case SPV_REFLECT_FORMAT_R32G32_SINT: return PKElementType::Int2;
+            case SPV_REFLECT_FORMAT_R32G32_SFLOAT: return PKElementType::Float2;
             case SPV_REFLECT_FORMAT_R32G32B32_UINT: return PKElementType::Uint3;
+            case SPV_REFLECT_FORMAT_R32G32B32_SINT: return PKElementType::Int3;
+            case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT: return PKElementType::Float3;
             case SPV_REFLECT_FORMAT_R32G32B32A32_UINT: return PKElementType::Uint4;
-            case SPV_REFLECT_FORMAT_R64_SINT: return PKElementType::Long;
-            case SPV_REFLECT_FORMAT_R64G64_SINT: return PKElementType::Long2;
-            case SPV_REFLECT_FORMAT_R64G64B64_SINT: return PKElementType::Long3;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_SINT: return PKElementType::Long4;
+            case SPV_REFLECT_FORMAT_R32G32B32A32_SINT: return PKElementType::Int4;
+            case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT: return PKElementType::Float4;
             case SPV_REFLECT_FORMAT_R64_UINT: return PKElementType::Ulong;
+            case SPV_REFLECT_FORMAT_R64_SINT: return PKElementType::Long;
+            case SPV_REFLECT_FORMAT_R64_SFLOAT: return PKElementType::Double;
             case SPV_REFLECT_FORMAT_R64G64_UINT: return PKElementType::Ulong2;
+            case SPV_REFLECT_FORMAT_R64G64_SINT: return PKElementType::Long2;
+            case SPV_REFLECT_FORMAT_R64G64_SFLOAT: return PKElementType::Double2;
             case SPV_REFLECT_FORMAT_R64G64B64_UINT: return PKElementType::Ulong3;
+            case SPV_REFLECT_FORMAT_R64G64B64_SINT: return PKElementType::Long3;
+            case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT: return PKElementType::Double3;
             case SPV_REFLECT_FORMAT_R64G64B64A64_UINT: return PKElementType::Ulong4;
+            case SPV_REFLECT_FORMAT_R64G64B64A64_SINT: return PKElementType::Long4;
+            case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT: return PKElementType::Double4;
         }
 
         return PKElementType::Invalid;
@@ -89,9 +102,8 @@ namespace PK::Assets::Shader
             case PKElementType::Texture2DHandle: return "uint";
             case PKElementType::Texture3DHandle: return "uint";
             case PKElementType::TextureCubeHandle: return "uint";
+            case PKElementType::Invalid: return "INVALID";
         }
-
-        return "INVALID";
     }
 
     PKComparison GetZTestFromString(const std::string& ztest)
@@ -370,6 +382,8 @@ namespace PK::Assets::Shader
             case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: return PKDescriptorType::SamplerTexture;
             case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE: return PKDescriptorType::Texture;
             case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE: return PKDescriptorType::Image;
+            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER: return PKDescriptorType::Invalid; // Not supported
+            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER: return PKDescriptorType::Invalid; // Not supported
             case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER: return PKDescriptorType::ConstantBuffer;
             case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER: return PKDescriptorType::StorageBuffer;
             case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: return PKDescriptorType::DynamicConstantBuffer;
@@ -399,9 +413,9 @@ namespace PK::Assets::Shader
             case PKShaderStage::RayClosestHit: return shaderc_closesthit_shader;
             case PKShaderStage::RayAnyHit: return shaderc_anyhit_shader;
             case PKShaderStage::RayIntersection: return shaderc_intersection_shader;
-        }
 
-        return shaderc_shader_kind::shaderc_glsl_infer_from_source;
+            case PKShaderStage::MaxCount: return shaderc_shader_kind::shaderc_glsl_infer_from_source;
+        }
     }
 
     void FindLineRange(const std::string& name, const std::string& message, int* outMin, int* outMax)

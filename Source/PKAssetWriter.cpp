@@ -1,13 +1,12 @@
-#pragma once
-#include "PKAssetWriter.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <filesystem>
 #include <queue>
 #include <map>
 #if PK_DEBUG
-#include "PKAssets/PKAssetLoader.h"
+#include <PKAssetLoader.h>
 #endif
+#include "PKAssetWriter.h"
 
 namespace PK::Assets
 {
@@ -132,7 +131,7 @@ namespace PK::Assets
         auto binLength = 0ull;
 
         auto rootNode = minHeap.top();
-        auto pRootNode = WriteNodeTree(buffer, (uint32_t)buffer.size(), vtable, &sequence, &depth, &rootNode);
+        WriteNodeTree(buffer, (uint32_t)buffer.size(), vtable, &sequence, &depth, &rootNode);
         buffer.header->compressedOffset = (uint32_t)buffer.size();
 
         for (auto& kv : vtable)
@@ -148,7 +147,7 @@ namespace PK::Assets
         {
             auto& k = vtable[charData[i]];
 
-            for (auto j = 0; j < k.length; ++j, ++b)
+            for (auto j = 0u; j < k.length; ++j, ++b)
             {
                 if (k.sequence & (1ull << j))
                 {
@@ -190,7 +189,7 @@ namespace PK::Assets
             }
             catch (std::exception& e)
             {
-                printf(e.what());
+                printf("%s", e.what());
             }
         }
 

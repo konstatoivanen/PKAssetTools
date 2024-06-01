@@ -1,5 +1,5 @@
 #pragma once
-#include "PKAssets/PKAsset.h"
+#include <PKAsset.h>
 
 namespace PK::Assets::Shader
 {

@@ -1,5 +1,5 @@
-#include "PKStringUtilities.h"
 #include <fstream>
+#include "PKStringUtilities.h"
 
 namespace PK::Assets::StringUtilities
 {

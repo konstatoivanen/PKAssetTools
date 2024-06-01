@@ -1,9 +1,9 @@
+#include <stdio.h>
+#include <filesystem>
+#include <PKAsset.h>
 #include "PKShaderWriter.h"
 #include "PKMeshWriter.h"
 #include "PKFileVersionUtilities.h"
-#include "PKAssets/PKAsset.h"
-#include <stdio.h>
-#include <filesystem>
 
 using namespace PK::Assets;
 
