@@ -3,7 +3,7 @@
 #include <SPIRV-Reflect/spirv_reflect.h>
 #include <PKAsset.h>
 
-namespace PK::Assets::Shader
+namespace PKAssets::Shader
 {
     constexpr const static char* PK_SHADER_STAGE_NAMES[(uint32_t)PKShaderStage::MaxCount] =
     {

@@ -1,5 +1,5 @@
 #pragma once
-namespace PK::Assets::Shader
+namespace PKAssets::Shader
 {
     constexpr static const char* PK_ASSET_SHADER_SRC_EXTENSION = ".shader";
 

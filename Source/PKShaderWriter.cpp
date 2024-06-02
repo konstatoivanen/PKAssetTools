@@ -17,9 +17,9 @@
 #undef near
 #endif
 
-namespace PK::Assets::Shader
+namespace PKAssets::Shader
 {
-    using PK::Assets::GetElementType;
+    using PKAssets::GetElementType;
 
     typedef shaderc::Compiler ShaderCompiler;
 
@@ -45,7 +45,7 @@ namespace PK::Assets::Shader
     struct ReflectionData
     {
         SpvReflectShaderModule modules[(int)PKShaderStage::MaxCount]{};
-        std::vector<PKVertexAttribute> vertexAttributes;
+        std::vector<PKVertexInputAttribute> vertexAttributes;
         std::vector<ReflectBinding> sortedBindings;
         std::map<std::string, ReflectBinding> uniqueBindings;
         std::map<std::string, ReflectPushConstant> uniqueVariables;
@@ -476,7 +476,7 @@ namespace PK::Assets::Shader
             binding.firstStage = binding.firstStage > (uint32_t)stage ? (int)stage : binding.firstStage;
             binding.maxBinding = binding.maxBinding > releaseBinding->binding ? binding.maxBinding : releaseBinding->binding;
             binding.name = name;
-            binding.count = desc->type_description->op == SpvOpTypeRuntimeArray ? PK::Assets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
+            binding.count = desc->type_description->op == SpvOpTypeRuntimeArray ? PKAssets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
             auto isWritten = ReflectResourceWrite(debugModule->_internal->spirv_code, debugModule->_internal->spirv_word_count, desc->spirv_id, GetResourceType(desc->descriptor_type));
 
             if (isWritten)
@@ -527,7 +527,7 @@ namespace PK::Assets::Shader
                 continue;
             }
 
-            PKVertexAttribute attribute{};
+            PKVertexInputAttribute attribute{};
             WriteName(attribute.name, variable->name);
             attribute.location = variable->location;
             attribute.type = GetElementType(variable->format);
@@ -818,7 +818,7 @@ namespace PK::Assets::Shader
             if (reflectionData.vertexAttributes.size() > 0)
             {
                 pVariants[i].vertexAttributeCount = (uint32_t)reflectionData.vertexAttributes.size();
-                auto pVertexAttributes = buffer.Write<PKVertexAttribute>(reflectionData.vertexAttributes.data(), reflectionData.vertexAttributes.size());
+                auto pVertexAttributes = buffer.Write<PKVertexInputAttribute>(reflectionData.vertexAttributes.data(), reflectionData.vertexAttributes.size());
                 pVariants[i].vertexAttributes.Set(buffer.data(), pVertexAttributes.get());
             }
 

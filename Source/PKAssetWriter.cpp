@@ -8,7 +8,7 @@
 #endif
 #include "PKAssetWriter.h"
 
-namespace PK::Assets
+namespace PKAssets
 {
     constexpr static const size_t MIN_COMPRESSABLE_SIZE = 5000;
 

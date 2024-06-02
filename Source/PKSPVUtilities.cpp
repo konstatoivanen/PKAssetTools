@@ -1,7 +1,7 @@
 #include <SPIRV-Reflect/spirv_reflect.h>
 #include "PKSPVUtilities.h"
 
-namespace PK::Assets::Shader
+namespace PKAssets::Shader
 {
     // Debug types
     struct OpStore

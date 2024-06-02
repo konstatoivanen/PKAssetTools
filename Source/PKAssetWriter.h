@@ -2,7 +2,7 @@
 #include <vector>
 #include <PKAsset.h>
 
-namespace PK::Assets
+namespace PKAssets
 {
     template<typename T>
     struct WritePtr

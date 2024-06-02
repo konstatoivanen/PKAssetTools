@@ -1,6 +1,7 @@
 #include "PKMeshUtilities.h"
+#include <corecrt_math.h>
 
-namespace PK::Assets::Mesh
+namespace PKAssets::Mesh
 {
     uint16_t PackHalf(float v)
     {
@@ -18,6 +19,22 @@ namespace PK::Assets::Mesh
         int32_t i = *(int*)&v;
         uint32_t ui = (uint32_t)i;
         return ((i >> 16) & (int)0xffff8000) | ((int)(ui >> 13));
+    }
+
+    uint8_t PackUnorm8(float v)
+    {
+        auto i = (int32_t)roundf(v * 255.0f);
+        if (i < 0) { i = 0; }
+        if (i > 255) { i = 255; }
+        return (uint8_t)(i & 0xFFu);
+    }
+
+    uint32_t PackUnorm12(float v)
+    {
+        auto i = (int32_t)roundf(v * 4095.0f);
+        if (i < 0) { i = 0; }
+        if (i > 4095) { i = 4095; }
+        return (uint32_t)(i & 0xFFFu);
     }
     
     float abs(float v) { return v < 0.0f ? -v : v; }

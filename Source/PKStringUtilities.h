@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 
-namespace PK::Assets::StringUtilities
+namespace PKAssets::StringUtilities
 {
     std::string Trim(const std::string& value);
     std::vector<std::string> Split(const std::string& value, const char* symbols);

@@ -2,7 +2,7 @@
 #include "PKMeshUtilities.h"
 #include "PKMeshletWriter.h"
 
-namespace PK::Assets::Mesh
+namespace PKAssets::Mesh
 {
     static void CalculateMeshletCenterExtents(const float* positions,
                                               const uint32_t* vertexIndices,
@@ -47,7 +47,7 @@ namespace PK::Assets::Mesh
         }
     }
 
-    WritePtr<Meshlet::PKMesh> CreateMeshletMesh(PKAssetBuffer& buffer,
+    WritePtr<PKMeshletMesh> CreateMeshletMesh(PKAssetBuffer& buffer,
                                                 const std::vector<PKSubmesh>& submeshes,
                                                 float* vertices,
                                                 uint32_t* indices,
@@ -64,9 +64,9 @@ namespace PK::Assets::Mesh
         auto hasTangents = offsetTangent != 0xFFFFFFFFu;
 
         std::vector<uint8_t> out_indices;
-        std::vector<Meshlet::PKVertex> out_vertices;
-        std::vector<Meshlet::PKSubmesh> out_submeshes;
-        std::vector<Meshlet::PKMeshlet> out_meshlets;
+        std::vector<PKMeshletVertex> out_vertices;
+        std::vector<PKMeshletSubmesh> out_submeshes;
+        std::vector<PKMeshlet> out_meshlets;
 
         // no offset for attributes. @TODO maybe they should have.
         auto sm_stridef32 = vertexStride / sizeof(float);
@@ -75,10 +75,10 @@ namespace PK::Assets::Mesh
         auto sm_normalsf32 = hasNormals ? vertices + (offsetNormal / sizeof(float)) : nullptr;
         auto sm_tangentsf32 = hasTangents ? vertices + (offsetTangent / sizeof(float)) : nullptr;
             
-        size_t max_meshlets = meshopt_buildMeshletsBound(indexCount, Meshlet::PK_MAX_VERTICES, Meshlet::PK_MAX_TRIANGLES);
+        size_t max_meshlets = meshopt_buildMeshletsBound(indexCount, PK_MESHLET_MAX_VERTICES, PK_MESHLET_MAX_TRIANGLES);
         std::vector<meshopt_Meshlet> meshlets(max_meshlets);
-        std::vector<unsigned int> meshlet_vertices(max_meshlets * Meshlet::PK_MAX_VERTICES);
-        std::vector<unsigned char> meshlet_triangles(max_meshlets * Meshlet::PK_MAX_TRIANGLES * 3);
+        std::vector<unsigned int> meshlet_vertices(max_meshlets * PK_MESHLET_MAX_VERTICES);
+        std::vector<unsigned char> meshlet_triangles(max_meshlets * PK_MESHLET_MAX_TRIANGLES * 3);
 
         for (const auto& sm : submeshes)
         {
@@ -94,12 +94,12 @@ namespace PK::Assets::Mesh
                 sm_positionsf32,
                 vertexCount, 
                 vertexStride, 
-                Meshlet::PK_MAX_VERTICES,
-                Meshlet::PK_MAX_TRIANGLES,
-                Meshlet::PK_CONE_WEIGHT
+                PK_MESHLET_MAX_VERTICES,
+                PK_MESHLET_MAX_TRIANGLES,
+                PK_MESHLET_CONE_WEIGHT
             );
 
-            Meshlet::PKSubmesh meshletSubmesh{};
+            PKMeshletSubmesh meshletSubmesh{};
             meshletSubmesh.firstMeshlet = (uint32_t)out_meshlets.size();
             meshletSubmesh.meshletCount = (uint32_t)meshlet_count;
             
@@ -133,7 +133,7 @@ namespace PK::Assets::Mesh
                 float extents[3];
                 CalculateMeshletCenterExtents(sm_positionsf32, meshlet_vertices.data(), (uint32_t)sm_stridef32, meshlet.vertex_offset, meshlet.vertex_count, center, extents);
                 
-                Meshlet::PKMeshlet pkmeshlet = Meshlet::PackMeshlet
+                PKMeshlet pkmeshlet = PackPKMeshlet
                 (
                     (uint32_t)verticesOffset,
                     (uint32_t)triangleOffset,
@@ -157,7 +157,7 @@ namespace PK::Assets::Mesh
                     auto pNormal = sm_normalsf32 + vertexIndex * sm_stridef32;
                     auto pTangent = sm_tangentsf32 + vertexIndex * sm_stridef32;
                     
-                    Meshlet::PKVertex vertex = Meshlet::PackVertex
+                    PKMeshletVertex vertex = PackPKMeshletVertex
                     (
                         pPosition,
                         hasTexcoords ? pTexcoord : nullptr,
@@ -188,7 +188,7 @@ namespace PK::Assets::Mesh
             }
         }
 
-        auto mesh = buffer.Allocate<Meshlet::PKMesh>();
+        auto mesh = buffer.Allocate<PKMeshletMesh>();
         
         mesh->triangleCount = (uint32_t)(out_indices.size() / 3ull);
         mesh->vertexCount = (uint32_t)out_vertices.size();
@@ -210,7 +210,7 @@ namespace PK::Assets::Mesh
         printf("    Meshlet Statistics:\n");
         printf("        Vertex Count: %i -> %i\n", vertexCount, (uint32_t)out_vertices.size());
         printf("        Triangle Count: %i -> %i\n", indexCount / 3u, (uint32_t)(out_indices.size() / 3ull));
-        printf("        Vertex Buffer Size: %i -> %i\n", (uint32_t)(vertexCount * vertexStride), (uint32_t)(out_vertices.size() * sizeof(Meshlet::PKVertex)));
+        printf("        Vertex Buffer Size: %i -> %i\n", (uint32_t)(vertexCount * vertexStride), (uint32_t)(out_vertices.size() * sizeof(PKMeshletVertex)));
         printf("        Triangle Buffer Size: %i -> %i\n", (uint32_t)(indexCount * sizeof(uint32_t)), (uint32_t)(out_indices.size()));
         printf("        Meshlet Count: %i\n", (uint32_t)out_meshlets.size());
 

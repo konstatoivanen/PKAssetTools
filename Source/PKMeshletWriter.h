@@ -2,9 +2,9 @@
 #include <PKAsset.h>
 #include "PKAssetWriter.h"
 
-namespace PK::Assets::Mesh
+namespace PKAssets::Mesh
 {
-    WritePtr<Meshlet::PKMesh> CreateMeshletMesh(PKAssetBuffer& buffer,
+    WritePtr<PKMeshletMesh> CreateMeshletMesh(PKAssetBuffer& buffer,
                                                 const std::vector<PKSubmesh>& submeshes,
                                                 float* vertices, 
                                                 uint32_t* indices, 

@@ -1,7 +1,7 @@
 #include <fstream>
 #include "PKStringUtilities.h"
 
-namespace PK::Assets::StringUtilities
+namespace PKAssets::StringUtilities
 {
     std::string Trim(const std::string& value)
     {

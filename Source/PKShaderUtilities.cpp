@@ -1,7 +1,7 @@
 #include "PKShaderUtilities.h"
 #include "PKStringUtilities.h"
 
-namespace PK::Assets::Shader
+namespace PKAssets::Shader
 {
     PKElementType GetElementType(SpvReflectFormat format)
     {

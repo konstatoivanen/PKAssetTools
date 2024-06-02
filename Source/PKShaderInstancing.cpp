@@ -3,9 +3,9 @@
 #include "PKShaderUtilities.h"
 #include "PKAssetWriter.h"
 
-namespace PK::Assets::Shader::Instancing
+namespace PKAssets::Shader::Instancing
 {
-    using namespace PK::Assets::StringUtilities;
+    using namespace PKAssets::StringUtilities;
 
     void InsertEntryPoint(std::string& source, PKShaderStage stage, bool enableInstancing, bool noFragmentInstancing)
     {
@@ -85,7 +85,7 @@ namespace PK::Assets::Shader::Instancing
                 continue;
             }
 
-            auto type = PK::Assets::GetElementType(parts.at(0).c_str());
+            auto type = PKAssets::GetElementType(parts.at(0).c_str());
 
             if (type == PKElementType::Invalid)
             {

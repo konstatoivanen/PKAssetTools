@@ -5,7 +5,7 @@
 #include "PKMeshWriter.h"
 #include "PKFileVersionUtilities.h"
 
-using namespace PK::Assets;
+using namespace PKAssets;
 
 static std::string ProcessPath(const std::string& path)
 {

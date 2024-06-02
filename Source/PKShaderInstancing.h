@@ -3,7 +3,7 @@
 #include <vector>
 #include <PKAsset.h>
 
-namespace PK::Assets::Shader::Instancing
+namespace PKAssets::Shader::Instancing
 {
     // NOTE that for optimization purposes PK_Draw uses uint4(material, transform, global meshlet submesh, userdata) internally (this saves a redundant struct descriptor)
     constexpr const static char* Instancing_Standalone_GLSL =

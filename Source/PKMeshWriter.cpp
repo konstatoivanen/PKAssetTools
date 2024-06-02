@@ -10,7 +10,7 @@
 #include "PKMeshUtilities.h"
 #include "PKMeshletWriter.h"
 
-namespace PK::Assets::Mesh
+namespace PKAssets::Mesh
 {
     namespace MikktsInterface1
     {
@@ -323,7 +323,7 @@ namespace PK::Assets::Mesh
         std::vector<PKVertexAttribute> attributes;
 
         PKVertexAttribute attribute;
-        WriteName(attribute.name, PK_VS_POSITION);
+        WriteName(attribute.name, PK_MESH_VS_POSITION);
         attribute.type = PKElementType::Float3;
         attribute.size = sizeof(float) * 3;
         attribute.offset = 0;
@@ -338,7 +338,7 @@ namespace PK::Assets::Mesh
 
         if (hasNormals)
         {
-            WriteName(attribute.name, PK_VS_NORMAL);
+            WriteName(attribute.name, PK_MESH_VS_NORMAL);
             attribute.type = useHalfPrecisionNormals ? PKElementType::Half4 : PKElementType::Float3;
             attribute.size = (useHalfPrecisionNormals ? sizeof(uint16_t) * 4 : sizeof(float)) * 3;
             attribute.offset = attributeOffset;
@@ -352,7 +352,7 @@ namespace PK::Assets::Mesh
 
         if (hasTangents)
         {
-            WriteName(attribute.name, PK_VS_TANGENT);
+            WriteName(attribute.name, PK_MESH_VS_TANGENT);
             attribute.type = useHalfPrecisionTangents ? PKElementType::Half4 : PKElementType::Float4;
             attribute.size = (useHalfPrecisionTangents ? sizeof(uint16_t) * 4 : sizeof(float)) * 4;
             attribute.offset = attributeOffset;
@@ -366,7 +366,7 @@ namespace PK::Assets::Mesh
 
         if (hasUvs)
         {
-            WriteName(attribute.name, PK_VS_TEXCOORD0);
+            WriteName(attribute.name, PK_MESH_VS_TEXCOORD0);
             attribute.type = useHalfPrecisionUVs ? PKElementType::Half2 : PKElementType::Float2;
             attribute.size = (useHalfPrecisionUVs ? sizeof(uint16_t) * 2 : sizeof(float)) * 2;
             attribute.offset = attributeOffset;
