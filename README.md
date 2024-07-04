@@ -8,7 +8,7 @@ A repository of build tools used to cook assets for use in PKRenderer.
 
 ## Shader Format
 - Converts glsl shader files to **.pkshader** files.
-- Supports multiple compilation (in source glsl: #multi_compile VARIANT0 VARIANT1).
+- Supports multiple compilation (in source glsl: #PK_MultiCompile VARIANT0 VARIANT1).
 - The following attributes are parsed & stored from the source glsl:
 	- Vertex attributes.
 	- Descriptor sets.

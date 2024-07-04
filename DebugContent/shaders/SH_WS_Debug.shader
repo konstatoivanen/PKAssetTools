@@ -1,17 +1,16 @@
 #version 450
 
-#Cull Back
-#ZTest LEqual
-#ZWrite True
+#PK_Cull Back
+#PK_ZTest LEqual
+#PK_ZWrite True
+#PK_MaterialProperty float4 _Color
+#PK_MaterialProperty float _Roughness
+#PK_MaterialProperty float _Metallic
+#PK_MaterialProperty texture2D _AlbedoTex
+#PK_MaterialProperty texture3D _LutTex
+#PK_WithAtomicCounter
 
-#MaterialProperty float4 _Color
-#MaterialProperty float _Roughness
-#MaterialProperty float _Metallic
-#MaterialProperty texture2D _AlbedoTex
-#MaterialProperty texture3D _LutTex
-#WithAtomicCounter
-
-#include includes/DebugUtilities.glsl
+#include "includes/DebugUtilities.glsl"
 
 PK_DECLARE_LOCAL_CBUFFER(MyPushConstantBlock)
 {

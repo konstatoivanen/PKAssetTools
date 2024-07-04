@@ -68,7 +68,7 @@ namespace PKAssets::Mesh
         std::vector<PKMeshletSubmesh> out_submeshes;
         std::vector<PKMeshlet> out_meshlets;
 
-        // no offset for attributes. @TODO maybe they should have.
+        // @TODO support multiple input buffers instead of assuming a single interleaved one?
         auto sm_stridef32 = vertexStride / sizeof(float);
         auto sm_positionsf32 = vertices + (offsetPosition / sizeof(float));
         auto sm_texcoordsf32 = hasTexcoords ? vertices + (offsetTexcoord / sizeof(float)) : nullptr;

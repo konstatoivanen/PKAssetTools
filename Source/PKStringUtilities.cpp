@@ -92,6 +92,16 @@ namespace PKAssets::StringUtilities
             if (includepos != lineBuffer.npos)
             {
                 lineBuffer.erase(0, includepos + includeTokenLength);
+
+                auto pos0 = lineBuffer.find_first_of('\"', 0u);
+                auto pos1 = pos0 != std::string::npos ? lineBuffer.find_first_of('\"', pos0 + 1u) : std::string::npos;
+
+                if (pos0 == std::string::npos || pos1 == std::string::npos)
+                {
+                    return "Invalid path specified at include directive: " + lineBuffer;
+                }
+
+                lineBuffer = lineBuffer.substr(pos0 + 1u, pos1 - pos0 - 1u);
                 lineBuffer.insert(0, filepath.substr(0, filepath.find_last_of("/\\") + 1));
                 result += ReadFileRecursiveInclude(lineBuffer, outIncludes);
                 continue;

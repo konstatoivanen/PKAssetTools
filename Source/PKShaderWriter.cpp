@@ -240,8 +240,7 @@ namespace PKAssets::Shader
 
     static void GetSharedInclude(const std::string& source, std::string& sharedInclude)
     {
-        auto typeToken = "#pragma PROGRAM_";
-        auto pos = source.find(typeToken, 0); //Start of shader type declaration line
+        auto pos = source.find(PK_GL_STAGE_BEGIN, 0); //Start of shader type declaration line
 
         // Treat code in the beginning of the source as shared include
         if (pos != std::string::npos && pos != 0)
