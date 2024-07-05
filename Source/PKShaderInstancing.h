@@ -70,7 +70,7 @@ namespace PKAssets::Shader::Instancing
         "    pk_Instancing_Userdata = draw.w;                                                                                                                       \n"
         "    PK_MaterialPropertyBlock prop = pk_Instancing_Properties_Data[draw.x];                                                                                 \n";
 
-    constexpr const static char* Instancing_Stage_GLSL = "PK_INSTANCING_ASSIGN_STAGE_LOCALS \n";
+    constexpr const static char* Instancing_Stage_GLSL = "\nPK_INSTANCING_ASSIGN_STAGE_LOCALS \n";
 
     constexpr const static char* Instancing_Vertex_GLSL =
         "out flat uint vs_INSTANCE_ID;                                                                                          \n"

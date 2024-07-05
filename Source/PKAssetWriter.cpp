@@ -231,7 +231,7 @@ namespace PKAssets
 
 #if PK_DEBUG
         PKAsset asset;
-        Assets::OpenAsset(filepath, &asset);
+        PKAssets::OpenAsset(filepath, &asset);
 
         auto charData = reinterpret_cast<char*>(asset.rawData);
 
@@ -243,7 +243,7 @@ namespace PKAssets
             }
         }
 
-        Assets::CloseAsset(&asset);
+        PKAssets::CloseAsset(&asset);
 #endif
 
         return 0;

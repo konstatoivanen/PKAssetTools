@@ -243,6 +243,47 @@ namespace PKAssets::StringUtilities
         }
     }
 
+    bool FindScope(const std::string& source, size_t offset, char scopeOpen, char scopeClose, size_t* outStart, size_t* outEnd)
+    {
+        auto scopeTokens = std::string(1u, scopeOpen) + std::string(1u, scopeClose);
+        auto scopepos = source.find(scopeOpen, offset);
+        auto indent = 1;
+
+        if (scopepos == std::string::npos)
+        {
+            return false;
+        }
+
+        if (outStart)
+        {
+            *outStart = scopepos;
+        }
+
+        while (true)
+        {
+            scopepos = source.find_first_of(scopeTokens.c_str(), scopepos + 1u);
+
+            if (scopepos == std::string::npos)
+            {
+                return false;
+            }
+
+            indent += source[scopepos] == scopeOpen ? 1 : -1;
+
+            if (indent == 0)
+            {
+                scopepos++;
+
+                if (outEnd)
+                {
+                    *outEnd = scopepos;
+                }
+
+                return true;
+            }
+        }
+    }
+
     size_t FirstIndexOf(const char* str, char c)
     {
         auto ptr = strchr(str, c);

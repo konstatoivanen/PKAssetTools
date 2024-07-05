@@ -23,6 +23,14 @@ namespace PKAssets::Shader
 
     typedef shaderc::Compiler ShaderCompiler;
 
+    struct EntryPointInfo
+    {
+        PKShaderStage stage;
+        std::string name;
+        std::string functionName;
+        std::string keyword;
+    };
+
     struct ReflectBinding
     {
         uint32_t firstStage = (uint32_t)PKShaderStage::MaxCount;
@@ -209,6 +217,54 @@ namespace PKAssets::Shader
         attributes->cull = GetCullModeFromString(StringUtilities::Trim(valueCull));
     }
 
+    static int ExtractEntryPoints(std::string& source, std::vector<EntryPointInfo>& entryPoints)
+    {
+        std::string output;
+        size_t pos = 0;
+
+        while (true)
+        {
+            pos = StringUtilities::ExtractToken(pos, PK_SHADER_ATTRIB_PROGRAM, source, output, false);
+
+            if (pos == std::string::npos)
+            {
+                break;
+            }
+
+            auto directives = StringUtilities::Split(output, " ");
+
+            if (directives.size() != 2 && directives.size() != 3)
+            {
+                printf("Entry point declaration contains an invalid amount of arguments (should be name, stage)\n");
+                return -1;
+            }
+
+            auto stage = GetShaderStageFromString(directives[0]);
+
+            if (stage == PKShaderStage::MaxCount)
+            {
+                printf("Unsupported shader stage specified! \n");
+                return -1;
+            }
+
+            EntryPointInfo info;
+            info.name = directives[1];
+            info.functionName = "void " + info.name + "()";
+            info.stage = stage;
+            info.keyword = directives.size() == 3 ? directives[2] : "";
+
+            if (source.find(info.functionName, 0u) == std::string::npos)
+            {
+                printf("Definition for declared entry point %s was not found!", info.name.c_str());
+                return -1;
+            }
+
+            entryPoints.push_back(info);
+        }
+
+        return 0;
+    }
+
     static void ProcessAtomicCounter(std::string& source)
     {
         auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ATOMICCOUNTER, source, true);
@@ -238,14 +294,78 @@ namespace PKAssets::Shader
         }
     }
 
-    static void GetSharedInclude(const std::string& source, std::string& sharedInclude)
+    static int RemoveRestrictedVariables(std::string& source, const std::string& entryPointName)
     {
-        auto pos = source.find(PK_GL_STAGE_BEGIN, 0); //Start of shader type declaration line
+        const char* token = "[[pk_restrict ";
+        auto tokenLen = strlen(token);
 
-        // Treat code in the beginning of the source as shared include
-        if (pos != std::string::npos && pos != 0)
+        std::string output;
+        size_t pos = 0;
+
+        while (true)
         {
-            sharedInclude = source.substr(0, pos);
+            pos = source.find(token);
+
+            if (pos == std::string::npos)
+            {
+                return 0;
+            }
+
+            auto pos1 = source.find("]]", pos);
+
+            if (pos1 == std::string::npos)
+            {
+                printf("Missing closing ]] from a restrict attribute.\n");
+                return -1;
+            }
+
+            auto directives = StringUtilities::Split(source.substr(pos + tokenLen, pos1 - pos - tokenLen), " ");
+            auto containtsEntry = false;
+
+            for (auto& directive : directives)
+            {
+                if (directive.compare(entryPointName) == 0)
+                {
+                    containtsEntry = true;
+                    break;
+                }
+            }
+
+            pos1 += 2;
+
+            if (!containtsEntry)
+            {
+                pos1 = source.find_first_of(';', pos);
+                
+                if (pos1 == std::string::npos)
+                {
+                    printf("Missing a line ending after a restrict attribute.\n");
+                    return -1;
+                }
+
+                ++pos1;
+            }
+ 
+            source.erase(pos, pos1 - pos);
+        }
+    }
+    
+    static void RemoveInactiveEntryPoints(std::string& source, const std::vector<EntryPointInfo>& entries, uint32_t ignoreIndex)
+    {
+        for (auto i = 0u; i < entries.size(); ++i)
+        {
+            if (i != ignoreIndex)
+            {
+                auto& entry = entries.at(i);
+                auto position = source.find(entry.functionName, 0u);
+
+                size_t scopeEnd;
+                
+                if (StringUtilities::FindScope(source, position, '{', '}', nullptr, &scopeEnd))
+                {
+                    source.erase(position, scopeEnd - position);
+                }
+            }
         }
     }
 
@@ -283,52 +403,40 @@ namespace PKAssets::Shader
         }
     }
 
-    static int ProcessStageSources(const std::string& source,
-        const std::string& sharedInclude,
+    static int ProcessStageSources(std::string source,
         const std::string& variantDefines,
-        std::unordered_map<PKShaderStage,
-        std::string>& shaderSources,
+        const std::vector<EntryPointInfo>& entryPoints,
+        std::unordered_map<PKShaderStage, std::string>& stageSources,
         bool enableInstancing,
         bool nofragInstancing)
     {
-        shaderSources.clear();
+        stageSources.clear();
 
-        auto typeTokenLength = strlen(PK_GL_STAGE_BEGIN);
-        auto currentPos = source.find(PK_GL_STAGE_BEGIN, 0); //Start of shader type declaration line
-
-        while (currentPos != std::string::npos)
+        for (auto i = 0u; i < entryPoints.size(); ++i)
         {
-            auto eol = source.find_first_of("\r\n", currentPos); //End of shader type declaration line
-            auto nextLinePos = source.find_first_not_of("\r\n", eol); //Start of shader code after shader type declaration line
+            auto& entry = entryPoints.at(i);
 
-            if (eol == std::string::npos || nextLinePos == std::string::npos)
+            if (!entry.keyword.empty() && variantDefines.find(entry.keyword, 0u) == std::string::npos)
             {
-                printf("Syntax error! \n");
+                continue;
+            }
+
+            auto stageSource = source;
+            stageSource.replace(stageSource.find(entry.functionName), entry.functionName.size(), "void main()");
+
+            if (RemoveRestrictedVariables(stageSource, entry.name) != 0)
+            {
                 return -1;
             }
 
-            auto begin = currentPos + typeTokenLength; //Start of shader type name (after "#pragma PROGRAM_" keyword)
-            auto type = source.substr(begin, eol - begin);
-            auto stage = GetShaderStageFromString(type);
-
-            if (stage == PKShaderStage::MaxCount)
-            {
-                printf("Unsupported shader stage specified! \n");
-                return -1;
-            }
-
-            currentPos = source.find(PK_GL_STAGE_BEGIN, nextLinePos); //Start of next shader type declaration line
-            shaderSources[stage] = currentPos == std::string::npos ? source.substr(nextLinePos) : source.substr(nextLinePos, currentPos - nextLinePos);
-        }
-
-        for (auto& kv : shaderSources)
-        {
-            kv.second.insert(0, sharedInclude);
-            Instancing::InsertEntryPoint(kv.second, kv.first, enableInstancing, nofragInstancing);
-            kv.second.insert(0, PK_SHADER_STAGE_DEFINES[(uint32_t)kv.first]);
-            kv.second.insert(0, variantDefines);
-            InsertRequiredExtensions(kv.second, kv.first);
-            ProcessShaderVersion(kv.second);
+            RemoveInactiveEntryPoints(stageSource, entryPoints, i);
+            Instancing::InsertEntryPoint(stageSource, entry.stage, enableInstancing, nofragInstancing);
+            stageSource.insert(0, std::string("#define PK_ACTIVE_ENTRY_POINT_") + entry.name + "\n");
+            stageSource.insert(0, PK_SHADER_STAGE_DEFINES[(uint32_t)entry.stage]);
+            stageSource.insert(0, variantDefines);
+            InsertRequiredExtensions(stageSource, entry.stage);
+            ProcessShaderVersion(stageSource);
+            stageSources[entry.stage] = stageSource;
         }
 
         return 0;
@@ -365,7 +473,8 @@ namespace PKAssets::Shader
             SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
             #endif
 
-            printf("\n ----------BEGIN ERROR---------- \n\n");
+            printf("\n ----------BEGIN ERROR---------- \n");
+            printf("\n Stage: %s\n\n", PK_SHADER_STAGE_NAMES[(uint32_t)stage]);
             printf("%s", module.GetErrorMessage().c_str());
             printf("\n");
 
@@ -705,11 +814,11 @@ namespace PKAssets::Shader
 
         ShaderCompiler compiler;
         uint32_t directiveCount;
-        std::string sharedInclude;
         std::string variantDefines;
         std::vector<std::vector<std::string>> mckeywords;
         std::vector<PKShaderKeyword> keywords;
         std::vector<PKMaterialProperty> materialProperties;
+        std::vector<EntryPointInfo> entryPoints;
         std::unordered_map<PKShaderStage, std::string> shaderSources;
         auto enableInstancing = false;
         auto nofragInstancing = false;
@@ -729,7 +838,11 @@ namespace PKAssets::Shader
         Instancing::InsertMaterialAssembly(source, materialProperties, &enableInstancing, &nofragInstancing);
         ProcessAtomicCounter(source);
         ConvertHLSLTypesToGLSL(source);
-        GetSharedInclude(source, sharedInclude);
+
+        if (ExtractEntryPoints(source, entryPoints) != 0)
+        {
+            return -1;
+        }
 
         shader->keywordCount = (uint32_t)keywords.size();
         shader->materialPropertyCount = (uint32_t)materialProperties.size();
@@ -753,7 +866,7 @@ namespace PKAssets::Shader
         {
             GetVariantDefines(mckeywords, i, variantDefines);
 
-            if (ProcessStageSources(source, sharedInclude, variantDefines, shaderSources, enableInstancing, nofragInstancing) != 0)
+            if (ProcessStageSources(source, variantDefines, entryPoints, shaderSources, enableInstancing, nofragInstancing) != 0)
             {
                 printf("Failed to preprocess shader variant glsl stage sources! \n");
                 return -1;

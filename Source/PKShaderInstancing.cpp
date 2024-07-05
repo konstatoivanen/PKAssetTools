@@ -47,15 +47,21 @@ namespace PKAssets::Shader::Instancing
 
         auto pos = source.find("main()");
 
-        // Source might contain multiple mains
-        while (pos != std::string::npos)
+        if (pos == std::string::npos)
         {
-            pos = source.find('{', pos);
-            auto eol = source.find_first_of("\r\n", pos);
-            auto nextLinePos = source.find_first_not_of("\r\n", eol);
-            source.insert(nextLinePos, Instancing_Stage_GLSL);
-            pos = source.find("main()", nextLinePos);
+            printf("Warning: No main() found for instancing instert.\n");
+            return;
         }
+
+        pos = source.find('{', pos);
+
+        if (pos == std::string::npos)
+        {
+            printf("Warning: No { found after main() for instancing instert.\n");
+            return;
+        }
+
+        source.insert(pos + 1u, Instancing_Stage_GLSL);
     }
     
     void InsertMaterialAssembly(std::string& source, std::vector<PKMaterialProperty>& materialProperties, bool* outUseInstancing, bool* outNoFragInstancing)

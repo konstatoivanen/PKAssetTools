@@ -40,7 +40,7 @@ namespace PKAssets::Shader
         "#define SHADER_STAGE_RAY_ANY_HIT\n",
         "#define SHADER_STAGE_RAY_INTERSECTION\n"
     };
-    
+
     constexpr const static char* AtomicCounter_GLSL =
         "layout(std430, set = 3) buffer pk_BuiltInAtomicCounter { uint pk_BuiltInAtomicCounter_Data; };\n"
         "uint PK_AtomicCounterAdd(uint increment) { return atomicAdd(pk_BuiltInAtomicCounter_Data, increment); }\n"
@@ -61,8 +61,6 @@ namespace PKAssets::Shader
     constexpr const static char* PK_GL_EXTENSIONS_MESHSHADING = 
         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
         "#extension GL_EXT_mesh_shader : require \n";
-
-    constexpr const static char* PK_GL_STAGE_BEGIN = "#pragma PROGRAM_";
 
     PKElementType GetElementType(SpvReflectFormat format);
     std::string GetGLSLType(PKElementType type);

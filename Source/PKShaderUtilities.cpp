@@ -306,67 +306,67 @@ namespace PKAssets::Shader
 
     PKShaderStage GetShaderStageFromString(const std::string& type)
     {
-        if (type == "VERTEX")
+        if (type == "SHADER_STAGE_VERTEX")
         {
             return PKShaderStage::Vertex;
         }
 
-        if (type == "TESSELATION_CONTROL")
+        if (type == "SHADER_STAGE_TESSELATION_CONTROL")
         {
             return PKShaderStage::TesselationControl;
         }
 
-        if (type == "TESSELATION_EVALUATE")
+        if (type == "SHADER_STAGE_TESSELATION_EVALUATE")
         {
             return PKShaderStage::TesselationEvaluation;
         }
 
-        if (type == "GEOMETRY")
+        if (type == "SHADER_STAGE_GEOMETRY")
         {
             return PKShaderStage::Geometry;
         }
 
-        if (type == "FRAGMENT")
+        if (type == "SHADER_STAGE_FRAGMENT")
         {
             return PKShaderStage::Fragment;
         }
 
-        if (type == "COMPUTE")
+        if (type == "SHADER_STAGE_COMPUTE")
         {
             return PKShaderStage::Compute;
         }
 
-        if (type == "MESH_TASK")
+        if (type == "SHADER_STAGE_MESH_TASK")
         {
             return PKShaderStage::MeshTask;
         }
 
-        if (type == "MESH_ASSEMBLY")
+        if (type == "SHADER_STAGE_MESH_ASSEMBLY")
         {
             return PKShaderStage::MeshAssembly;
         }
 
-        if (type == "RAY_GENERATION")
+        if (type == "SHADER_STAGE_RAY_GENERATION")
         {
             return PKShaderStage::RayGeneration;
         }
 
-        if (type == "RAY_MISS")
+        if (type == "SHADER_STAGE_RAY_MISS")
         {
             return PKShaderStage::RayMiss;
         }
 
-        if (type == "RAY_CLOSEST_HIT")
+        if (type == "SHADER_STAGE_RAY_CLOSEST_HIT")
         {
             return PKShaderStage::RayClosestHit;
         }
 
-        if (type == "RAY_ANY_HIT")
+        if (type == "SHADER_STAGE_RAY_ANY_HIT")
         {
             return PKShaderStage::RayAnyHit;
         }
 
-        if (type == "RAY_INTERSECTION")
+        if (type == "SHADER_STAGE_RAY_INTERSECTION")
         {
             return PKShaderStage::RayIntersection;
         }
