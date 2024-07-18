@@ -272,8 +272,49 @@ namespace PKAssets::StringUtilities
 
             if (indent == 0)
             {
-                scopepos++;
+                if (outEnd)
+                {
+                    *outEnd = scopepos;
+                }
 
+                return true;
+            }
+        }
+    }
+
+    bool FindScope(const std::string& source, size_t offset, const std::string&& scopeOpen, const std::string& scopeClose, size_t* outStart, size_t* outEnd)
+    {
+        auto scopepos = source.find(scopeOpen, offset);
+        auto offsetopen = scopeOpen.size() + 1u;
+        auto offsetclose = scopeClose.size() + 1u;
+        auto indent = 1;
+
+        if (scopepos == std::string::npos)
+        {
+            return false;
+        }
+
+        if (outStart)
+        {
+            *outStart = scopepos;
+        }
+
+        while (true)
+        {
+            auto posopen = source.find(scopeOpen, scopepos + offsetopen);
+            auto posclose = source.find(scopeClose, scopepos + offsetclose);
+            auto isopen = posopen < posclose;
+            scopepos = posopen < posclose ? posopen : posclose;
+
+            if (scopepos == std::string::npos)
+            {
+                return false;
+            }
+
+            indent += isopen ? 1 : -1;
+
+            if (indent == 0)
+            {
                 if (outEnd)
                 {
                     *outEnd = scopepos;

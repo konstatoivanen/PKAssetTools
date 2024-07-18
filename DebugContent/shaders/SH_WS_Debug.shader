@@ -46,9 +46,21 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
 [[pk_restrict MainFs]] PK_DECLARE_BUFFER(float4, _WriteBuffer, PK_SET_DRAW);
 [[pk_restrict MainFs]] layout(set = 3) uniform sampler2D tex1;
 [[pk_restrict MainFs]] layout(set = 3) uniform sampler smp;
-[[pk_restrict MainFs ColorFs]] in float3 vs_COLOR;
-[[pk_restrict MainFs ColorFs]] in float2 vs_TEXCOORD0;
-[[pk_restrict MainFs ColorFs]] out float4 outColor;
+[[pk_restrict STAGE_FRAGMENT]] in float3 vs_COLOR;
+[[pk_restrict STAGE_FRAGMENT]] in float2 vs_TEXCOORD0;
+[[pk_restrict STAGE_FRAGMENT]] out float4 outColor;
+
+[[pk_restrict MainVs]]
+void TestFunc()
+{
+    vs_COLOR = in_COLOR;
+}
+
+[[pk_restrict MainVs]]
+struct TestStruct
+{
+    float3 testfield;
+};
 
 void MainVs()
 {
@@ -66,4 +78,5 @@ void MainFs()
     imageStore(pk_DebugImage, int2(outColor.xy * 1024), float4(outColor.x, 0, 0, 0));
     PK_BUFFER_DATA(_WriteBuffer, uint(outColor.x * 1024)) = outColor;
 }
+
 void ColorFs() { outColor = float4(vs_COLOR, 1.0f); }

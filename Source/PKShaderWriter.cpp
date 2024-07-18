@@ -294,59 +294,68 @@ namespace PKAssets::Shader
         }
     }
 
-    static int RemoveRestrictedVariables(std::string& source, const std::string& entryPointName)
+    static int RemoveRestrictedVariables(std::string& source, const std::string& entryPointName, PKShaderStage stage)
     {
-        const char* token = "[[pk_restrict ";
-        auto tokenLen = strlen(token);
-
-        std::string output;
-        size_t pos = 0;
+        size_t currentpos = 0ull;
 
         while (true)
         {
-            pos = source.find(token);
-
-            if (pos == std::string::npos)
+            size_t posopen, posclose;
+            
+            if (!StringUtilities::FindScope(source, currentpos, "[[", "]]", &posopen, &posclose))
             {
                 return 0;
             }
 
-            auto pos1 = source.find("]]", pos);
-
-            if (pos1 == std::string::npos)
+            auto content = source.substr(posopen + 2u, posclose - (posopen + 2u));
+            auto arguments = StringUtilities::Split(content, " ");
+            
+            if (arguments.size() < 2 || arguments[0].compare(PK_SHADER_ATTRIB_RESTRICT) != 0)
             {
-                printf("Missing closing ]] from a restrict attribute.\n");
-                return -1;
+                currentpos = posclose;
+                continue;
             }
 
-            auto directives = StringUtilities::Split(source.substr(pos + tokenLen, pos1 - pos - tokenLen), " ");
+            currentpos = posopen;
+            
             auto containtsEntry = false;
 
-            for (auto& directive : directives)
+            for (auto& arg : arguments)
             {
-                if (directive.compare(entryPointName) == 0)
+                if (arg.compare(entryPointName) == 0 || arg.compare(PK_SHADER_STAGE_NAMES[(uint32_t)stage]) == 0)
                 {
                     containtsEntry = true;
                     break;
                 }
             }
 
-            pos1 += 2;
-
-            if (!containtsEntry)
+            if (containtsEntry)
             {
-                pos1 = source.find_first_of(';', pos);
-                
-                if (pos1 == std::string::npos)
-                {
-                    printf("Missing a line ending after a restrict attribute.\n");
-                    return -1;
-                }
+                source.erase(posopen, (posclose + 2u) - posopen);
+                continue;
+            }
 
-                ++pos1;
+            posclose = source.find(';', posclose);
+            size_t controlopen = 0ull;
+            size_t controlclose = 0ull;
+
+            if (StringUtilities::FindScope(source, currentpos, '{', '}', &controlopen, &controlclose) && controlopen < posclose)
+            {
+                posclose = controlclose;
+
+                if (source[posclose + 1u] == ';')
+                {
+                    posclose++;
+                }
             }
  
-            source.erase(pos, pos1 - pos);
+            if (posclose == std::string::npos)
+            {
+                printf("Couldnt find a valid control flow scope after [[pk_restrict]] attribute.\n");
+                return -1;
+            }
+
+            source.erase(posopen, (posclose + 1u) - posopen);
         }
     }
     
@@ -363,7 +372,7 @@ namespace PKAssets::Shader
                 
                 if (StringUtilities::FindScope(source, position, '{', '}', nullptr, &scopeEnd))
                 {
-                    source.erase(position, scopeEnd - position);
+                    source.erase(position, (scopeEnd + 1u) - position);
                 }
             }
         }
@@ -424,7 +433,7 @@ namespace PKAssets::Shader
             auto stageSource = source;
             stageSource.replace(stageSource.find(entry.functionName), entry.functionName.size(), "void main()");
 
-            if (RemoveRestrictedVariables(stageSource, entry.name) != 0)
+            if (RemoveRestrictedVariables(stageSource, entry.name, entry.stage) != 0)
             {
                 return -1;
             }
