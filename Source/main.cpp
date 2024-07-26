@@ -3,6 +3,7 @@
 #include <PKAsset.h>
 #include "PKShaderWriter.h"
 #include "PKMeshWriter.h"
+#include "PKFontWriter.h"
 #include "PKFileVersionUtilities.h"
 
 using namespace PKAssets;
@@ -64,6 +65,21 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
             auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_MESH).string();
             auto srcpathstr = entryPath.string();
             auto writeStatus = Mesh::WriteMesh(srcpathstr.c_str(), dstpathstr.c_str());
+
+            switch (writeStatus)
+            {
+                case -1: printf("Failed to asset: %s \n", dstpathstr.c_str()); break;
+                case 1: printf("Asset was up to date: %s \n", dstpathstr.c_str()); break;
+            }
+
+            continue;
+        }
+
+        if (extension.compare(Font::PK_ASSET_FONT_SRC_EXTENSION) == 0)
+        {
+            auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_FONT).string();
+            auto srcpathstr = entryPath.string();
+            auto writeStatus = Font::WriteFont(srcpathstr.c_str(), dstpathstr.c_str());
 
             switch (writeStatus)
             {

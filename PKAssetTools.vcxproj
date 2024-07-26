@@ -105,7 +105,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -132,7 +132,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -162,7 +162,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -193,7 +193,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -206,10 +206,87 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Source\PKFontWriter.h" />
     <ClInclude Include="ThirdParty\meshoptimizer\meshoptimizer.h" />
     <ClInclude Include="ThirdParty\mikktspace\mikktspace.h" />
     <ClInclude Include="Include\PKAsset.h" />
     <ClInclude Include="Include\PKAssetLoader.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\AtlasGenerator.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\AtlasStorage.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\bitmap-blit.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\BitmapAtlasStorage.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\BitmapAtlasStorage.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\Charset.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\csv-export.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\DynamicAtlas.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\DynamicAtlas.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\FontGeometry.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\glyph-generators.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\GlyphBox.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\GlyphGeometry.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\GridAtlasPacker.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\image-encode.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\image-save.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\image-save.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\ImmediateAtlasGenerator.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\ImmediateAtlasGenerator.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\json-export.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdf-atlas-gen.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\arithmetics.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\base.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\bitmap-interpolation.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\Bitmap.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\Bitmap.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\BitmapRef.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\contour-combiners.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\Contour.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\DistanceMapping.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\edge-coloring.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\edge-segments.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\edge-selectors.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\EdgeColor.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\EdgeHolder.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\equation-solver.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\export-svg.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\generator-config.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\msdf-error-correction.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\MSDFErrorCorrection.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\pixel-conversion.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\Projection.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\Range.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\rasterization.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\render-sdf.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\save-bmp.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\save-fl32.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\save-rgba.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\save-tiff.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\Scanline.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\sdf-error-estimation.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\SDFTransformation.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\shape-description.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\Shape.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\ShapeDistanceFinder.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\ShapeDistanceFinder.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\SignedDistance.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\core\Vector2.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\ext\import-font.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\ext\import-svg.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\ext\resolve-shape-geometry.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\ext\save-png.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\msdfgen-ext.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\msdfgen.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\Padding.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\rectangle-packing.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\rectangle-packing.hpp" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\Rectangle.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\RectanglePacker.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\Remap.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\shadron-preview-generator.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\size-selectors.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\TightAtlasPacker.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\types.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\utf8.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\Workload.h" />
     <ClInclude Include="ThirdParty\shaderc\env.h" />
     <ClInclude Include="ThirdParty\shaderc\shaderc.h" />
     <ClInclude Include="ThirdParty\shaderc\shaderc.hpp" />
@@ -230,6 +307,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClInclude Include="Source\PKStringUtilities.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Source\PKFontWriter.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\allocator.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\clusterizer.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\indexcodec.cpp" />
@@ -264,18 +342,28 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClCompile Include="Source\PKStringUtilities.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gen.lib" />
+    <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gend.lib" />
     <Library Include="ThirdParty\shaderc\Binaries\shaderc_combined.lib" />
     <Library Include="ThirdParty\shaderc\Binaries\shaderc_combinedd.lib" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
-    <None Include="DebugContent\models\MDL_Debug.mdl" />
-    <None Include="DebugContent\models\MDL_Debug.mdl.pkmeta" />
-    <None Include="DebugContent\shaders\CS_Debug.shader" />
-    <None Include="DebugContent\shaders\includes\DebugUtilities.glsl" />
-    <None Include="DebugContent\shaders\SH_WS_Debug.shader" />
+    <None Include="DebugContent\Models\MDL_Debug.mdl" />
+    <None Include="DebugContent\Models\MDL_Debug.mdl.pkmeta" />
+    <None Include="DebugContent\Shaders\CS_Debug.shader" />
+    <None Include="DebugContent\Shaders\includes\DebugUtilities.glsl" />
+    <None Include="DebugContent\Shaders\SH_WS_Debug.shader" />
     <None Include="LICENSE" />
     <None Include="README.md" />
+    <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetype.dll" />
+    <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetype.pdb" />
+    <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetyped.dll" />
+    <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetyped.pdb" />
+    <None Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gend.pdb" />
+  </ItemGroup>
+  <ItemGroup>
+    <Font Include="DebugContent\Fonts\Helvetica.ttf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

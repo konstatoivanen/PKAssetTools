@@ -771,7 +771,9 @@ namespace PKAssets::Shader
 
         for (auto& kv : reflection.uniqueBindings)
         {
-            sortedBindingMap.insert(std::make_pair(kv.second.maxBinding, kv.second));
+            // Ensure bind arrays are last bindings
+            auto sortValue = kv.second.count == PK_ASSET_MAX_UNBOUNDED_SIZE ? 0xFFFFFFFFu : kv.second.maxBinding;
+            sortedBindingMap.insert(std::make_pair(sortValue, kv.second));
         }
 
         reflection.sortedBindings.clear();
