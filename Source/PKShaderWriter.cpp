@@ -89,6 +89,12 @@ namespace PKAssets::Shader
                 break;
             }
 
+            if (dcount >= PK_ASSET_MAX_SHADER_DIRECTIVES)
+            {
+                printf("Warning maximum number of shader multicompile directives reached! consider combining directives.");
+                continue;
+            }
+
             auto directive = StringUtilities::Split(output, " ");
 
             for (auto i = 0u; i < directive.size(); ++i)
