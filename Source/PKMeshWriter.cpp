@@ -138,6 +138,17 @@ namespace PKAssets::Mesh
         return 0;
     }
 
+    struct SimplificationDesc
+    {
+        constexpr static float FIXED_TO_FLOAT_FACTOR = 1e-4f;
+        float targetError;
+        float normalsWeight;
+        float uvsWeight;
+        bool hasNormals;
+        bool hasTangents;
+        bool hasUvs;
+    };
+
     struct Buffer : public std::vector<char>
     {
         size_t head = 0;
@@ -155,6 +166,17 @@ namespace PKAssets::Mesh
 
             memcpy(data() + head, src, s);
             head += s;
+        }
+
+        void reduce(size_t newSize)
+        {
+            if (newSize >= size())
+            {
+                return;
+            }
+
+            head = head > newSize ? newSize : head;
+            resize(newSize);
         }
     };
 
@@ -195,10 +217,97 @@ namespace PKAssets::Mesh
             printf("        Submesh: %i Overdraw: %4.2f, Covered: %ipx, Shared: %ipx\n", submeshIndex++, statisticsOverdraw.overdraw, statisticsOverdraw.pixels_covered, statisticsOverdraw.pixels_shaded);
         }
 
-        meshopt_optimizeVertexFetch(vertices.data(), indices.data(), indices.size(), vertices.data(), total_vertices, stride);
+        total_vertices = meshopt_optimizeVertexFetch(vertices.data(), indices.data(), indices.size(), vertices.data(), total_vertices, stride);
+        vertices.reduce(stride * total_vertices);
 
         auto statisticsVertexFetch = meshopt_analyzeVertexFetch(indices.data(), indices.size(), vcount, stride);
         printf("        OverFetch: %4.2f, Fetched: %ibytes\n", statisticsVertexFetch.overfetch, statisticsVertexFetch.bytes_fetched);
+    }
+
+    void SimplifyMesh(Buffer& vertices, size_t stride, const SimplificationDesc& desc, std::vector<uint32_t>& indices, std::vector<PKSubmesh>& submeshes)
+    {
+        if (desc.targetError == 0.0f) 
+        {
+            return;
+        }
+        
+        auto attributeCount = 0u;
+        auto attributeStride = 0u;
+        float attributeWeights[10u]{};
+        float* pAttributes = nullptr;
+        
+        if (desc.hasNormals || desc.hasTangents || desc.hasUvs)
+        {
+            attributeStride = stride;
+            pAttributes = reinterpret_cast<float*>(vertices.data()) + 3u;
+        }
+
+        if (desc.hasNormals)
+        {
+            attributeWeights[attributeCount + 0u] = desc.normalsWeight;
+            attributeWeights[attributeCount + 1u] = desc.normalsWeight;
+            attributeWeights[attributeCount + 2u] = desc.normalsWeight;
+            attributeCount += 3u;
+        }
+
+        if (desc.hasTangents)
+        {
+            attributeWeights[attributeCount + 0u] = 0.0f;
+            attributeWeights[attributeCount + 1u] = 0.0f;
+            attributeWeights[attributeCount + 2u] = 0.0f;
+            attributeWeights[attributeCount + 3u] = 0.0f;
+            attributeCount += 4u;
+        }
+
+        if (desc.hasUvs)
+        {
+            attributeWeights[attributeCount + 0u] = desc.uvsWeight;
+            attributeWeights[attributeCount + 1u] = desc.uvsWeight;
+            attributeCount += 2u;
+        }
+
+        const auto vcount = vertices.size() / stride;
+        std::vector<uint32_t> newIndices;
+        newIndices.resize(indices.size());
+        size_t totalIndices = 0u;
+
+        printf("    Simplification:\n");
+
+        for (auto i = 0u; i < submeshes.size(); ++i)
+        {
+            auto& sm = submeshes.at(i);
+            auto error = 0.0f;
+
+            auto newIndexCount = meshopt_simplifyWithAttributes
+            (
+                newIndices.data() + totalIndices,
+                indices.data() + sm.firstIndex,
+                sm.indexCount,
+                reinterpret_cast<float*>(vertices.data()),
+                vcount,
+                stride,
+                pAttributes,
+                attributeStride,
+                attributeWeights, 
+                attributeCount, 
+                nullptr,
+                3u,
+                desc.targetError,
+                meshopt_SimplifyLockBorder | meshopt_SimplifySparse, 
+                &error
+            );
+
+            printf("        Submesh: %u Triangle count: %u -> %u, Error: %4.2f%%\n", i, sm.indexCount / 3u, (uint32_t)newIndexCount / 3u, error * 100.0f);
+            sm.firstIndex = totalIndices;
+            totalIndices += newIndexCount;
+            sm.indexCount = newIndexCount;
+        }
+
+        indices = std::move(newIndices);
+        auto totalVertices = meshopt_optimizeVertexFetch(vertices.data(), indices.data(), indices.size(), vertices.data(), vcount, stride);
+        vertices.reduce(stride * totalVertices);
+
+        printf("        VertexCount: %u -> %u\n", (uint32_t)vcount, (uint32_t)totalVertices);
     }
 
     void SplitPositionStream(Buffer& vertices, size_t stride, size_t vertexCount)
@@ -304,6 +413,9 @@ namespace PKAssets::Mesh
         auto useHalfPrecisionNormals = false;
         auto useHalfPrecisionTangents = false;
         auto useHalfPrecisionUVs = false;
+        auto simplificationError = 0u;
+        auto simplificationNormalsWeight = 0u;
+        auto simplificationUvsWeight = 0u;
         auto hasNormals = !attrib.normals.empty();
         auto hasUvs = !attrib.texcoords.empty();
         auto hasTangents = hasNormals && hasUvs;
@@ -313,8 +425,19 @@ namespace PKAssets::Mesh
         GetAssetMetaOption(meta, "mesh_useHalfPrecisionNormals", &useHalfPrecisionNormals);
         GetAssetMetaOption(meta, "mesh_useHalfPrecisionTangents", &useHalfPrecisionTangents);
         GetAssetMetaOption(meta, "mesh_useHalfPrecisionUVs", &useHalfPrecisionUVs);
+        GetAssetMetaOption(meta, "mesh_simplificationError", &simplificationError);
+        GetAssetMetaOption(meta, "mesh_simplificationNormalsWeight", &simplificationNormalsWeight);
+        GetAssetMetaOption(meta, "mesh_simplificationUvsWeight", &simplificationUvsWeight);
 
         CloseAssetMeta(&meta);
+
+        SimplificationDesc simplificationDesc;
+        simplificationDesc.targetError = simplificationError * SimplificationDesc::FIXED_TO_FLOAT_FACTOR;
+        simplificationDesc.normalsWeight = simplificationNormalsWeight * SimplificationDesc::FIXED_TO_FLOAT_FACTOR;
+        simplificationDesc.uvsWeight = simplificationUvsWeight * SimplificationDesc::FIXED_TO_FLOAT_FACTOR;
+        simplificationDesc.hasNormals = hasNormals;
+        simplificationDesc.hasTangents = hasTangents;
+        simplificationDesc.hasUvs = hasUvs;
 
         Buffer vertices;
         std::map<IndexSet, uint32_t> indexmap;
@@ -448,6 +571,19 @@ namespace PKAssets::Mesh
             submeshes.push_back(submesh);
         }
 
+        QuantizeVerticesFloat3(reinterpret_cast<float*>(vertices.data()), stride / sizeof(float), (uint32_t)(vertices.size() / stride), 1e-4f);
+
+        if (hasNormals)
+        {
+            QuantizeVerticesFloat3(reinterpret_cast<float*>(vertices.data() + offsetNormals), stride / sizeof(float), (uint32_t)(vertices.size() / stride), 1e-2f);
+        }
+
+        if (hasUvs)
+        {
+            QuantizeVerticesFloat2(reinterpret_cast<float*>(vertices.data() + offsetUVs), stride / sizeof(float), (uint32_t)(vertices.size() / stride), 1e-4f);
+        }
+
+        SimplifyMesh(vertices, stride, simplificationDesc, indices, submeshes);
         OptimizeMesh(vertices, stride, indices, submeshes);
 
         auto vcount = (uint32_t)(vertices.size() / stride);
@@ -461,17 +597,21 @@ namespace PKAssets::Mesh
             CalculateTangents(vfloats, fstride, 0, 3, 6, 10, indices.data(), vcount, (uint32_t)indices.size());
         }
 
-        // Hack: Create these here so that meshlet creation can use them correctly withot reduced precision.
+        // Hack: Create these here so that meshlet creation can use them correctly without reduced precision.
         auto offsetNormalsMeshlet = hasNormals ? offsetNormals : 0xFFFFFFFFu;
         auto offsetTangentsMeshlet = hasTangents ? offsetTangents : 0xFFFFFFFFu;
         auto offsetUvsMeshlet = hasUvs ? offsetUVs : 0xFFFFFFFFu;
         auto strideMeshlet = stride;
+        auto vcountMeshlet = vcount;
         std::vector<float> verticesMeshlet;
         std::vector<uint32_t> indicesMeshlet;
+        std::vector<PKSubmesh> submeshesMeshlet;
         verticesMeshlet.resize(vertices.size() / sizeof(float));
         memcpy(verticesMeshlet.data(), vertices.data(), vertices.size());
         indicesMeshlet.resize(indices.size());
         memcpy(indicesMeshlet.data(), indices.data(), indices.size() * sizeof(uint32_t));
+        submeshesMeshlet.resize(submeshes.size());
+        memcpy(submeshesMeshlet.data(), submeshes.data(), submeshes.size() * sizeof(PKSubmesh));
 
         if (hasNormals && useHalfPrecisionNormals)
         {
@@ -549,7 +689,7 @@ namespace PKAssets::Mesh
         auto meshletMesh = CreateMeshletMesh
         (
             buffer,
-            submeshes,
+            submeshesMeshlet,
             verticesMeshlet.data(),
             indicesMeshlet.data(),
             0u,
@@ -557,8 +697,8 @@ namespace PKAssets::Mesh
             offsetNormalsMeshlet,
             offsetTangentsMeshlet,
             strideMeshlet,
-            vcount,
-            (uint32_t)indices.size()
+            vcountMeshlet,
+            (uint32_t)indicesMeshlet.size()
         );
 
         mesh->meshletMesh.Set(buffer.data(), meshletMesh.get());

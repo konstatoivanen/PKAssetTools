@@ -19,6 +19,7 @@ A repository of build tools used to cook assets for use in PKRenderer.
 ## Mesh Format
 - Converts .obj files to binary files (**.pkmesh**) containing interleaved vertex data, index buffer & vertex buffer attributes.
 - Optimizes output vertex & index buffers using zeux meshoptimizer.
+- Generates meshlets and a directed acyclic graph lod structure.
 
 ## Planned Features
 - Add support for gltf conversion.
@@ -32,5 +33,6 @@ A repository of build tools used to cook assets for use in PKRenderer.
 - [SPIRV-Reflect](https://github.com/KhronosGroup/SPIRV-Reflect)
 - [msdf-atlas-gen](https://github.com/Chlumsky/msdf-atlas-gen)
 - [shaderc](https://github.com/google/shaderc)
+- [METIS](https://github.com/KarypisLab/METIS)
 	- Due to the large sizes of the static libraries they were omitted from this repository. You can get them from the link above.
 	- shaderc_combined.lib & shaderc_combinedd.lib specifically.

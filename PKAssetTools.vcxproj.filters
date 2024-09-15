@@ -312,6 +312,9 @@
     <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\msdfgen-ext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ThirdParty\METIS\metis.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Include\PKAssetLoader.cpp">
@@ -419,6 +422,10 @@
     <Library Include="ThirdParty\shaderc\Binaries\shaderc_combinedd.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gen.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gend.lib" />
+    <Library Include="ThirdParty\METIS\Binaries\metis.lib" />
+    <Library Include="ThirdParty\METIS\Binaries\metisd.lib" />
+    <Library Include="ThirdParty\METIS\Binaries\GKlib.lib" />
+    <Library Include="ThirdParty\METIS\Binaries\GKlibd.lib" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />

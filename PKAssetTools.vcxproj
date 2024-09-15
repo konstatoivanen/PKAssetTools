@@ -105,7 +105,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;ThirdParty/METIS/Binaries/metisd.lib;ThirdParty/METIS/Binaries/GKlibd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -132,7 +132,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;ThirdParty/METIS/Binaries/metisd.lib;ThirdParty/METIS/Binaries/GKlibd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -162,7 +162,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;ThirdParty/METIS/Binaries/metis.lib;ThirdParty/METIS/Binaries/GKlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -193,7 +193,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;ThirdParty/METIS/Binaries/metis.lib;ThirdParty/METIS/Binaries/GKlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -208,6 +208,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
   <ItemGroup>
     <ClInclude Include="Source\PKFontWriter.h" />
     <ClInclude Include="ThirdParty\meshoptimizer\meshoptimizer.h" />
+    <ClInclude Include="ThirdParty\METIS\metis.h" />
     <ClInclude Include="ThirdParty\mikktspace\mikktspace.h" />
     <ClInclude Include="Include\PKAsset.h" />
     <ClInclude Include="Include\PKAssetLoader.h" />
@@ -342,6 +343,10 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClCompile Include="Source\PKStringUtilities.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <Library Include="ThirdParty\METIS\Binaries\GKlib.lib" />
+    <Library Include="ThirdParty\METIS\Binaries\GKlibd.lib" />
+    <Library Include="ThirdParty\METIS\Binaries\metis.lib" />
+    <Library Include="ThirdParty\METIS\Binaries\metisd.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gen.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gend.lib" />
     <Library Include="ThirdParty\shaderc\Binaries\shaderc_combined.lib" />
