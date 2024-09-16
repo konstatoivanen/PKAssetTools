@@ -28,6 +28,8 @@ namespace PKAssets::Mesh
         float* out_center,
         float* out_extents);
     
+    float CalculateMaxExtent(const float* extents);
+
     size_t CalculateUniqueVertexCount(uint32_t* indices, uint32_t index_count, uint32_t vertex_count);
 
     void CalculateVertexRemapAndWeights(float* vertices,
@@ -66,11 +68,9 @@ namespace PKAssets::Mesh
         size_t index_count,
         const float* vertex_positions,
         const uint32_t* vertex_remap,
-        const float* vertex_remap_weights,
         uint8_t* vertex_lock,
         size_t vertex_count,
         size_t vertex_stride,
         size_t target_index_count,
-        size_t target_vertex_count,
         float* out_result_error);
 }

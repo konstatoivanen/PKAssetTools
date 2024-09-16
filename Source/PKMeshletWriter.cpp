@@ -6,11 +6,16 @@
 
 namespace PKAssets::Mesh
 {
+    static const uint32_t PK_DAG_MAX_GROUP_SIZE = 12u;
+    static const uint32_t PK_DAG_TARGET_GROUP_SIZE = 6u;
+    static const uint32_t PK_DAG_MAX_LEVELS = 5u;
+    static const uint32_t PK_DAG_DECIMATE_FACTOR = 2u;
+    static const float PK_DAG_MIN_SIMPLIFICATION_FACTOR_MESHLET = 0.9f;
+    static const float PK_DAG_MIN_SIMPLIFICATION_FACTOR_LEVEL = 0.9f;
+
     struct MeshletGroup
     {
-        constexpr static uint32_t MAX_GROUP_SIZE = 12u;
-        constexpr static uint32_t TARGET_GROUP_SIZE = 6u;
-        uint32_t indices[MAX_GROUP_SIZE]{};
+        uint32_t indices[PK_DAG_MAX_GROUP_SIZE]{};
         uint32_t size = 0u;
     };
 
@@ -46,7 +51,6 @@ namespace PKAssets::Mesh
         float* vertex_positions;
         uint8_t* vertex_lock;
         uint32_t* vertex_remap;
-        float* vertex_remap_weights;
 
         uint32_t vertex_stride;
         uint32_t vertex_count;
@@ -89,7 +93,7 @@ namespace PKAssets::Mesh
             }
         }
 
-        idx_t target_group_count = (meshlet_count + MeshletGroup::TARGET_GROUP_SIZE - 1u) / MeshletGroup::TARGET_GROUP_SIZE;
+        idx_t target_group_count = (meshlet_count + PK_DAG_TARGET_GROUP_SIZE - 1u) / PK_DAG_TARGET_GROUP_SIZE;
         std::vector<idx_t> group_indices(meshlet_count);
         
         // Only run partitioning when targeting more than one partition.
@@ -100,7 +104,7 @@ namespace PKAssets::Mesh
             std::vector<idx_t> xadj(meshlet_count + 1u);
             xadj.at(0) = 0;
 
-            for (auto i = 0u; i < meshlet_count; ++i)
+            for (auto i = 0ull; i < meshlet_count; ++i)
             {
                 adjncy.insert(adjncy.end(), adjacencies.at(i).begin(), adjacencies.at(i).end());
                 xadj.at(i + 1u) = adjncy.size();
@@ -109,8 +113,9 @@ namespace PKAssets::Mesh
             idx_t nvtxs = meshlet_count;
             idx_t ncon = 1u;
             idx_t edgecut = 0;
-            idx_t options[30];
-            memset(options, -1, sizeof(options));
+            idx_t options[METIS_NOPTIONS];
+            METIS_SetDefaultOptions(options);
+            options[METIS_OPTION_UFACTOR] = 200;
             
             auto metisResult = METIS_PartGraphKway
             (
@@ -144,7 +149,7 @@ namespace PKAssets::Mesh
         for (auto i = 0u; i < meshlet_count; ++i)
         {
             auto& group = groups[group_indices.at(i)];
-            assert(group.size < MeshletGroup::MAX_GROUP_SIZE);
+            assert(group.size < PK_DAG_MAX_GROUP_SIZE);
             group.indices[group.size++] = i + meshlet_offset;
         }
 
@@ -178,38 +183,34 @@ namespace PKAssets::Mesh
 
     static void BuildMeshletDAG(MeshletContext* ctx)
     {
-        constexpr uint32_t MAX_LOD_LEVELS = 4u;
-        constexpr uint32_t DECIMATE_FACTOR = 2u;
-        constexpr float TARGET_ERROR = 0.05f;
-        constexpr float TARGET_ERROR_MULT = 1.1f;
-        constexpr float MIN_SIMPLIFICATION_FACTOR_MESHLET = 0.7f;
-        constexpr float MIN_SIMPLIFICATION_FACTOR_LEVEL = 0.7f;
+        uint32_t stats_initial_triangle_count = ctx->meshlet_indices_count / 3u;
+        uint32_t stats_final_triangle_count = 0u;
+        uint32_t stats_new_meshlet_count = 0u;
+        uint32_t stats_level_count = 0u;
 
+        auto total_index_count = 0u;
+        auto total_simplified_index_count = 0u;
         auto meshlet_offset = 0u;
         auto meshlet_count = ctx->meshlet_count;
 
-        printf("    Meshlet DAG Generation:\n");
-
-        for (auto lodLevel = 0u; lodLevel < MAX_LOD_LEVELS; ++lodLevel)
+        for (auto lodLevel = 0u; lodLevel < PK_DAG_MAX_LEVELS; ++lodLevel)
         {
             auto groups = BuildMeshletGroupsMetis(ctx->meshlets + meshlet_offset, ctx->meshlet_vertices, ctx->meshlet_triangles, ctx->vertex_remap, meshlet_count, meshlet_offset);
             
-            auto total_index_count = 0u;
-            auto total_simplified_index_count = 0u;
-            auto prev_meshlet_count = meshlet_count;
+            total_index_count = 0u;
+            total_simplified_index_count = 0u;
             meshlet_offset = ctx->meshlet_count;
             meshlet_count = 0u;
 
             for (auto& group : groups)
             {
-                auto indices = GetMeshletGroupTriangleIndices(ctx->meshlets, ctx->meshlet_vertices, ctx->meshlet_triangles, group);
-                auto target_vertex_count = CalculateUniqueVertexCount(indices.data(), indices.size(), ctx->vertex_count) / DECIMATE_FACTOR;
-                auto target_index_count = 3u * ((indices.size() / DECIMATE_FACTOR) / 3u);
-
-                if (indices.size() < PK_MESHLET_MAX_TRIANGLES * 3u)
+                if (group.size <= 1u)
                 {
                     continue;
                 }
+
+                auto indices = GetMeshletGroupTriangleIndices(ctx->meshlets, ctx->meshlet_vertices, ctx->meshlet_triangles, group);
+                auto target_index_count = 3u * ((indices.size() / PK_DAG_DECIMATE_FACTOR) / 3u);
 
                 MeshletCenterError error{};
                 auto simplified_index_count = SimplifyCluster
@@ -218,20 +219,18 @@ namespace PKAssets::Mesh
                     indices.size(),
                     ctx->vertex_positions,
                     ctx->vertex_remap,
-                    ctx->vertex_remap_weights,
                     ctx->vertex_lock,
                     ctx->vertex_count,
                     ctx->vertex_stride,
                     target_index_count,
-                    target_vertex_count,
                     &error.error
                 );
 
                 auto simplifaction_factor = (float)simplified_index_count / (float)indices.size();
 
-                if (simplifaction_factor > MIN_SIMPLIFICATION_FACTOR_MESHLET)
+                if (simplifaction_factor > PK_DAG_MIN_SIMPLIFICATION_FACTOR_MESHLET)
                 {
-                    printf("        Failed to simplify meshlet group by factor %4.2f of %4.2f\n", simplifaction_factor, MIN_SIMPLIFICATION_FACTOR_MESHLET);
+                    stats_final_triangle_count += indices.size() / 3u;
                     continue;
                 }
 
@@ -240,12 +239,8 @@ namespace PKAssets::Mesh
 
                 float extents[3];
                 CalculateBounds(ctx->vertex_positions, indices.data(), (uint32_t)(ctx->vertex_stride / sizeof(float)), simplified_index_count, error.center, extents);
-
-                float scale = 0.0f;
-                scale = extents[0] > scale ? extents[0] : scale;
-                scale = extents[1] > scale ? extents[1] : scale;
-                scale = extents[2] > scale ? extents[2] : scale;
-                error.error *= scale;
+                
+                error.error *= CalculateMaxExtent(extents);
 
                 float max_child_error = 0.0f;
 
@@ -292,21 +287,24 @@ namespace PKAssets::Mesh
                 ctx->meshlet_count += simplified_count;
             }
 
-            if (total_index_count == 0u || meshlet_count == 0u)
-            {
-                break;
-            }
+            stats_new_meshlet_count += meshlet_count;
+            stats_level_count++;
 
-            printf("        Level %u, Meshlets %u -> %u, Tris %u -> %u\n", lodLevel, prev_meshlet_count, meshlet_count, total_index_count, total_simplified_index_count);
-            
-            //simplificationTargetError *= SIMPLIFICATION_TARGET_ERROR_MULTIPLIER;
-            auto total_simplification_factor = (float)total_simplified_index_count / (float)total_index_count;
+            auto total_simplification_factor = (float)total_simplified_index_count / (float)std::max(1u, total_index_count);
 
-            if (total_simplification_factor > MIN_SIMPLIFICATION_FACTOR_LEVEL)
+            if (total_simplification_factor > PK_DAG_MIN_SIMPLIFICATION_FACTOR_LEVEL || total_index_count == 0u || meshlet_count <= 1u)
             {
                 break;
             }
         }
+
+        stats_final_triangle_count += total_simplified_index_count / 3u;
+
+        printf("        Submesh DAG: Tris: %u -> %u, Meshlets: %u, Levels: %u\n", 
+            stats_initial_triangle_count, 
+            stats_final_triangle_count, 
+            stats_new_meshlet_count, 
+            stats_level_count);
     }
 
     WritePtr<PKMeshletMesh> CreateMeshletMesh(PKAssetBuffer& buffer,
@@ -350,7 +348,6 @@ namespace PKAssets::Mesh
         ctx.vertex_positions = vertices + (offsetPosition / sizeof(float));
         ctx.vertex_lock = vertex_lock.data();
         ctx.vertex_remap = vertex_remap.data();
-        ctx.vertex_remap_weights = vertex_remap_weights.data();
         ctx.vertex_stride = vertexStride;
         ctx.vertex_count = vertexCount;
             
@@ -359,15 +356,11 @@ namespace PKAssets::Mesh
         std::vector<PKMeshletSubmesh> out_submeshes;
         std::vector<PKMeshlet> out_meshlets;
 
-        CalculateVertexRemapAndWeights
-        (
-            vertices,
-            ctx.vertex_positions,
-            ctx.vertex_count,
-            ctx.vertex_stride,
-            ctx.vertex_remap,
-            ctx.vertex_remap_weights
-        );
+        meshopt_Stream stream;
+        stream.data = ctx.vertex_positions;
+        stream.size = sizeof(float) * 3u;
+        stream.stride = ctx.vertex_stride;
+        meshopt_generateVertexRemapMulti(ctx.vertex_remap, nullptr, ctx.vertex_count, ctx.vertex_count, &stream, 1u);
 
         for (const auto& sm : submeshes)
         {

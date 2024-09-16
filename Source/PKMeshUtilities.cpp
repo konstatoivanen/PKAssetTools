@@ -121,6 +121,15 @@ namespace PKAssets::Mesh
         }
     }
 
+    float CalculateMaxExtent(const float* extents)
+    {
+        float maxExtent = 0.0f;
+        maxExtent = extents[0] > maxExtent ? extents[0] : maxExtent;
+        maxExtent = extents[1] > maxExtent ? extents[1] : maxExtent;
+        maxExtent = extents[2] > maxExtent ? extents[2] : maxExtent;
+        return maxExtent;
+    }
+
     size_t CalculateUniqueVertexCount(uint32_t* indices, uint32_t index_count, uint32_t vertex_count)
     {
         // Source: https://github.com/zeux/meshoptimizer
@@ -334,108 +343,36 @@ namespace PKAssets::Mesh
         return count;
     }
 
-    struct IndexMergeInfo
-    {
-        uint32_t from;
-        uint32_t to;
-        float error;
-    };
-
-    static int IndexMergeInfoCompare(const void* a, const void* b)
-    {
-        auto i0 = reinterpret_cast<const IndexMergeInfo*>(a);
-        auto i1 = reinterpret_cast<const IndexMergeInfo*>(b);
-
-        if (i0->error < i1->error)
-        {
-            return 1;
-        }
-
-        if (i0->error > i1->error)
-        {
-            return -1;
-        }
-
-        return 0;
-    }
-
-    // Super horrible iterative simplify that merges spatially exact vertices when failing to simplify to target.
-    // @TODO make a custom version of zeux simplify that allows for remap vertex weights.
     size_t SimplifyCluster(
         uint32_t* indices,
         size_t index_count, 
         const float* vertex_positions, 
         const uint32_t* vertex_remap,
-        const float* vertex_remap_weights,
         uint8_t* vertex_lock, 
         size_t vertex_count, 
         size_t vertex_stride, 
         size_t target_index_count, 
-        size_t target_vertex_count, 
         float* out_result_error)
     {
-        auto remaining_merges = 0;
-        std::vector<IndexMergeInfo> index_merges(index_count);
-        std::vector<uint32_t> simplified_indices(index_count);
-
-        for (auto i = 0u; i < index_count; ++i)
-        {
-            if (vertex_remap[indices[i]] != indices[i])
-            {
-                index_merges.at(remaining_merges++) = { i, vertex_remap[indices[i]], vertex_remap_weights[indices[i]] };
-            }
-        }
-
-        qsort(index_merges.data(), remaining_merges, sizeof(IndexMergeInfo), IndexMergeInfoCompare);
-
         LockBorderVertices(indices, index_count, vertex_remap, vertex_lock);
        
-        auto simplified_index_count = 0u;
-
-        while (true)
-        {
-            simplified_index_count = meshopt_simplifyWithAttributes
-            (
-                simplified_indices.data(),
-                indices,
-                index_count,
-                vertex_positions,
-                vertex_count,
-                vertex_stride,
-                nullptr,
-                0u,
-                nullptr,
-                0u,
-                vertex_lock,
-                target_index_count,
-                1.0f,
-                meshopt_SimplifySparse,
-                out_result_error
-            );
-
-            auto unique_vertex_count = CalculateUniqueVertexCount(simplified_indices.data(), simplified_index_count, vertex_count);
-
-            if (unique_vertex_count <= target_vertex_count && simplified_index_count <= target_index_count)
-            {
-                break;
-            }
-
-           // if (remaining_merges == 0)
-            {
-                // Mission failed, we'll get em next time.
-                break;
-            }
-
-            for (auto i = (int32_t)remaining_merges - 1; i >= remaining_merges / 2; i--)
-            {
-                indices[index_merges.at(i).from] = index_merges.at(i).to;
-            }
-
-            remaining_merges /= 2;
-        }
-
-        memcpy(indices, simplified_indices.data(), simplified_index_count * sizeof(uint32_t));
-
-        return simplified_index_count;
+        return meshopt_simplifyWithAttributes
+        (
+            indices,
+            indices,
+            index_count,
+            vertex_positions,
+            vertex_count,
+            vertex_stride,
+            nullptr,
+            0u,
+            nullptr,
+            0u,
+            vertex_lock,
+            target_index_count,
+            1.0f,
+            meshopt_SimplifySparse,
+            out_result_error
+        );
     }
 }
