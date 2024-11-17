@@ -55,7 +55,8 @@ namespace PKAssets::Shader
         "#extension GL_EXT_control_flow_attributes : require \n"
         "#extension GL_EXT_shader_explicit_arithmetic_types : require \n"
         "#extension GL_EXT_nonuniform_qualifier : require \n"
-        "#extension GL_ARB_shader_viewport_layer_array : require \n";
+        "#extension GL_ARB_shader_viewport_layer_array : require \n"
+        "#extension GL_EXT_shader_image_load_formatted : require \n";
 
     constexpr const static char* PK_GL_EXTENSIONS_RAYTRACING = "#extension GL_EXT_ray_tracing : require \n";
     constexpr const static char* PK_GL_EXTENSIONS_MESHSHADING = 
