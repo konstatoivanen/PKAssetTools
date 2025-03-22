@@ -19,6 +19,8 @@ namespace PKAssets
         char value = 0;
         size_t freq = 0ull;
 
+        bool IsLeaf() const { return left == nullptr && right == nullptr; }
+
         constexpr bool operator < (PKTempNode const& other) const { return other.freq < freq; }
 
         PKTempNode(char v, size_t w)
@@ -53,36 +55,66 @@ namespace PKAssets
         size_t length;
     };
 
-    WritePtr<PKEncNode> WriteNodeTree(PKAssetBuffer& buffer, size_t writeHead, std::map<char, PKBinaryKey>& vtable, size_t* sequence, size_t* depth, const PKTempNode* node)
+    static WritePtr<PKEncNode> WriteNodeTree(PKAssetBuffer& buffer, size_t writeHead, std::map<char, PKBinaryKey>& vtable, size_t* sequence, size_t* depth, const PKTempNode* node)
     {
         auto pNode = buffer.Allocate<PKEncNode>();
-        pNode->isLeaf = node->left == nullptr && node->right == nullptr;
+        pNode->isLeaf = node->IsLeaf();
         pNode->value = node->value;
 
-        if (node->left == nullptr && node->right == nullptr)
+        if (node->IsLeaf())
         {
             vtable[node->value].sequence = *sequence;
             vtable[node->value].length = *depth;
             return pNode;
         }
 
-        if (node->left != nullptr)
-        {
-            (*sequence) &= ~(1ull << (*depth));
-            (*depth)++;
-            auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->left.get());
-            pNode->left = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
-            (*depth)--;
-        }
+        // Sort writes so that leaf nodes are closer to start of the array.
+        // Small decompression cache optimization.
+        auto isLeafLeft = node->left != nullptr && node->left->IsLeaf();
+        auto isLeafRight = node->right != nullptr && node->right->IsLeaf();
+        auto sortLeftRight = isLeafLeft || !isLeafRight;
 
-        if (node->right != nullptr)
+        if (sortLeftRight)
         {
-            (*sequence) |= 1ull << (*depth);
-            (*depth)++;
-            auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->right.get());
-            pNode->right = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
-            (*depth)--;
-            (*sequence) &= ~(1ull << (*depth));
+            if (node->left != nullptr)
+            {
+                (*sequence) &= ~(1ull << (*depth));
+                (*depth)++;
+                auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->left.get());
+                pNode->left = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
+                (*depth)--;
+            }
+
+            if (node->right != nullptr)
+            {
+                (*sequence) |= 1ull << (*depth);
+                (*depth)++;
+                auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->right.get());
+                pNode->right = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
+                (*depth)--;
+                (*sequence) &= ~(1ull << (*depth));
+            }
+        }
+        else
+        {
+            if (node->right != nullptr)
+            {
+                (*sequence) |= 1ull << (*depth);
+                (*depth)++;
+                auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->right.get());
+                pNode->right = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
+                (*depth)--;
+                (*sequence) &= ~(1ull << (*depth));
+            }
+
+            if (node->left != nullptr)
+            {
+                (*sequence) &= ~(1ull << (*depth));
+                (*depth)++;
+                auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->left.get());
+                pNode->left = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
+                (*depth)--;
+            }
         }
 
         return pNode;
