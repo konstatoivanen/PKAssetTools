@@ -384,6 +384,52 @@ namespace PKAssets::Shader
         }
     }
 
+    static void RemoveInactiveGroupSizeLayouts(std::string& source, PKShaderStage stage)
+    {
+        if (stage != PKShaderStage::Compute)
+        {
+            return;
+        }
+
+        std::vector<size_t> positions;
+
+        size_t currentpos = 0ull;
+
+        while (true)
+        {
+            size_t posopen, posclose;
+
+            if (!StringUtilities::FindScope(source, currentpos, "layout(", ")", &posopen, &posclose))
+            {
+                break;
+            }
+
+            auto localsizepos = source.find("local_size_x", posopen);
+            if (posopen < localsizepos && localsizepos < posclose)
+            {
+                positions.push_back(posopen);
+            }
+
+            currentpos = posclose;
+        }
+
+        auto mainpos = source.find("void main()");
+        auto selected = false;
+
+        for (int32_t i = positions.size() - 1; i >= 0; --i)
+        {
+            if (positions.at(i) < mainpos && !selected)
+            {
+                selected = true;
+                continue;
+            }
+
+            auto posopen = positions.at(i);
+            auto posclose = source.find(';', posopen);
+            source.erase(posopen, (posclose + 1u) - posopen);
+        }
+    }
+
     static void GetVariantDefines(const std::vector<std::vector<std::string>>& keywords, uint32_t index, std::string& defines)
     {
         defines.clear();
@@ -445,6 +491,7 @@ namespace PKAssets::Shader
             }
 
             RemoveInactiveEntryPoints(stageSource, entryPoints, i);
+            RemoveInactiveGroupSizeLayouts(stageSource, entry.stage);
             Instancing::InsertEntryPoint(stageSource, entry.stage, enableInstancing, nofragInstancing);
             stageSource.insert(0, std::string("#define PK_ACTIVE_ENTRY_POINT_") + entry.name + "\n");
             stageSource.insert(0, PK_SHADER_STAGE_DEFINES[(uint32_t)entry.stage]);

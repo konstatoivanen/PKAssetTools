@@ -463,6 +463,8 @@ namespace PKAssets::Shader
     {
         const std::string surroundMask = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";
         StringUtilities::ReplaceAll(source, surroundMask, "lerp", "mix");
+        StringUtilities::ReplaceAll(source, surroundMask, "asuint", "floatBitsToUint");
+        StringUtilities::ReplaceAll(source, surroundMask, "asfloat", "uintBitsToFloat");
 
         StringUtilities::ReplaceAll(source, surroundMask, "bool2", "bvec2");
         StringUtilities::ReplaceAll(source, surroundMask, "bool3", "bvec3");
