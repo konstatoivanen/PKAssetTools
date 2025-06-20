@@ -150,48 +150,6 @@ namespace PKAssets::Mesh
         return unique;
     }
 
-    void CalculateVertexRemapAndWeights(
-        float* vertices, 
-        float* vertex_positions, 
-        uint32_t vertex_count,
-        uint32_t vertex_stride,
-        uint32_t* out_remap, 
-        float* out_remap_weights)
-    {
-        meshopt_Stream stream;
-        stream.data = vertex_positions;
-        stream.size = sizeof(float) * 3u;
-        stream.stride = vertex_stride;
-        meshopt_generateVertexRemapMulti(out_remap, nullptr, vertex_count, vertex_count, &stream, 1u);
-
-        auto stride_f32 = vertex_stride / sizeof(float);
-
-        for (auto i = 0u; i < vertex_count; ++i)
-        {
-            float weight = 0.0f;
-
-            if (out_remap[i] != i)
-            {
-                auto v0 = vertices + i * stride_f32;
-                auto v1 = vertices + out_remap[i] * stride_f32;
-
-                // Naive float attribute error weight.
-                // @TODO if this is bad refactor to use per attribute weights.
-                for (auto j = 0u; j < stride_f32; ++j)
-                {
-                    weight += (v0[j] - v1[j]) * (v0[j] - v1[j]);
-                }
-
-                if (weight > 0.0f)
-                {
-                    weight = sqrt(weight);
-                }
-            }
-
-            out_remap_weights[i] = weight;
-        }
-    }
-
     struct QuantizedVertex
     {
         int64_t x = 0;

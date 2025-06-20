@@ -31,13 +31,6 @@ namespace PKAssets::Mesh
     float CalculateMaxExtent(const float* extents);
 
     size_t CalculateUniqueVertexCount(uint32_t* indices, uint32_t index_count, uint32_t vertex_count);
-
-    void CalculateVertexRemapAndWeights(float* vertices,
-        float* vertex_positions,
-        uint32_t vertex_count,
-        uint32_t vertex_stride,
-        uint32_t* out_remap,
-        float* out_remap_weights);
     
     void QuantizeVerticesFloat3(float* vertices,
         uint32_t vertex_stridef32,
