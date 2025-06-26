@@ -315,6 +315,15 @@
     <ClInclude Include="ThirdParty\METIS\metis.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Source\PKTextureWriter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\KTX\ktx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\KTX\khr_df.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Include\PKAssetLoader.cpp">
@@ -416,6 +425,9 @@
     <ClCompile Include="Source\PKFontWriter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\PKTextureWriter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Library Include="ThirdParty\shaderc\Binaries\shaderc_combined.lib" />
@@ -426,6 +438,10 @@
     <Library Include="ThirdParty\METIS\Binaries\metisd.lib" />
     <Library Include="ThirdParty\METIS\Binaries\GKlib.lib" />
     <Library Include="ThirdParty\METIS\Binaries\GKlibd.lib" />
+    <Library Include="ThirdParty\KTX\Binaries\ktx.lib" />
+    <Library Include="ThirdParty\KTX\Binaries\ktx_read.lib" />
+    <Library Include="ThirdParty\KTX\Binaries\ktx_readd.lib" />
+    <Library Include="ThirdParty\KTX\Binaries\ktxd.lib" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
@@ -441,6 +457,7 @@
     <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetype.pdb" />
     <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetyped.dll" />
     <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetyped.pdb" />
+    <None Include="DebugContent\Textures\T_Bluenoise256.ktx2" />
   </ItemGroup>
   <ItemGroup>
     <Font Include="DebugContent\Fonts\Helvetica.ttf" />

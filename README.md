@@ -27,6 +27,7 @@ A repository of build tools used to cook assets for use in PKRenderer.
 
 ## Dependencies
 - C++ 17 support required
+- [KTX](https://github.com/KhronosGroup/KTX-Software)
 - [mikktspace](http://www.mikktspace.com/)
 - [meshoptimizer](https://github.com/zeux/meshoptimizer)
 - [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader)

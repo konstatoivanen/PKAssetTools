@@ -4,6 +4,7 @@
 #include "PKShaderWriter.h"
 #include "PKMeshWriter.h"
 #include "PKFontWriter.h"
+#include "PKTextureWriter.h"
 #include "PKFileVersionUtilities.h"
 
 using namespace PKAssets;
@@ -90,7 +91,20 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
             continue;
         }
 
-        // Write other types
+        if (extension.compare(Texture::PK_ASSET_TEXTURE_SRC_EXTENSION) == 0)
+        {
+            auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_TEXTURE).string();
+            auto srcpathstr = entryPath.string();
+            auto writeStatus = Texture::WriteTexture(srcpathstr.c_str(), dstpathstr.c_str());
+
+            switch (writeStatus)
+            {
+                case -1: printf("Failed to asset: %s \n", dstpathstr.c_str()); break;
+                case 1: printf("Asset was up to date: %s \n", dstpathstr.c_str()); break;
+            }
+
+            continue;
+        }
     }
 }
 
