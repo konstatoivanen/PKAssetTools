@@ -91,7 +91,7 @@ namespace PKAssets::Shader::Instancing
                 continue;
             }
 
-            auto type = PKAssets::GetElementType(parts.at(0).c_str());
+            auto type = PKAssets::StringToPKElementType(parts.at(0).c_str());
 
             if (type == PKElementType::Invalid)
             {

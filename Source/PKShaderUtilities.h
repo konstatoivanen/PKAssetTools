@@ -65,13 +65,6 @@ namespace PKAssets::Shader
 
     PKElementType GetElementType(SpvReflectFormat format);
     std::string GetGLSLType(PKElementType type);
-    PKComparison GetZTestFromString(const std::string& ztest);
-    PKBlendFactor GetBlendFactorFromString(const std::string& blendMode);
-    PKBlendOp GetBlendOpFromString(const std::string& blendOp);
-    uint8_t GetColorMaskFromString(const std::string& colorMask);
-    PKCullMode GetCullModeFromString(const std::string& cull);
-    PKRasterMode GetRasterModeFromString(const std::string& rasterMode);
-    PKShaderStage GetShaderStageFromString(const std::string& type);
     PKDescriptorType GetResourceType(SpvReflectDescriptorType type);
     shaderc_shader_kind ConvertToShadercKind(PKShaderStage stage);
     void FindLineRange(const std::string& name, const std::string& message, int* outMin, int* outMax);

@@ -115,7 +115,7 @@ namespace PKAssets::StringUtilities
         return result;
     }
 
-    std::string ExtractToken(const char* token, std::string& source, bool includeToken)
+    std::string ExtractToken(const char* token, std::string& source, bool includeToken, bool trim)
     {
         std::string firstToken;
 
@@ -149,10 +149,15 @@ namespace PKAssets::StringUtilities
             pos = source.find(token);
         }
 
+        if (trim)
+        {
+            firstToken = Trim(firstToken);
+        }
+
         return firstToken;
     }
 
-    size_t ExtractToken(size_t offset, const char* token, std::string& source, std::string& ouput, bool includeToken)
+    size_t ExtractToken(size_t offset, const char* token, std::string& source, std::string& output, bool includeToken, bool trim)
     {
         auto pos = source.find(token, offset);
 
@@ -172,15 +177,21 @@ namespace PKAssets::StringUtilities
 
         if (includeToken)
         {
-            ouput = source.substr(pos, sol - pos);
+            output = source.substr(pos, sol - pos);
         }
         else
         {
             auto spos = pos + strlen(token);
-            ouput = source.substr(spos, eol - spos);
+            output = source.substr(spos, eol - spos);
         }
 
         source.erase(pos, sol - pos);
+
+        if (trim)
+        {
+            output = Trim(output);
+        }
+
         return pos;
     }
 

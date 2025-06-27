@@ -19,8 +19,6 @@
 
 namespace PKAssets::Shader
 {
-    using PKAssets::GetElementType;
-
     typedef shaderc::Compiler ShaderCompiler;
 
     struct EntryPointInfo
@@ -133,24 +131,23 @@ namespace PKAssets::Shader
 
     static void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes)
     {
-        auto valueZWrite = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZWRITE, source, false);
-        auto valueZTest = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZTEST, source, false);
+        auto valueZWrite = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZWRITE, source, false, true);
+        auto valueZTest = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZTEST, source, false, true);
         auto valueBlendColor = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_BLENDCOLOR, source, false);
         auto valueBlendAlpha = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_BLENDALPHA, source, false);
-        auto valueColorMask = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_COLORMASK, source, false);
-        auto valueCull = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_CULL, source, false);
+        auto valueColorMask = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_COLORMASK, source, false, true);
+        auto valueCull = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_CULL, source, false, true);
         auto valueOffset = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_OFFSET, source, false);
         auto valueRasterMode = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_RASTERMODE, source, false);
 
         if (!valueZWrite.empty())
         {
-            valueZWrite = StringUtilities::Trim(valueZWrite);
             attributes->zwrite = valueZWrite == "True" ? 1 : 0;
         }
 
         if (!valueZTest.empty())
         {
-            attributes->ztest = GetZTestFromString(StringUtilities::Trim(valueZTest));
+            attributes->ztest = PKAssets::StringToPKComparison(valueZTest.c_str());
         }
 
         if (!valueBlendColor.empty())
@@ -163,9 +160,9 @@ namespace PKAssets::Shader
 
             if (keywords.size() == 3)
             {
-                attributes->blendOpColor = GetBlendOpFromString(keywords.at(0));
-                attributes->blendSrcFactorColor = GetBlendFactorFromString(keywords.at(1));
-                attributes->blendDstFactorColor = GetBlendFactorFromString(keywords.at(2));
+                attributes->blendOpColor = PKAssets::StringToPKBlendOp(keywords.at(0).c_str());
+                attributes->blendSrcFactorColor = PKAssets::StringToPKBlendFactor(keywords.at(1).c_str());
+                attributes->blendDstFactorColor = PKAssets::StringToPKBlendFactor(keywords.at(2).c_str());
             }
         }
 
@@ -179,9 +176,9 @@ namespace PKAssets::Shader
 
             if (keywords.size() == 3)
             {
-                attributes->blendOpAlpha = GetBlendOpFromString(keywords.at(0));
-                attributes->blendSrcFactorAlpha = GetBlendFactorFromString(keywords.at(0));
-                attributes->blendDstFactorAlpha = GetBlendFactorFromString(keywords.at(2));
+                attributes->blendOpAlpha = PKAssets::StringToPKBlendOp(keywords.at(0).c_str());
+                attributes->blendSrcFactorAlpha = PKAssets::StringToPKBlendFactor(keywords.at(0).c_str());
+                attributes->blendDstFactorAlpha = PKAssets::StringToPKBlendFactor(keywords.at(2).c_str());
             }
         }
 
@@ -210,7 +207,7 @@ namespace PKAssets::Shader
 
             if (keywords.size() > 0)
             {
-                attributes->rasterMode = GetRasterModeFromString(keywords.at(0));
+                attributes->rasterMode = PKAssets::StringToPKRasterMode(keywords.at(0).c_str());
             }
 
             if (keywords.size() > 1)
@@ -219,8 +216,8 @@ namespace PKAssets::Shader
             }
         }
 
-        attributes->colorMask = GetColorMaskFromString(valueColorMask);
-        attributes->cull = GetCullModeFromString(StringUtilities::Trim(valueCull));
+        attributes->colorMask = PKAssets::StringToPKColorMask(valueColorMask.c_str());
+        attributes->cull = PKAssets::StringToPKCullMode(valueCull.c_str());
     }
 
     static int ExtractEntryPoints(std::string& source, std::vector<EntryPointInfo>& entryPoints)
@@ -245,7 +242,7 @@ namespace PKAssets::Shader
                 return -1;
             }
 
-            auto stage = GetShaderStageFromString(directives[0]);
+            auto stage = PKAssets::StringToPKShaderStage(directives[0].c_str());
 
             if (stage == PKShaderStage::MaxCount)
             {

@@ -210,6 +210,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClInclude Include="Source\PKTextureWriter.h" />
     <ClInclude Include="ThirdParty\KTX\khr_df.h" />
     <ClInclude Include="ThirdParty\KTX\ktx.h" />
+    <ClInclude Include="ThirdParty\KTX\vulkan_format.h" />
     <ClInclude Include="ThirdParty\meshoptimizer\meshoptimizer.h" />
     <ClInclude Include="ThirdParty\METIS\metis.h" />
     <ClInclude Include="ThirdParty\mikktspace\mikktspace.h" />

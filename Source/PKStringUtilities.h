@@ -9,8 +9,8 @@ namespace PKAssets::StringUtilities
     std::string ReadFileName(const std::string& filepath);
     std::string ReadDirectory(const std::string& filepath);
     std::string ReadFileRecursiveInclude(const std::string& filepath, std::vector<std::string>& outIncludes);
-    std::string ExtractToken(const char* token, std::string& source, bool includeToken);
-    size_t ExtractToken(size_t offset, const char* token, std::string& source, std::string& output, bool includeToken);
+    std::string ExtractToken(const char* token, std::string& source, bool includeToken, bool trim = false);
+    size_t ExtractToken(size_t offset, const char* token, std::string& source, std::string& output, bool includeToken, bool trim = false);
     void ExtractTokens(const char* token, std::string& source, std::vector<std::string>& tokens, bool includeToken);
     void FindTokens(const char* token, const std::string& source, std::vector<std::string>& tokens, bool includeToken);
     bool FindScope(const std::string& source, size_t offset, char scopeOpen, char scopeClose, size_t* outStart = nullptr, size_t* outEnd = nullptr);

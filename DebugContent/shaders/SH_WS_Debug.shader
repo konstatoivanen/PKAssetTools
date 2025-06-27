@@ -1,7 +1,7 @@
 #version 450
 
 #pragma pk_cull Back
-#pragma pk_ztest LEqual
+#pragma pk_ztest LessEqual
 #pragma pk_zwrite True
 #pragma pk_with_atomic_counter
 
