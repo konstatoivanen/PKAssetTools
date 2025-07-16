@@ -1,4 +1,3 @@
-#pragma once
 #include <msdf-atlas-gen/msdf-atlas-gen.h>
 #include "PKStringUtilities.h"
 #include "PKAssetWriter.h"
