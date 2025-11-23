@@ -12,6 +12,7 @@ namespace PKAssets::Mesh
                                                 uint32_t offsetTexcoord,
                                                 uint32_t offsetNormal,
                                                 uint32_t offsetTangent,
+                                                uint32_t offsetColor,
                                                 uint32_t vertexStride,
                                                 uint32_t vertexCount,
                                                 uint32_t indexCount);

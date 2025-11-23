@@ -315,6 +315,7 @@ namespace PKAssets::Mesh
                                                 uint32_t offsetTexcoord,
                                                 uint32_t offsetNormal,
                                                 uint32_t offsetTangent,
+                                                uint32_t offsetColor,
                                                 uint32_t vertexStride,
                                                 uint32_t vertexCount,
                                                 uint32_t indexCount)
@@ -331,10 +332,12 @@ namespace PKAssets::Mesh
         auto hasTexcoords = offsetTexcoord != 0xFFFFFFFFu;
         auto hasNormals = offsetNormal != 0xFFFFFFFFu;
         auto hasTangents = offsetTangent != 0xFFFFFFFFu;
+        auto hasColors = offsetColor != 0xFFFFFFFFu;
         auto sm_stridef32 = vertexStride / sizeof(float);
         auto sm_texcoordsf32 = hasTexcoords ? vertices + (offsetTexcoord / sizeof(float)) : nullptr;
         auto sm_normalsf32 = hasNormals ? vertices + (offsetNormal / sizeof(float)) : nullptr;
         auto sm_tangentsf32 = hasTangents ? vertices + (offsetTangent / sizeof(float)) : nullptr;
+        auto sm_colorsf32 = hasColors ? vertices + (offsetColor / sizeof(float)) : nullptr;
 
         MeshletContext ctx{};
         ctx.meshlets = meshlets.data();
@@ -470,6 +473,7 @@ namespace PKAssets::Mesh
                     auto pTexcoord = sm_texcoordsf32 + vertex_index * sm_stridef32;
                     auto pNormal = sm_normalsf32 + vertex_index * sm_stridef32;
                     auto pTangent = sm_tangentsf32 + vertex_index * sm_stridef32;
+                    auto pColors = sm_colorsf32 + vertex_index * sm_stridef32;
 
                     auto vertex = PackPKMeshletVertex
                     (
@@ -477,6 +481,7 @@ namespace PKAssets::Mesh
                         hasTexcoords ? pTexcoord : nullptr,
                         hasNormals ? pNormal : nullptr,
                         hasTangents ? pTangent : nullptr,
+                        hasColors ? pColors : nullptr,
                         sm.bbmin,
                         sm.bbmax
                     );

@@ -696,6 +696,7 @@ namespace PKAssets::Mesh
             offsetUvsMeshlet,
             offsetNormalsMeshlet,
             offsetTangentsMeshlet,
+            0xFFFFFFFFu,
             strideMeshlet,
             vcountMeshlet,
             (uint32_t)indicesMeshlet.size()
