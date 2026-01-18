@@ -6,190 +6,12 @@
 #if PK_DEBUG
 #include <PKAssetLoader.h>
 #endif
+#include <PKAssetEncoding.h>
 #include "PKAssetWriter.h"
 
 namespace PKAssets
 {
-    constexpr static const size_t MIN_COMPRESSABLE_SIZE = 5000;
-
-    struct PKTempNode
-    {
-        std::shared_ptr<PKTempNode> left = nullptr;
-        std::shared_ptr<PKTempNode> right = nullptr;
-        char value = 0;
-        size_t freq = 0ull;
-
-        bool IsLeaf() const { return left == nullptr && right == nullptr; }
-
-        constexpr bool operator < (PKTempNode const& other) const { return other.freq < freq; }
-
-        PKTempNode(char v, size_t w)
-        {
-            value = v;
-            left = nullptr;
-            right = nullptr;
-            freq = w;
-        }
-
-        PKTempNode(const PKTempNode& tree)
-        {
-            value = tree.value;
-            left = tree.left;
-            right = tree.right;
-            freq = tree.freq;
-        }
-
-        PKTempNode(const PKTempNode& h1, const PKTempNode& h2)
-        {
-            right = std::make_shared<PKTempNode>(h1);
-            left = std::make_shared<PKTempNode>(h2);
-            freq = left->freq + right->freq;
-            value = 0;
-        }
-    };
-
-    struct PKBinaryKey
-    {
-        size_t count;
-        size_t sequence;
-        size_t length;
-    };
-
-    static WritePtr<PKEncNode> WriteNodeTree(PKAssetBuffer& buffer, size_t writeHead, std::map<char, PKBinaryKey>& vtable, size_t* sequence, size_t* depth, const PKTempNode* node)
-    {
-        auto pNode = buffer.Allocate<PKEncNode>();
-        pNode->isLeaf = node->IsLeaf();
-        pNode->value = node->value;
-
-        if (node->IsLeaf())
-        {
-            vtable[node->value].sequence = *sequence;
-            vtable[node->value].length = *depth;
-            return pNode;
-        }
-
-        // Sort writes so that leaf nodes are closer to start of the array.
-        // Small decompression cache optimization.
-        auto isLeafLeft = node->left != nullptr && node->left->IsLeaf();
-        auto isLeafRight = node->right != nullptr && node->right->IsLeaf();
-        auto sortLeftRight = isLeafLeft || !isLeafRight;
-
-        if (sortLeftRight)
-        {
-            if (node->left != nullptr)
-            {
-                (*sequence) &= ~(1ull << (*depth));
-                (*depth)++;
-                auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->left.get());
-                pNode->left = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
-                (*depth)--;
-            }
-
-            if (node->right != nullptr)
-            {
-                (*sequence) |= 1ull << (*depth);
-                (*depth)++;
-                auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->right.get());
-                pNode->right = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
-                (*depth)--;
-                (*sequence) &= ~(1ull << (*depth));
-            }
-        }
-        else
-        {
-            if (node->right != nullptr)
-            {
-                (*sequence) |= 1ull << (*depth);
-                (*depth)++;
-                auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->right.get());
-                pNode->right = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
-                (*depth)--;
-                (*sequence) &= ~(1ull << (*depth));
-            }
-
-            if (node->left != nullptr)
-            {
-                (*sequence) &= ~(1ull << (*depth));
-                (*depth)++;
-                auto newNode = WriteNodeTree(buffer, writeHead, vtable, sequence, depth, node->left.get());
-                pNode->left = (uint32_t)((newNode.offset - writeHead) / sizeof(PKEncNode));
-                (*depth)--;
-            }
-        }
-
-        return pNode;
-    }
-
-    PKAssetBuffer CompressBuffer(PKAssetBuffer src)
-    {
-        // Write some padding to the end so that decompression wont reinterpret wrong bytes
-        // @TODO there is something wrong going on here as this should be unecessary. Investigate later.
-        uint32_t padding = 0u;
-        src.Write(&padding, 1);
-
-        auto* charData = src.data() + sizeof(PKAssetHeader);
-        auto srcSize = src.size() - sizeof(PKAssetHeader);
-
-        std::map<char, PKBinaryKey> vtable;
-        std::priority_queue<PKTempNode> minHeap;
-
-        for (auto i = 0u; i < srcSize; ++i)
-        {
-            vtable[charData[i]].count++;
-        }
-
-        for (auto& kv : vtable)
-        {
-            minHeap.emplace(kv.first, kv.second.count);
-        }
-
-        while (minHeap.size() > 1)
-        {
-            auto n0 = minHeap.top();
-            minHeap.pop();
-            auto n1 = minHeap.top();
-            minHeap.pop();
-            minHeap.emplace(n0, n1);
-        }
-
-        PKAssetBuffer buffer;
-        buffer.header->type = src.header->type;
-        buffer.header->isCompressed = true;
-        buffer.header->uncompressedSize = (uint32_t)src.size();
-        WriteName(buffer.header->name, src.header->name);
-
-        auto sequence = 0ull;
-        auto depth = 0ull;
-        auto binLength = 0ull;
-
-        auto rootNode = minHeap.top();
-        WriteNodeTree(buffer, (uint32_t)buffer.size(), vtable, &sequence, &depth, &rootNode);
-        buffer.header->compressedOffset = (uint32_t)buffer.size();
-
-        for (auto& kv : vtable)
-        {
-            binLength += kv.second.count * kv.second.length;
-        }
-
-        buffer.header->compressedBitCount = binLength;
-        auto pData = buffer.Allocate<char>((binLength + 7) / 8);
-        auto pHead = reinterpret_cast<char*>(pData.get());
-
-        for (auto i = 0ull, b = 0ull; i < srcSize; ++i)
-        {
-            auto& k = vtable[charData[i]];
-
-            for (auto j = 0u; j < k.length; ++j, ++b)
-            {
-                if (k.sequence & (1ull << j))
-                {
-                    pHead[b / 8] |= 1 << (b % 8);
-                }
-            }
-        }
-
-        return buffer;
-    }
+    constexpr static const float MIN_COMPRESSION_RATIO = 0.75f;
 
     void WriteName(char* dst, const char* src)
     {
@@ -206,7 +28,7 @@ namespace PKAssets
 
     int WriteAsset(const char* filepath, PKAssetBuffer& buffer, bool forceNoCompression)
     {
-        printf("Writing asset: %s \n", filepath);
+        printf("Writing asset: %s ", filepath);
 
         FILE* file = nullptr;
 
@@ -221,7 +43,7 @@ namespace PKAssets
             }
             catch (std::exception& e)
             {
-                printf("%s", e.what());
+                printf(" Failed: \n %s", e.what());
             }
         }
 
@@ -230,7 +52,7 @@ namespace PKAssets
 
         if (error != 0)
         {
-            printf("Failed to open/create file! \n");
+            printf(" Failed: \n Failed to open/create file! \n");
             return -1;
         }
 #else
@@ -239,25 +61,52 @@ namespace PKAssets
 
         if (file == nullptr)
         {
-            printf("Failed to open/create file! \n");
+            printf(" Failed: \n Failed to open/create file! \n");
             return -1;
         }
 
-        buffer.header->uncompressedSize = (uint32_t)(buffer.size() - sizeof(PKAssetHeader));
-
-        if (buffer.size() > MIN_COMPRESSABLE_SIZE && !forceNoCompression)
+        // Add Padding to 64 bit boundary for more optimal reads.
+        while ((buffer.size() % 8ull) != 0ull)
         {
-            auto compact = CompressBuffer(buffer);
-            fwrite(compact.data(), sizeof(char), compact.size(), file);
+            uint8_t padding = 0u;
+            buffer.Write<uint8_t>(&padding, 1u);
         }
-        else
+
+        buffer.header->uncompressedSize = buffer.size();
+
+        auto useCompression = !forceNoCompression;
+        auto compressionRatio = 1.0;
+
+        if (useCompression)
+        {
+            auto* srcData = buffer.data() + sizeof(PKAssetHeader);
+            auto srcSize = buffer.header->uncompressedSize - sizeof(PKAssetHeader);
+            
+            PKEncodeTable table{};
+            EncodeBuffer(srcData, srcSize, &table, nullptr);
+
+            compressionRatio = (double)(table.size + sizeof(PKAssetHeader)) / (double)buffer.size();
+            useCompression &= compressionRatio <= MIN_COMPRESSION_RATIO;
+
+            if (useCompression)
+            {
+                PKAssetBuffer compact;
+                compact.header[0] = buffer.header[0];
+                compact.header->isCompressed = true;
+                auto pData = compact.Allocate<uint8_t>(table.size);
+                EncodeBuffer(srcData, srcSize, &table, pData.get());
+                fwrite(compact.data(), sizeof(char), compact.size(), file);
+            }
+        }
+        
+        if (!useCompression)
         {
             fwrite(buffer.data(), sizeof(char), buffer.size(), file);
         }
 
         if (fclose(file) != 0)
         {
-            printf("Failed to close file! \n");
+            printf(" Failed: \n Failed to close file! \n");
             return -1;
         }
 
@@ -271,12 +120,21 @@ namespace PKAssets
         {
             if (charData[i] != buffer.data()[i])
             {
-                printf("Read Write missmatch at byte index: %lli \n", i);
+                printf(" Failed: \n Read Write missmatch at byte index: %lli \n", i);
             }
         }
 
         PKAssets::CloseAsset(&asset);
 #endif
+
+        if (useCompression)
+        {
+            printf(" Success: compression ratio %4.2f \n", (float)compressionRatio * 100.0f);
+        }
+        else
+        {
+            printf(" Success \n");
+        }
 
         return 0;
     }
