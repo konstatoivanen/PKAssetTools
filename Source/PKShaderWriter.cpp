@@ -853,7 +853,7 @@ namespace PKAssets::Shader
     }
 
 
-    int WriteShader(const char* pathSrc, const char* pathDst)
+    int WriteShader(const char* pathSrc, const char* pathDst, const size_t pathStemOffset)
     {
         std::string source;
         
@@ -953,7 +953,7 @@ namespace PKAssets::Shader
                 }
 
                 auto* moduleRelease = &reflectionData.modules[(uint32_t)kv.first];
-                // Moved to heap due to reduce stack size.
+                // Moved to heap to reduce stack size.
                 auto* moduleDebug = new SpvReflectShaderModule();
 
                 if (GetReflectionModule(moduleRelease, spirvRelease) != 0)
@@ -1055,6 +1055,6 @@ namespace PKAssets::Shader
             ReleaseReflectionData(reflectionData);
         }
 
-        return WriteAsset(pathDst, buffer, false);
+        return WriteAsset(pathDst, pathStemOffset, buffer, false);
     }
 }

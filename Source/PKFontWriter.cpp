@@ -7,7 +7,7 @@ namespace PKAssets::Font
 {
     using namespace msdf_atlas;
 
-    int WriteFont(const char* pathSrc, const char* pathDst)
+    int WriteFont(const char* pathSrc, const char* pathDst, const size_t pathStemOffset)
     {
         if (!PKVersionUtilities::IsFileOutOfDate(pathSrc, pathDst))
         {
@@ -108,6 +108,6 @@ namespace PKAssets::Font
         msdfgen::destroyFont(font);
         msdfgen::deinitializeFreetype(ft);
 
-        return WriteAsset(pathDst, buffer, false);
+        return WriteAsset(pathDst, pathStemOffset, buffer, false);
     }
 }

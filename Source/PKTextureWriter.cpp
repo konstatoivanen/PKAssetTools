@@ -86,7 +86,7 @@ namespace PKAssets::Texture
         }
     }
 
-    int WriteTexture(const char* pathSrc, const char* pathDst)
+    int WriteTexture(const char* pathSrc, const char* pathDst, const size_t pathStemOffset)
     {
         if (!PKVersionUtilities::IsFileOutOfDate(pathSrc, pathDst))
         {
@@ -171,6 +171,6 @@ namespace PKAssets::Texture
 
         ktxTexture_Destroy(ktxTexture(ktxTex2));
 
-        return WriteAsset(pathDst, buffer, true);
+        return WriteAsset(pathDst, pathStemOffset, buffer, true);
     }
 }

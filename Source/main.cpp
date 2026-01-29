@@ -31,6 +31,15 @@ static std::string ProcessPath(const std::string& path)
     return outpath;
 }
 
+static void WriteFileStatus(const int32_t status, const char* path, const size_t stemOffset)
+{
+    switch (status)
+    {
+        case -1: printf("Failed to asset: %s \n", path + stemOffset); break;
+        case 1: printf("Asset was up to date: %s \n", path + stemOffset); break;
+    }
+}
+
 void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::path& subdir, const std::string& dstdir)
 {
     for (const auto& entry : std::filesystem::directory_iterator(subdir))
@@ -45,19 +54,14 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
 
         auto extension = entryPath.extension();
         auto dstpath = std::filesystem::path(dstdir + std::filesystem::relative(entryPath, basedir).string());
+        auto stemOffset = dstdir.length();
 
         if (extension.compare(Shader::PK_ASSET_SHADER_SRC_EXTENSION) == 0)
         {
             auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_SHADER).string();
             auto srcpathstr = entryPath.string();
-            auto writeStatus = Shader::WriteShader(srcpathstr.c_str(), dstpathstr.c_str());
-
-            switch (writeStatus)
-            {
-                case -1: printf("Failed to asset: %s \n", dstpathstr.c_str()); break;
-                case 1: printf("Asset was up to date: %s \n", dstpathstr.c_str()); break;
-            }
-
+            auto writeStatus = Shader::WriteShader(srcpathstr.c_str(), dstpathstr.c_str(), stemOffset);
+            WriteFileStatus(writeStatus, dstpathstr.c_str(), stemOffset);
             continue;
         }
 
@@ -65,14 +69,8 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
         {
             auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_MESH).string();
             auto srcpathstr = entryPath.string();
-            auto writeStatus = Mesh::WriteMesh(srcpathstr.c_str(), dstpathstr.c_str());
-
-            switch (writeStatus)
-            {
-                case -1: printf("Failed to asset: %s \n", dstpathstr.c_str()); break;
-                case 1: printf("Asset was up to date: %s \n", dstpathstr.c_str()); break;
-            }
-
+            auto writeStatus = Mesh::WriteMesh(srcpathstr.c_str(), dstpathstr.c_str(), stemOffset);
+            WriteFileStatus(writeStatus, dstpathstr.c_str(), stemOffset);
             continue;
         }
 
@@ -80,14 +78,8 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
         {
             auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_FONT).string();
             auto srcpathstr = entryPath.string();
-            auto writeStatus = Font::WriteFont(srcpathstr.c_str(), dstpathstr.c_str());
-
-            switch (writeStatus)
-            {
-                case -1: printf("Failed to asset: %s \n", dstpathstr.c_str()); break;
-                case 1: printf("Asset was up to date: %s \n", dstpathstr.c_str()); break;
-            }
-
+            auto writeStatus = Font::WriteFont(srcpathstr.c_str(), dstpathstr.c_str(), stemOffset);
+            WriteFileStatus(writeStatus, dstpathstr.c_str(), stemOffset);
             continue;
         }
 
@@ -95,14 +87,8 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
         {
             auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_TEXTURE).string();
             auto srcpathstr = entryPath.string();
-            auto writeStatus = Texture::WriteTexture(srcpathstr.c_str(), dstpathstr.c_str());
-
-            switch (writeStatus)
-            {
-                case -1: printf("Failed to asset: %s \n", dstpathstr.c_str()); break;
-                case 1: printf("Asset was up to date: %s \n", dstpathstr.c_str()); break;
-            }
-
+            auto writeStatus = Texture::WriteTexture(srcpathstr.c_str(), dstpathstr.c_str(), stemOffset);
+            WriteFileStatus(writeStatus, dstpathstr.c_str(), stemOffset);
             continue;
         }
     }

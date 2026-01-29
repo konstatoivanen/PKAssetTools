@@ -26,9 +26,9 @@ namespace PKAssets
         memset(dst + c, '\0', PK_ASSET_NAME_MAX_LENGTH - c);
     }
 
-    int WriteAsset(const char* filepath, PKAssetBuffer& buffer, bool forceNoCompression)
+    int WriteAsset(const char* filepath, const size_t fileStemOffset, PKAssetBuffer& buffer, bool forceNoCompression)
     {
-        printf("Writing asset: %s ", filepath);
+        printf("Writing asset: %s ", filepath + fileStemOffset);
 
         FILE* file = nullptr;
 

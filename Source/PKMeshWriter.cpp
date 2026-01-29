@@ -374,7 +374,7 @@ namespace PKAssets::Mesh
         return (int32_t)newStride - (int32_t)stride;
     }
 
-    int WriteMesh(const char* pathSrc, const char* pathDst)
+    int WriteMesh(const char* pathSrc, const char* pathDst, const size_t pathStemOffset)
     {
         if (!PKVersionUtilities::IsFileOutOfDate(pathSrc, pathDst))
         {
@@ -704,6 +704,6 @@ namespace PKAssets::Mesh
 
         mesh->meshletMesh.Set(buffer.data(), meshletMesh.get());
 
-        return WriteAsset(pathDst, buffer, false);
+        return WriteAsset(pathDst, pathStemOffset, buffer, false);
     }
 }
