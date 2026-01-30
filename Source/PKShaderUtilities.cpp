@@ -191,6 +191,42 @@ namespace PKAssets::Shader
         }
     }
 
+    void ConvertHLSLNumThreads(std::string& source)
+    {
+        size_t currentpos = 0ull;
+
+        while (true)
+        {
+            size_t open, close;
+
+            if (!StringUtilities::FindScope(source, currentpos, "[numthreads(", ")]", &open, &close))
+            {
+                break;
+            }
+
+            std::string layout = "layout(";
+            auto values = StringUtilities::Split(source.substr(open + 12ull, close - (open + 12ull)), ",");
+            const char* dimensionNames[3] = { "local_size_x=", "local_size_y=", "local_size_z=" };
+
+            for (auto i = 0u; i < values.size(); ++i)
+            {
+                layout.append(dimensionNames[i]);
+                layout.append(values[i]);
+
+                if (i != values.size() - 1ull)
+                {
+                    layout.append(",");
+                }
+            }
+
+            layout.append(") in;");
+
+            source.erase(open, (close + 2u) - open);
+            source.insert(open, layout);
+            currentpos = open + layout.size();
+        }
+    }
+
     void ConvertHLSLTypesToGLSL(std::string& source)
     {
         const std::string surroundMask = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";

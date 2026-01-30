@@ -68,5 +68,6 @@ namespace PKAssets::Shader
     PKDescriptorType GetResourceType(SpvReflectDescriptorType type);
     shaderc_shader_kind ConvertToShadercKind(PKShaderStage stage);
     void FindLineRange(const std::string& name, const std::string& message, int* outMin, int* outMax);
+    void ConvertHLSLNumThreads(std::string& source);
     void ConvertHLSLTypesToGLSL(std::string& source);
 }
