@@ -516,7 +516,7 @@ namespace PKAssets::Shader
 
         options.SetAutoBindUniforms(true);
         options.SetAutoMapLocations(true);
-        options.SetTargetEnvironment(shaderc_target_env_default, shaderc_env_version_vulkan_1_3);
+        options.SetTargetEnvironment(shaderc_target_env_default, shaderc_env_version_vulkan_1_4);
         options.SetTargetSpirv(shaderc_spirv_version_1_6);
 
         // Will crash to buffer owerflow on variable name syntax errors :/

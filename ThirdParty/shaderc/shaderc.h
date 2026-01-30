@@ -463,6 +463,9 @@ SHADERC_EXPORT void shaderc_compile_options_set_binding_base_for_stage(
 SHADERC_EXPORT void shaderc_compile_options_set_preserve_bindings(
     shaderc_compile_options_t options, bool preserve_bindings);
 
+SHADERC_EXPORT void shaderc_compile_options_set_max_id_bound(
+    shaderc_compile_options_t options, uint32_t max_id_bound);
+
 // Sets whether the compiler should automatically assign locations to
 // uniform variables that don't have explicit locations in the shader source.
 SHADERC_EXPORT void shaderc_compile_options_set_auto_map_locations(
@@ -487,6 +490,12 @@ SHADERC_EXPORT void shaderc_compile_options_set_hlsl_functionality1(
 
 // Sets whether 16-bit types are supported in HLSL or not.
 SHADERC_EXPORT void shaderc_compile_options_set_hlsl_16bit_types(
+    shaderc_compile_options_t options, bool enable);
+
+// Enables or disables relaxed Vulkan rules.
+//
+// This allows most OpenGL shaders to compile under Vulkan semantics.
+SHADERC_EXPORT void shaderc_compile_options_set_vulkan_rules_relaxed(
     shaderc_compile_options_t options, bool enable);
 
 // Sets whether the compiler should invert position.Y output in vertex shader.
