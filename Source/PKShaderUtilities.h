@@ -41,11 +41,6 @@ namespace PKAssets::Shader
         "#define SHADER_STAGE_RAY_INTERSECTION\n"
     };
 
-    constexpr const static char* AtomicCounter_GLSL =
-        "layout(std430, set = 3) buffer pk_BuiltInAtomicCounter { uint pk_BuiltInAtomicCounter_Data; };\n"
-        "uint PK_AtomicCounterAdd(uint increment) { return atomicAdd(pk_BuiltInAtomicCounter_Data, increment); }\n"
-        "uint PK_AtomicCounterNext() { return atomicAdd(pk_BuiltInAtomicCounter_Data, 1u); }\n";
-
     constexpr const static char* PK_GL_EXTENSIONS_COMMON =
         "#extension GL_KHR_shader_subgroup_basic : require\n"
         "#extension GL_KHR_shader_subgroup_ballot : require\n"

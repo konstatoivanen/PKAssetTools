@@ -165,16 +165,6 @@ namespace PKAssets::Shader
         return 0;
     }
 
-    static void ProcessAtomicCounter(std::string& source)
-    {
-        auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ATOMICCOUNTER, source, true);
-
-        if (!value.empty())
-        {
-            source.insert(0, AtomicCounter_GLSL);
-        }
-    }
-
     static void RemoveInactiveEntryPoints(std::string& source, const std::vector<EntryPointInfo>& entries, uint32_t ignoreIndex)
     {
         for (auto i = 0u; i < entries.size(); ++i)
@@ -650,7 +640,6 @@ namespace PKAssets::Shader
         ExtractMulticompiles(source, mckeywords, keywords, &shader->variantcount, &directiveCount);
         ExtractStateAttributes(source, &shader->attributes);
         Instancing::InsertMaterialAssembly(source, materialProperties, &enableInstancing, &nofragInstancing);
-        ProcessAtomicCounter(source);
         ConvertPKNumThreads(source);
         ConvertHLSLTypesToGLSL(source);
 
