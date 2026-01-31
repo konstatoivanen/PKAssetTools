@@ -3,7 +3,6 @@
 #pragma pk_cull Back
 #pragma pk_ztest LessEqual
 #pragma pk_zwrite True
-#pragma pk_with_atomic_counter
 
 #pragma pk_material_property float4 _Color
 #pragma pk_material_property float _Roughness
@@ -36,27 +35,27 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
     float4x4 viewproj;
 } named;
 
-[[pk_restrict MainVs]] in float3 in_POSITION;
-[[pk_restrict MainVs]] in float2 in_TEXCOORD0;
-[[pk_restrict MainVs]] in float3 in_COLOR;
-[[pk_restrict MainVs]] out float3 vs_COLOR;
-[[pk_restrict MainVs]] out float2 vs_TEXCOORD0;
+[pk_local(MainVs)] in float3 in_POSITION;
+[pk_local(MainVs)] in float2 in_TEXCOORD0;
+[pk_local(MainVs)] in float3 in_COLOR;
+[pk_local(MainVs)] out float3 vs_COLOR;
+[pk_local(MainVs)] out float2 vs_TEXCOORD0;
 
-[[pk_restrict MainFs]] layout(rg16f, set = PK_SET_SHADER) uniform image2D pk_DebugImage;
-[[pk_restrict MainFs]] PK_DECLARE_BUFFER(float4, _WriteBuffer, PK_SET_DRAW);
-[[pk_restrict MainFs]] layout(set = 3) uniform sampler2D tex1;
-[[pk_restrict MainFs]] layout(set = 3) uniform sampler smp;
-[[pk_restrict STAGE_FRAGMENT]] in float3 vs_COLOR;
-[[pk_restrict STAGE_FRAGMENT]] in float2 vs_TEXCOORD0;
-[[pk_restrict STAGE_FRAGMENT]] out float4 outColor;
+[pk_local(MainVs, MainFs)] layout(rg16f, set = PK_SET_SHADER) uniform image2D pk_DebugImage;
+[pk_local(MainFs)] PK_DECLARE_BUFFER(float4, _WriteBuffer, PK_SET_DRAW);
+[pk_local(MainFs)] layout(set = 3) uniform sampler2D tex1;
+[pk_local(MainFs)] layout(set = 3) uniform sampler smp;
+[pk_local(STAGE_FRAGMENT)] in float3 vs_COLOR;
+[pk_local(STAGE_FRAGMENT)] in float2 vs_TEXCOORD0;
+[pk_local(STAGE_FRAGMENT)] out float4 outColor;
 
-[[pk_restrict MainVs]]
+[pk_local(MainVs)]
 void TestFunc()
 {
     vs_COLOR = in_COLOR;
 }
 
-[[pk_restrict MainVs]]
+[pk_local(MainVs)]
 struct TestStruct
 {
     float3 testfield;

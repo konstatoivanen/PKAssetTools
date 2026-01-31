@@ -68,6 +68,13 @@ namespace PKAssets::Shader
     PKDescriptorType GetResourceType(SpvReflectDescriptorType type);
     shaderc_shader_kind ConvertToShadercKind(PKShaderStage stage);
     void FindLineRange(const std::string& name, const std::string& message, int* outMin, int* outMax);
-    void ConvertHLSLNumThreads(std::string& source);
+    void ExtractLogVerbose(std::string& source, bool* outValue);
+    void ExtractGenerateDebugInfo(std::string& source, bool* outValue);
+    void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes);
+    void InsertRequiredExtensions(std::string& source, PKShaderStage stage);
+    int RemoveEntryPointLocals(std::string& source, const std::string& entryPointName, PKShaderStage stage);
+    void RemoveInactiveGroupSizeLayouts(std::string& source, PKShaderStage stage);
+    void ProcessShaderVersion(std::string& source);
+    void ConvertPKNumThreads(std::string& source);
     void ConvertHLSLTypesToGLSL(std::string& source);
 }

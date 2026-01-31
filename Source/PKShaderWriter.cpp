@@ -117,109 +117,6 @@ namespace PKAssets::Shader
         *outVariantCount = (uint32_t)vcount;
     }
 
-    static void ExtractLogVerbose(std::string& source, bool* outValue)
-    {
-        auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_LOGVERBOSE, source, true);
-        *outValue = !value.empty();
-    }
-
-    static void ExtractGenerateDebugInfo(std::string& source, bool* outValue)
-    {
-        auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_GENERATEDEBUGINFO, source, true);
-        *outValue = !value.empty();
-    }
-
-    static void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes)
-    {
-        auto valueZWrite = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZWRITE, source, false, true);
-        auto valueZTest = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZTEST, source, false, true);
-        auto valueBlendColor = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_BLENDCOLOR, source, false);
-        auto valueBlendAlpha = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_BLENDALPHA, source, false);
-        auto valueColorMask = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_COLORMASK, source, false, true);
-        auto valueCull = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_CULL, source, false, true);
-        auto valueOffset = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_OFFSET, source, false);
-        auto valueRasterMode = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_RASTERMODE, source, false);
-
-        if (!valueZWrite.empty())
-        {
-            attributes->zwrite = valueZWrite == "True" ? 1 : 0;
-        }
-
-        if (!valueZTest.empty())
-        {
-            attributes->ztest = PKAssets::StringToPKComparison(valueZTest.c_str());
-        }
-
-        if (!valueBlendColor.empty())
-        {
-            auto keywords = StringUtilities::Split(valueBlendColor, " \n\r");
-
-            attributes->blendSrcFactorColor = PKBlendFactor::None;
-            attributes->blendDstFactorColor = PKBlendFactor::None;
-            attributes->blendOpColor = PKBlendOp::None;
-
-            if (keywords.size() == 3)
-            {
-                attributes->blendOpColor = PKAssets::StringToPKBlendOp(keywords.at(0).c_str());
-                attributes->blendSrcFactorColor = PKAssets::StringToPKBlendFactor(keywords.at(1).c_str());
-                attributes->blendDstFactorColor = PKAssets::StringToPKBlendFactor(keywords.at(2).c_str());
-            }
-        }
-
-        if (!valueBlendAlpha.empty())
-        {
-            auto keywords = StringUtilities::Split(valueBlendAlpha, " \n\r");
-
-            attributes->blendSrcFactorAlpha = PKBlendFactor::None;
-            attributes->blendDstFactorAlpha = PKBlendFactor::None;
-            attributes->blendOpAlpha = PKBlendOp::None;
-
-            if (keywords.size() == 3)
-            {
-                attributes->blendOpAlpha = PKAssets::StringToPKBlendOp(keywords.at(0).c_str());
-                attributes->blendSrcFactorAlpha = PKAssets::StringToPKBlendFactor(keywords.at(0).c_str());
-                attributes->blendDstFactorAlpha = PKAssets::StringToPKBlendFactor(keywords.at(2).c_str());
-            }
-        }
-
-        if (!valueOffset.empty())
-        {
-            auto keywords = StringUtilities::Split(valueOffset, " \n\r");
-
-            attributes->zoffsets[0] = 0.0f;
-            attributes->zoffsets[1] = 0.0f;
-            attributes->zoffsets[2] = 0.0f;
-
-            if (keywords.size() == 3)
-            {
-                attributes->zoffsets[0] = std::stof(keywords.at(0));
-                attributes->zoffsets[1] = std::stof(keywords.at(1));
-                attributes->zoffsets[2] = std::stof(keywords.at(2));
-            }
-        }
-
-        if (!valueRasterMode.empty())
-        {
-            auto keywords = StringUtilities::Split(valueRasterMode, " \n\r");
-
-            attributes->rasterMode = PKRasterMode::Default;
-            attributes->overEstimation = 0x0;
-
-            if (keywords.size() > 0)
-            {
-                attributes->rasterMode = PKAssets::StringToPKRasterMode(keywords.at(0).c_str());
-            }
-
-            if (keywords.size() > 1)
-            {
-                attributes->overEstimation = (uint8_t)std::stoi(keywords.at(1));
-            }
-        }
-
-        attributes->colorMask = PKAssets::StringToPKColorMask(valueColorMask.c_str());
-        attributes->cull = PKAssets::StringToPKCullMode(valueCull.c_str());
-    }
-
     static int ExtractEntryPoints(std::string& source, std::vector<EntryPointInfo>& entryPoints)
     {
         std::string output;
@@ -278,90 +175,6 @@ namespace PKAssets::Shader
         }
     }
 
-    static void InsertRequiredExtensions(std::string& source, PKShaderStage stage)
-    {
-        source.insert(0, PK_GL_EXTENSIONS_COMMON);
-
-        if (stage == PKShaderStage::MeshTask || stage == PKShaderStage::MeshAssembly)
-        {
-            source.insert(0, PK_GL_EXTENSIONS_MESHSHADING);
-        }
-
-        if (stage == PKShaderStage::RayGeneration ||
-            stage == PKShaderStage::RayMiss ||
-            stage == PKShaderStage::RayClosestHit ||
-            stage == PKShaderStage::RayAnyHit ||
-            stage == PKShaderStage::RayIntersection)
-        {
-            source.insert(0, PK_GL_EXTENSIONS_RAYTRACING);
-        }
-    }
-
-    static int RemoveRestrictedVariables(std::string& source, const std::string& entryPointName, PKShaderStage stage)
-    {
-        size_t currentpos = 0ull;
-
-        while (true)
-        {
-            size_t posopen, posclose;
-            
-            if (!StringUtilities::FindScope(source, currentpos, "[[", "]]", &posopen, &posclose))
-            {
-                return 0;
-            }
-
-            auto content = source.substr(posopen + 2u, posclose - (posopen + 2u));
-            auto arguments = StringUtilities::Split(content, " ");
-            
-            if (arguments.size() < 2 || arguments[0].compare(PK_SHADER_ATTRIB_RESTRICT) != 0)
-            {
-                currentpos = posclose;
-                continue;
-            }
-
-            currentpos = posopen;
-            
-            auto containtsEntry = false;
-
-            for (auto& arg : arguments)
-            {
-                if (arg.compare(entryPointName) == 0 || arg.compare(PK_SHADER_STAGE_NAMES[(uint32_t)stage]) == 0)
-                {
-                    containtsEntry = true;
-                    break;
-                }
-            }
-
-            if (containtsEntry)
-            {
-                source.erase(posopen, (posclose + 2u) - posopen);
-                continue;
-            }
-
-            posclose = source.find(';', posclose);
-            size_t controlopen = 0ull;
-            size_t controlclose = 0ull;
-
-            if (StringUtilities::FindScope(source, currentpos, '{', '}', &controlopen, &controlclose) && controlopen < posclose)
-            {
-                posclose = controlclose;
-
-                if (source[posclose + 1u] == ';')
-                {
-                    posclose++;
-                }
-            }
- 
-            if (posclose == std::string::npos)
-            {
-                printf("Couldnt find a valid control flow scope after [[pk_restrict]] attribute.\n");
-                return -1;
-            }
-
-            source.erase(posopen, (posclose + 1u) - posopen);
-        }
-    }
-    
     static void RemoveInactiveEntryPoints(std::string& source, const std::vector<EntryPointInfo>& entries, uint32_t ignoreIndex)
     {
         for (auto i = 0u; i < entries.size(); ++i)
@@ -378,52 +191,6 @@ namespace PKAssets::Shader
                     source.erase(position, (scopeEnd + 1u) - position);
                 }
             }
-        }
-    }
-
-    static void RemoveInactiveGroupSizeLayouts(std::string& source, PKShaderStage stage)
-    {
-        if (stage != PKShaderStage::Compute)
-        {
-            return;
-        }
-
-        std::vector<size_t> positions;
-
-        size_t currentpos = 0ull;
-
-        while (true)
-        {
-            size_t posopen, posclose;
-
-            if (!StringUtilities::FindScope(source, currentpos, "layout(", ")", &posopen, &posclose))
-            {
-                break;
-            }
-
-            auto localsizepos = source.find("local_size_x", posopen);
-            if (posopen < localsizepos && localsizepos < posclose)
-            {
-                positions.push_back(posopen);
-            }
-
-            currentpos = posclose;
-        }
-
-        auto mainpos = source.find("void main()");
-        auto selected = false;
-
-        for (int32_t i = positions.size() - 1; i >= 0; --i)
-        {
-            if (positions.at(i) < mainpos && !selected)
-            {
-                selected = true;
-                continue;
-            }
-
-            auto posopen = positions.at(i);
-            auto posclose = source.find(';', posopen);
-            source.erase(posopen, (posclose + 1u) - posopen);
         }
     }
 
@@ -444,20 +211,6 @@ namespace PKAssets::Shader
             }
 
             index /= (uint32_t)declares.size();
-        }
-    }
-
-    static void ProcessShaderVersion(std::string& source)
-    {
-        auto versionToken = StringUtilities::ExtractToken("#version ", source, true);
-
-        if (versionToken.empty())
-        {
-            source.insert(0, "#version 460\n");
-        }
-        else
-        {
-            source.insert(0, versionToken);
         }
     }
 
@@ -482,7 +235,7 @@ namespace PKAssets::Shader
             auto stageSource = source;
             stageSource.replace(stageSource.find(entry.functionName), entry.functionName.size(), "void main()");
 
-            if (RemoveRestrictedVariables(stageSource, entry.name, entry.stage) != 0)
+            if (RemoveEntryPointLocals(stageSource, entry.name, entry.stage) != 0)
             {
                 return -1;
             }
@@ -501,7 +254,7 @@ namespace PKAssets::Shader
         return 0;
     }
 
-
+    
     static int CompileGLSLToSpirV(const ShaderCompiler& compiler, 
                                   PKShaderStage stage, 
                                   const std::string& source_name, 
@@ -898,7 +651,7 @@ namespace PKAssets::Shader
         ExtractStateAttributes(source, &shader->attributes);
         Instancing::InsertMaterialAssembly(source, materialProperties, &enableInstancing, &nofragInstancing);
         ProcessAtomicCounter(source);
-        ConvertHLSLNumThreads(source);
+        ConvertPKNumThreads(source);
         ConvertHLSLTypesToGLSL(source);
 
         if (ExtractEntryPoints(source, entryPoints) != 0)

@@ -6,7 +6,7 @@ layout(rgba8, set = 4) uniform image2D g_Texture;
 shared float g_test;
 shared float g_ModTime;
 
-layout(local_size_x = 16, local_size_y = 4, local_size_z = 1) in;
+[pk_numthreads(16,4,1)]
 void main()
 {
     if (gl_LocalInvocationIndex == 0)

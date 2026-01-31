@@ -191,21 +191,266 @@ namespace PKAssets::Shader
         }
     }
 
-    void ConvertHLSLNumThreads(std::string& source)
+    void ExtractLogVerbose(std::string& source, bool* outValue)
+    {
+        auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_LOGVERBOSE, source, true);
+        *outValue = !value.empty();
+    }
+
+    void ExtractGenerateDebugInfo(std::string& source, bool* outValue)
+    {
+        auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_GENERATEDEBUGINFO, source, true);
+        *outValue = !value.empty();
+    }
+
+    void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes)
+    {
+        auto valueZWrite = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZWRITE, source, false, true);
+        auto valueZTest = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_ZTEST, source, false, true);
+        auto valueBlendColor = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_BLENDCOLOR, source, false);
+        auto valueBlendAlpha = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_BLENDALPHA, source, false);
+        auto valueColorMask = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_COLORMASK, source, false, true);
+        auto valueCull = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_CULL, source, false, true);
+        auto valueOffset = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_OFFSET, source, false);
+        auto valueRasterMode = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_RASTERMODE, source, false);
+
+        if (!valueZWrite.empty())
+        {
+            attributes->zwrite = valueZWrite == "True" ? 1 : 0;
+        }
+
+        if (!valueZTest.empty())
+        {
+            attributes->ztest = PKAssets::StringToPKComparison(valueZTest.c_str());
+        }
+
+        if (!valueBlendColor.empty())
+        {
+            auto keywords = StringUtilities::Split(valueBlendColor, " \n\r");
+
+            attributes->blendSrcFactorColor = PKBlendFactor::None;
+            attributes->blendDstFactorColor = PKBlendFactor::None;
+            attributes->blendOpColor = PKBlendOp::None;
+
+            if (keywords.size() == 3)
+            {
+                attributes->blendOpColor = PKAssets::StringToPKBlendOp(keywords.at(0).c_str());
+                attributes->blendSrcFactorColor = PKAssets::StringToPKBlendFactor(keywords.at(1).c_str());
+                attributes->blendDstFactorColor = PKAssets::StringToPKBlendFactor(keywords.at(2).c_str());
+            }
+        }
+
+        if (!valueBlendAlpha.empty())
+        {
+            auto keywords = StringUtilities::Split(valueBlendAlpha, " \n\r");
+
+            attributes->blendSrcFactorAlpha = PKBlendFactor::None;
+            attributes->blendDstFactorAlpha = PKBlendFactor::None;
+            attributes->blendOpAlpha = PKBlendOp::None;
+
+            if (keywords.size() == 3)
+            {
+                attributes->blendOpAlpha = PKAssets::StringToPKBlendOp(keywords.at(0).c_str());
+                attributes->blendSrcFactorAlpha = PKAssets::StringToPKBlendFactor(keywords.at(0).c_str());
+                attributes->blendDstFactorAlpha = PKAssets::StringToPKBlendFactor(keywords.at(2).c_str());
+            }
+        }
+
+        if (!valueOffset.empty())
+        {
+            auto keywords = StringUtilities::Split(valueOffset, " \n\r");
+
+            attributes->zoffsets[0] = 0.0f;
+            attributes->zoffsets[1] = 0.0f;
+            attributes->zoffsets[2] = 0.0f;
+
+            if (keywords.size() == 3)
+            {
+                attributes->zoffsets[0] = std::stof(keywords.at(0));
+                attributes->zoffsets[1] = std::stof(keywords.at(1));
+                attributes->zoffsets[2] = std::stof(keywords.at(2));
+            }
+        }
+
+        if (!valueRasterMode.empty())
+        {
+            auto keywords = StringUtilities::Split(valueRasterMode, " \n\r");
+
+            attributes->rasterMode = PKRasterMode::Default;
+            attributes->overEstimation = 0x0;
+
+            if (keywords.size() > 0)
+            {
+                attributes->rasterMode = PKAssets::StringToPKRasterMode(keywords.at(0).c_str());
+            }
+
+            if (keywords.size() > 1)
+            {
+                attributes->overEstimation = (uint8_t)std::stoi(keywords.at(1));
+            }
+        }
+
+        attributes->colorMask = PKAssets::StringToPKColorMask(valueColorMask.c_str());
+        attributes->cull = PKAssets::StringToPKCullMode(valueCull.c_str());
+    }
+
+    void InsertRequiredExtensions(std::string& source, PKShaderStage stage)
+    {
+        source.insert(0, PK_GL_EXTENSIONS_COMMON);
+
+        if (stage == PKShaderStage::MeshTask || stage == PKShaderStage::MeshAssembly)
+        {
+            source.insert(0, PK_GL_EXTENSIONS_MESHSHADING);
+        }
+
+        if (stage == PKShaderStage::RayGeneration ||
+            stage == PKShaderStage::RayMiss ||
+            stage == PKShaderStage::RayClosestHit ||
+            stage == PKShaderStage::RayAnyHit ||
+            stage == PKShaderStage::RayIntersection)
+        {
+            source.insert(0, PK_GL_EXTENSIONS_RAYTRACING);
+        }
+    }
+
+    int RemoveEntryPointLocals(std::string& source, const std::string& entryPointName, PKShaderStage stage)
     {
         size_t currentpos = 0ull;
+
+        const auto lengthOpen = strlen(PK_SHADER_ATTRIB_LOCAL_OPEN);
+        const auto lengthClose = strlen(PK_SHADER_ATTRIB_LOCAL_CLOSE);
+
+        while (true)
+        {
+            size_t posopen, posclose;
+
+            if (!StringUtilities::FindScope(source, currentpos, PK_SHADER_ATTRIB_LOCAL_OPEN, PK_SHADER_ATTRIB_LOCAL_CLOSE, &posopen, &posclose))
+            {
+                return 0;
+            }
+
+            currentpos = posopen;
+            auto content = source.substr(posopen + lengthOpen, posclose - (posopen + lengthOpen));
+            auto arguments = StringUtilities::Split(content, ",");
+            auto foundEntry = false;
+
+            for (auto& arg : arguments)
+            {
+                auto trimmed = StringUtilities::Trim(arg);
+
+                if (trimmed.compare(entryPointName) == 0 || trimmed.compare(PK_SHADER_STAGE_NAMES[(uint32_t)stage]) == 0)
+                {
+                    foundEntry = true;
+                    break;
+                }
+            }
+
+            if (foundEntry)
+            {
+                source.erase(posopen, (posclose + lengthClose) - posopen);
+                continue;
+            }
+
+            posclose = source.find(';', posclose);
+            size_t controlopen = 0ull;
+            size_t controlclose = 0ull;
+
+            if (StringUtilities::FindScope(source, currentpos, '{', '}', &controlopen, &controlclose) && controlopen < posclose)
+            {
+                posclose = controlclose;
+
+                if (source[posclose + 1u] == ';')
+                {
+                    posclose++;
+                }
+            }
+
+            if (posclose == std::string::npos)
+            {
+                printf("Couldnt find a valid control flow scope after [pk_local] attribute.\n");
+                return -1;
+            }
+
+            source.erase(posopen, (posclose + 1u) - posopen);
+        }
+    }
+
+    void RemoveInactiveGroupSizeLayouts(std::string& source, PKShaderStage stage)
+    {
+        if (stage == PKShaderStage::Compute)
+        {
+            std::vector<size_t> positions;
+
+            size_t currentpos = 0ull;
+
+            while (true)
+            {
+                size_t posopen, posclose;
+
+                if (!StringUtilities::FindScope(source, currentpos, "layout(", ")", &posopen, &posclose))
+                {
+                    break;
+                }
+
+                auto localsizepos = source.find("local_size_x", posopen);
+                if (posopen < localsizepos && localsizepos < posclose)
+                {
+                    positions.push_back(posopen);
+                }
+
+                currentpos = posclose;
+            }
+
+            auto mainpos = source.find("void main()");
+            auto selected = false;
+
+            for (int32_t i = positions.size() - 1; i >= 0; --i)
+            {
+                if (positions.at(i) < mainpos && !selected)
+                {
+                    selected = true;
+                    continue;
+                }
+
+                auto posopen = positions.at(i);
+                auto posclose = source.find(';', posopen);
+                source.erase(posopen, (posclose + 1u) - posopen);
+            }
+        }
+    }
+
+    void ProcessShaderVersion(std::string& source)
+    {
+        auto versionToken = StringUtilities::ExtractToken("#version ", source, true);
+
+        if (versionToken.empty())
+        {
+            source.insert(0, "#version 460\n");
+        }
+        else
+        {
+            source.insert(0, versionToken);
+        }
+    }
+
+    void ConvertPKNumThreads(std::string& source)
+    {
+        size_t currentpos = 0ull;
+
+        const auto lengthopen = strlen(PK_SHADER_ATTRIB_NUMTHREADS_OPEN);
+        const auto lengthclose = strlen(PK_SHADER_ATTRIB_NUMTHREADS_CLOSE);
 
         while (true)
         {
             size_t open, close;
 
-            if (!StringUtilities::FindScope(source, currentpos, "[numthreads(", ")]", &open, &close))
+            if (!StringUtilities::FindScope(source, currentpos, PK_SHADER_ATTRIB_NUMTHREADS_OPEN, PK_SHADER_ATTRIB_NUMTHREADS_CLOSE, &open, &close))
             {
                 break;
             }
 
             std::string layout = "layout(";
-            auto values = StringUtilities::Split(source.substr(open + 12ull, close - (open + 12ull)), ",");
+            auto values = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ",");
             const char* dimensionNames[3] = { "local_size_x=", "local_size_y=", "local_size_z=" };
 
             for (auto i = 0u; i < values.size(); ++i)
@@ -221,7 +466,7 @@ namespace PKAssets::Shader
 
             layout.append(") in;");
 
-            source.erase(open, (close + 2u) - open);
+            source.erase(open, (close + lengthclose) - open);
             source.insert(open, layout);
             currentpos = open + layout.size();
         }
