@@ -70,6 +70,7 @@ namespace PKAssets::Shader
     int RemoveEntryPointLocals(std::string& source, const std::string& entryPointName, PKShaderStage stage);
     void RemoveInactiveGroupSizeLayouts(std::string& source, PKShaderStage stage);
     void ProcessShaderVersion(std::string& source);
+    void RemoveDescriptorSets(std::string& source);
     void ConvertPKNumThreads(std::string& source);
     void ConvertHLSLTypesToGLSL(std::string& source);
 }

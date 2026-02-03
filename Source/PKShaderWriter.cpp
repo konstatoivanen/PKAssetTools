@@ -55,8 +55,7 @@ namespace PKAssets::Shader
         std::vector<ReflectBinding> sortedBindings;
         std::map<std::string, ReflectBinding> uniqueBindings;
         std::map<std::string, ReflectPushConstant> uniqueVariables;
-        std::map<uint32_t, uint32_t> setStageFlags; //PKShaderStageFlags
-        uint32_t setCount = 0u;
+        uint32_t stageFlags = 0u; //PKShaderStageFlags
         bool logVerbose;
     };
 
@@ -345,64 +344,6 @@ namespace PKAssets::Shader
         }
     }
 
-    static void GetUniqueBindings(ReflectionData& reflection, SpvReflectShaderModule* debugModule, PKShaderStage stage)
-    {
-        auto* module = &reflection.modules[(uint32_t)stage];
-
-        uint32_t bindingCount = 0u;
-
-        spvReflectEnumerateDescriptorBindings(debugModule, &bindingCount, nullptr);
-
-        std::vector<SpvReflectDescriptorBinding*> activeBindings;
-        activeBindings.resize(bindingCount);
-        spvReflectEnumerateDescriptorBindings(debugModule, &bindingCount, activeBindings.data());
-
-        for (auto i = 0u; i < bindingCount; ++i)
-        {
-            auto desc = activeBindings.at(i);
-
-            if (!desc->accessed)
-            {
-                continue;
-            }
-
-            auto releaseBinding = spvReflectGetDescriptorBinding(module, desc->binding, desc->set, nullptr);
-
-            if (releaseBinding == nullptr)
-            {
-                continue;
-            }
-
-            auto name = std::string(desc->name);
-
-            if (name.empty())
-            {
-                name = std::string(desc->type_description->type_name);
-            }
-
-            reflection.setStageFlags[desc->set] |= 1 << (int)stage;
-
-            auto& binding = reflection.uniqueBindings[name];
-            binding.firstStage = binding.firstStage > (uint32_t)stage ? (int)stage : binding.firstStage;
-            binding.maxBinding = binding.maxBinding > releaseBinding->binding ? binding.maxBinding : releaseBinding->binding;
-            binding.name = name;
-            binding.count = desc->type_description->op == SpvOpTypeRuntimeArray ? PKAssets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
-            auto isWritten = ReflectResourceWrite(debugModule->_internal->spirv_code, debugModule->_internal->spirv_word_count, desc->spirv_id, GetResourceType(desc->descriptor_type));
-
-            if (isWritten)
-            {
-                binding.writeStageMask |= 1 << (int)stage;
-            }
-
-            binding.bindings[(int)stage] = releaseBinding;
-
-            if (reflection.logVerbose)
-            {
-                printf("    Resource %s: %s \n", isWritten ? "Write" : "Read", name.c_str());
-            }
-        }
-    }
-
     static void GetVertexAttributes(ReflectionData& reflection, SpvReflectShaderModule* debugModule, PKShaderStage stage)
     {
         if (stage != PKShaderStage::Vertex)
@@ -521,45 +462,66 @@ namespace PKAssets::Shader
         outSize[2] = entryPoint->local_size.z;
     }
 
-    static void CompressBindIndices(ReflectionData& reflection)
+    static void GetUniqueBindings(ReflectionData& reflection, SpvReflectShaderModule* debugModule, PKShaderStage stage)
     {
-        std::map<uint32_t, uint32_t> setRemap;
-        std::vector<SpvReflectDescriptorSet*> sets;
-        auto setCount = 0u;
-        auto setIndex = 0u;
+        auto* module = &reflection.modules[(uint32_t)stage];
 
-        decltype(reflection.setStageFlags) newStageFlags;
-        newStageFlags.swap(reflection.setStageFlags);
+        uint32_t bindingCount = 0u;
 
-        for (auto& kv : newStageFlags)
+        spvReflectEnumerateDescriptorBindings(debugModule, &bindingCount, nullptr);
+
+        std::vector<SpvReflectDescriptorBinding*> activeBindings;
+        activeBindings.resize(bindingCount);
+        spvReflectEnumerateDescriptorBindings(debugModule, &bindingCount, activeBindings.data());
+        
+        for (auto i = 0u; i < bindingCount; ++i)
         {
-            reflection.setStageFlags[setIndex] = kv.second;
-            setRemap[kv.first] = setIndex++;
-        }
+            auto desc = activeBindings.at(i);
 
-        reflection.setCount = setIndex;
-
-        for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
-        {
-            if (reflection.modules[i]._internal == nullptr)
+            if (!desc->accessed)
             {
                 continue;
             }
 
-            auto& module = reflection.modules[i];
-            spvReflectEnumerateDescriptorSets(&module, &setCount, nullptr);
-            sets.resize(setCount);
-            spvReflectEnumerateDescriptorSets(&module, &setCount, sets.data());
+            auto releaseBinding = spvReflectGetDescriptorBinding(module, desc->binding, desc->set, nullptr);
 
-            for (auto set : sets)
+            if (releaseBinding == nullptr)
             {
-                if (set->set != setRemap[set->set])
-                {
-                    spvReflectChangeDescriptorSetNumber(&module, set, setRemap[set->set]);
-                }
+                continue;
+            }
+
+            auto name = std::string(desc->name);
+
+            if (name.empty())
+            {
+                name = std::string(desc->type_description->type_name);
+            }
+
+            reflection.stageFlags |= 1 << (int)stage;
+
+            auto& binding = reflection.uniqueBindings[name];
+            binding.firstStage = binding.firstStage > (uint32_t)stage ? (int)stage : binding.firstStage;
+            binding.maxBinding = binding.maxBinding > releaseBinding->binding ? binding.maxBinding : releaseBinding->binding;
+            binding.name = name;
+            binding.count = desc->type_description->op == SpvOpTypeRuntimeArray ? PKAssets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
+            auto isWritten = ReflectResourceWrite(debugModule->_internal->spirv_code, debugModule->_internal->spirv_word_count, desc->spirv_id, GetResourceType(desc->descriptor_type));
+
+            if (isWritten)
+            {
+                binding.writeStageMask |= 1 << (int)stage;
+            }
+
+            binding.bindings[(int)stage] = releaseBinding;
+
+            if (reflection.logVerbose)
+            {
+                printf("    Resource %s: %s \n", isWritten ? "Write" : "Read", name.c_str());
             }
         }
+    }
 
+    static void CompressBindIndices(ReflectionData& reflection)
+    {
         std::multimap<uint32_t, ReflectBinding> sortedBindingMap;
 
         for (auto& kv : reflection.uniqueBindings)
@@ -576,20 +538,17 @@ namespace PKAssets::Shader
             reflection.sortedBindings.push_back(kv.second);
         }
 
-        uint32_t* setCounters = reinterpret_cast<uint32_t*>(alloca(sizeof(uint32_t) * reflection.setCount));
-        memset(setCounters, 0, sizeof(uint32_t) * reflection.setCount);
+        uint32_t bindingCounter = 0u;
 
         for (auto& binding : reflection.sortedBindings)
         {
-            auto desc = binding.get();
-            auto bindId = setCounters[desc->set];
-            setCounters[desc->set]++;
+            auto bindId = bindingCounter++;
 
             for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
             {
                 if (binding.bindings[i] != nullptr)
                 {
-                    spvReflectChangeDescriptorBindingNumbers(&reflection.modules[i], binding.bindings[i], bindId, desc->set);
+                    spvReflectChangeDescriptorBindingNumbers(&reflection.modules[i], binding.bindings[i], bindId, 0u);
                 }
             }
         }
@@ -640,6 +599,7 @@ namespace PKAssets::Shader
         ExtractMulticompiles(source, mckeywords, keywords, &shader->variantcount, &directiveCount);
         ExtractStateAttributes(source, &shader->attributes);
         Instancing::InsertMaterialAssembly(source, materialProperties, &enableInstancing, &nofragInstancing);
+        RemoveDescriptorSets(source);
         ConvertPKNumThreads(source);
         ConvertHLSLTypesToGLSL(source);
 
@@ -760,38 +720,26 @@ namespace PKAssets::Shader
                 }
             }
 
-            if (reflectionData.setCount > 0)
+            pVariants[i].descriptorCount = reflectionData.sortedBindings.size();
+
+            if (pVariants[i].descriptorCount > 0)
             {
-                pVariants[i].descriptorSetCount = reflectionData.setCount;
-                auto pDescriptorSets = buffer.Allocate<PKDescriptorSet>(reflectionData.setCount);
-                pVariants[i].descriptorSets.Set(buffer.data(), pDescriptorSets.get());
+                auto pDescriptors = buffer.Allocate<PKDescriptor>(pVariants[i].descriptorCount);
+                pVariants[i].descriptors.Set(buffer.data(), pDescriptors.get());
 
-                std::map<uint32_t, std::vector<PKDescriptor>> descriptors;
-
-                for (auto& binding : reflectionData.sortedBindings)
+                if (pVariants[i].descriptorCount > PK_ASSET_MAX_DESCRIPTORS_PER_SET)
                 {
-                    auto desc = binding.get();
-
-                    if (desc->set >= PK_ASSET_MAX_DESCRIPTOR_SETS)
-                    {
-                        printf("Warning! Shader has a descriptor set outside of supported range (%i / %i) \n", desc->set, PK_ASSET_MAX_DESCRIPTOR_SETS);
-                        continue;
-                    }
-
-                    PKDescriptor descriptor{};
-                    descriptor.count = binding.count;
-                    descriptor.type = GetResourceType(desc->descriptor_type);
-                    descriptor.writeStageMask = (PKShaderStageFlags)binding.writeStageMask;
-                    WriteName(descriptor.name, binding.name.c_str());
-                    descriptors[desc->set].push_back(descriptor);
+                    printf("Warning! Shader has a descriptors outside of supported range (%i / %i) \n", pVariants[i].descriptorCount, PK_ASSET_MAX_DESCRIPTORS_PER_SET);
                 }
 
-                for (auto& kv : descriptors)
+                for (auto i = 0u; i < reflectionData.sortedBindings.size(); ++i)
                 {
-                    pDescriptorSets[kv.first].descriptorCount = (uint32_t)kv.second.size();
-                    pDescriptorSets[kv.first].stageflags = (PKShaderStageFlags)reflectionData.setStageFlags[kv.first];
-                    auto pDescriptors = buffer.Write(kv.second.data(), kv.second.size());
-                    pDescriptorSets[kv.first].descriptors.Set(buffer.data(), pDescriptors.get());
+                    auto& binding = reflectionData.sortedBindings.at(i);
+                    auto desc = binding.get();
+                    pDescriptors[i].count = binding.count;
+                    pDescriptors[i].type = GetResourceType(desc->descriptor_type);
+                    pDescriptors[i].writeStageMask = (PKShaderStageFlags)binding.writeStageMask;
+                    WriteName(pDescriptors[i].name, binding.name.c_str());
                 }
             }
 

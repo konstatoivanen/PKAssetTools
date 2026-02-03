@@ -433,6 +433,63 @@ namespace PKAssets::Shader
         }
     }
 
+    void RemoveDescriptorSets(std::string& source)
+    {
+        size_t currentpos = 0ull;
+
+        while (true)
+        {
+            size_t open, close;
+            if (!StringUtilities::FindScope(source, currentpos, "layout(", ")", &open, &close))
+            {
+                break;
+            }
+
+            constexpr auto lengthopen = 7u;
+            constexpr auto lengthclose = 1u;
+            auto tokens = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ",");
+
+            auto isSet = false;
+
+            for (auto& token : tokens)
+            {
+                token.erase(std::remove_if(token.begin(), token.end(), std::isspace), token.end());
+                isSet |= strncmp(token.data(), "set=", 4) == 0;
+            }
+
+            if (!isSet)
+            {
+                currentpos = close;
+                continue;
+            }
+
+            if (tokens.size() == 1ull)
+            {
+                source.erase(open, (close + lengthclose) - open);
+                continue;
+            }
+
+            std::string layout = "layout(";
+
+            for (auto i = 0u; i < tokens.size(); ++i)
+            {
+                if (strncmp(tokens[i].data(), "set=", 4) != 0)
+                {
+                    layout.append(tokens[i]);
+
+                    if (i < tokens.size() - 2u)
+                    {
+                        layout.append(",");
+                    }
+                }
+            }
+
+            layout.append(")");
+            source.replace(open, (close - open) + 1u, layout);
+            currentpos = open + layout.size();
+        }
+    }
+
     void ConvertPKNumThreads(std::string& source)
     {
         size_t currentpos = 0ull;
