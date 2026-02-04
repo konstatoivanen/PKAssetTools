@@ -556,6 +556,59 @@ namespace PKAssets::Shader
         }
     }
 
+    void ConvertPKBuffers(std::string& source)
+    {
+        source.insert(0, PK_GL_HLSL_BUFFER_MACROS);
+
+        size_t currentpos = 0ull;
+
+        while (true)
+        {
+            size_t open, close;
+
+            if (!StringUtilities::FindScope(source, currentpos, "buffer<", ">", &open, &close))
+            {
+                break;
+            }
+
+            constexpr auto lengthopen = 7u;
+            constexpr auto lengthclose = 1u;
+            auto tokens = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ",");
+            
+            if (tokens.size() == 0)
+            {
+                currentpos = close;
+                continue;
+            }
+
+            auto type = tokens[0];
+            auto size = 0;
+
+            if (tokens.size() > 1 && isdigit(tokens.at(1)[0]))
+            {
+                size = std::stoi(tokens.at(1));
+            }
+
+            auto nameStart = source.find_first_not_of(' ', close + lengthclose);
+            auto nameEnd = source.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", nameStart);
+
+            if (nameStart == std::string::npos || nameEnd == std::string::npos)
+            {
+                currentpos = close;
+                continue;
+            }
+
+            auto name = source.substr(nameStart, nameEnd - nameStart);
+
+            switch (size)
+            {
+                case 0: source.replace(open, nameEnd - open, "PK_HLSL_BUFFER(" + type + "," + name + ")"); break;
+                case 1: source.replace(open, nameEnd - open, "PK_HLSL_BUFFER_ONE(" + type + "," + name + ")"); break;
+                default: source.replace(open, nameEnd - open, "PK_HLSL_BUFFER_FIXED(" + type + "," + name + "," + std::to_string(size) + ")"); break;
+            }
+        }
+    }
+
     void ConvertHLSLTypesToGLSL(std::string& source)
     {
         const std::string surroundMask = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";

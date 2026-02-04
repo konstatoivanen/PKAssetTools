@@ -42,7 +42,8 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
 [pk_local(MainVs)] out float2 vs_TEXCOORD0;
 
 [pk_local(MainVs, MainFs)] uniform image2D pk_DebugImage;
-[pk_local(MainFs)] PK_DECLARE_WRITEONLY_BUFFER(float4, _WriteBuffer, PK_SET_DRAW);
+[pk_local(MainFs)] writeonly buffer<float4> _WriteBuffer;
+[pk_local(MainFs)] readonly buffer<float4,1u> _ReadVariable;
 [pk_local(MainFs)] uniform sampler2D tex1;
 [pk_local(MainFs)] uniform sampler smp;
 [pk_local(STAGE_FRAGMENT)] in float3 vs_COLOR;
@@ -72,7 +73,7 @@ void MainVs()
 void MainFs()
 {
     float3 albedo = texture(sampler2D(_AlbedoTex, smp), vs_TEXCOORD0).xyz;
-    float3 texcolor = texture(tex1, vs_TEXCOORD0).xyz;
+    float3 texcolor = texture(tex1, vs_TEXCOORD0).xyz + _ReadVariable.xyz;
     outColor = float4(albedo * texcolor * vs_COLOR * _Color.rgb, 1.0);
     imageStore(pk_DebugImage, int2(outColor.xy * 1024), float4(outColor.x, 0, 0, 0));
     _WriteBuffer[uint(outColor.x * 1024)] = outColor;
