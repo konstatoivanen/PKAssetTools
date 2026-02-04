@@ -43,20 +43,9 @@ float pow5(float x) { return x * x * x * x * x; }
 #define PK_DECLARE_LOCAL_CBUFFER(BufferName) layout(push_constant) uniform BufferName
 #define PK_DECLARE_CBUFFER(BufferName, Set) layout(std140, set = Set) uniform BufferName
 
-#define PK_DECLARE_BUFFER(ValueType, BufferName, Set) layout(std430, set = Set) buffer BufferName { ValueType BufferName##_Data[]; }
-#define PK_DECLARE_READONLY_BUFFER(ValueType, BufferName, Set) layout(std430, set = Set) readonly buffer BufferName { ValueType BufferName##_Data[]; }
-#define PK_DECLARE_WRITEONLY_BUFFER(ValueType, BufferName, Set) layout(std430, set = Set) writeonly buffer BufferName { ValueType BufferName##_Data[]; }
-#define PK_DECLARE_RESTRICTED_BUFFER(ValueType, BufferName, Set) layout(std430, set = Set) restrict buffer BufferName { ValueType BufferName##_Data[]; }
-#define PK_DECLARE_RESTRICTED_READONLY_BUFFER(ValueType, BufferName, Set) layout(std430, set = Set) restrict readonly buffer BufferName { ValueType BufferName##_Data[]; }
-
-#define PK_DECLARE_ATOMIC_VARIABLE(ValueType, BufferName, Set) layout(std430, set = Set) buffer BufferName { ValueType BufferName##_Data; }
-#define PK_DECLARE_ATOMIC_READONLY_VARIABLE(ValueType, BufferName, Set) layout(std430, set = Set) readonly buffer BufferName { ValueType BufferName##_Data; }
-#define PK_DECLARE_ATOMIC_WRITEONLY_VARIABLE(ValueType, BufferName, Set) layout(std430, set = Set) writeonly buffer BufferName { ValueType BufferName##_Data; }
-#define PK_DECLARE_ATOMIC_RESTRICTED_VARIABLE(ValueType, BufferName, Set) layout(std430, set = Set) restrict buffer BufferName { ValueType BufferName##_Data; }
-#define PK_DECLARE_ATOMIC_RESTRICTED_READONLY_VARIABLE(ValueType, BufferName, Set) layout(std430, set = Set) restrict readonly buffer BufferName { ValueType BufferName##_Data; }
-
-#define PK_BUFFER_DATA(BufferName, index) BufferName##_Data[index]
-#define PK_ATOMIC_DATA(BufferName) BufferName##_Data
+#define PK_DECLARE_BUFFER(ValueType, BufferName, Set) layout(std430, set = Set) buffer BufferName##_pkalias { ValueType BufferName[]; }
+#define PK_DECLARE_READONLY_BUFFER(ValueType, BufferName, Set) readonly layout(std430, set = Set) buffer BufferName##_pkalias { ValueType BufferName[]; }
+#define PK_DECLARE_WRITEONLY_BUFFER(ValueType, BufferName, Set) writeonly layout(std430, set = Set) buffer BufferName##_pkalias { ValueType BufferName[]; }
 
 // Ray tracing utilities
 #define PK_GET_RAY_HIT_POINT (gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT)

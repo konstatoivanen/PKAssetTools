@@ -368,6 +368,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <None Include="DebugContent\Models\MDL_Debug.mdl" />
     <None Include="DebugContent\Models\MDL_Debug.mdl.pkmeta" />
     <None Include="DebugContent\Shaders\CS_Debug.shader" />
+    <None Include="DebugContent\Shaders\includes\Constants.glsl" />
     <None Include="DebugContent\Shaders\includes\DebugUtilities.glsl" />
     <None Include="DebugContent\Shaders\SH_WS_Debug.shader" />
     <None Include="DebugContent\Textures\T_Bluenoise256.ktx2" />

@@ -54,7 +54,7 @@ namespace PKAssets::Shader
         std::vector<PKVertexInputAttribute> vertexAttributes;
         std::vector<ReflectBinding> sortedBindings;
         std::map<std::string, ReflectBinding> uniqueBindings;
-        std::map<std::string, ReflectPushConstant> uniqueVariables;
+        std::map<std::string, ReflectPushConstant> uniqueConstants;
         uint32_t stageFlags = 0u; //PKShaderStageFlags
         bool logVerbose;
     };
@@ -422,9 +422,9 @@ namespace PKAssets::Shader
             // This has moved down to a be under type description
             auto name = std::string(block->type_description->type_name);
 
-            if (reflection.uniqueVariables.count(name) <= 0)
+            if (reflection.uniqueConstants.count(name) <= 0)
             {
-                reflection.uniqueVariables[name] = { spvReflectGetPushConstantBlock(module, i, nullptr), stageFlag };
+                reflection.uniqueConstants[name] = { spvReflectGetPushConstantBlock(module, i, nullptr), stageFlag };
                 
                 if (reflection.logVerbose)
                 {
@@ -433,7 +433,7 @@ namespace PKAssets::Shader
             }
             else
             {
-                reflection.uniqueVariables[name].stageFlags |= stageFlag;
+                reflection.uniqueConstants[name].stageFlags |= stageFlag;
             }
 
             ++i;
@@ -489,16 +489,10 @@ namespace PKAssets::Shader
             {
                 continue;
             }
-
-            auto name = std::string(desc->name);
-
-            if (name.empty())
-            {
-                name = std::string(desc->type_description->type_name);
-            }
-
+   
             reflection.stageFlags |= 1 << (int)stage;
 
+            auto name = ReflectBindingName(desc);
             auto& binding = reflection.uniqueBindings[name];
             binding.firstStage = binding.firstStage > (uint32_t)stage ? (int)stage : binding.firstStage;
             binding.maxBinding = binding.maxBinding > releaseBinding->binding ? binding.maxBinding : releaseBinding->binding;
@@ -698,14 +692,14 @@ namespace PKAssets::Shader
                 pVariants[i].vertexAttributes.Set(buffer.data(), pVertexAttributes.get());
             }
 
-            if (reflectionData.uniqueVariables.size() > 0)
+            if (reflectionData.uniqueConstants.size() > 0)
             {
-                pVariants[i].constantVariableCount = (uint32_t)reflectionData.uniqueVariables.size();
-                auto pConstantVariables = buffer.Allocate<PKConstantVariable>(reflectionData.uniqueVariables.size());
+                pVariants[i].constantVariableCount = (uint32_t)reflectionData.uniqueConstants.size();
+                auto pConstantVariables = buffer.Allocate<PKConstantVariable>(reflectionData.uniqueConstants.size());
                 pVariants[i].constantVariables.Set(buffer.data(), pConstantVariables.get());
 
                 auto j = 0u;
-                for (auto& kv : reflectionData.uniqueVariables)
+                for (auto& kv : reflectionData.uniqueConstants)
                 {
                     if (j >= PK_ASSET_MAX_PUSH_CONSTANTS)
                     {

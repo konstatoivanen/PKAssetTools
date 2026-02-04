@@ -150,6 +150,33 @@ namespace PKAssets::Shader
         }
     }
 
+    std::string ReflectBindingName(SpvReflectDescriptorBinding* binding)
+    {
+        auto name = std::string(binding->name);
+
+        if (name.empty())
+        {
+            name = std::string(binding->type_description->type_name);
+        }
+
+        // if the variable declared an alias. reflect the first member name from the layout.
+        const auto aliasLength = strlen(PK_SHADER_ATTRIB_ALIAS);
+        if (name.size() > aliasLength && strncmp(name.data() + name.size() - aliasLength, PK_SHADER_ATTRIB_ALIAS, aliasLength) == 0)
+        {
+            if (binding->type_description->member_count == 1)
+            {
+                return std::string(binding->type_description->members[0].struct_member_name);
+            }
+            else
+            {
+                // Remove erroneus alias from name if type has other than a single member.
+                return name.substr(0, name.size() - aliasLength);
+            }
+        }
+
+        return name;
+    }
+
     void FindLineRange(const std::string& name, const std::string& message, int* outMin, int* outMax)
     {
         *outMin = 0xFFFF;
@@ -166,7 +193,7 @@ namespace PKAssets::Shader
             auto spos = pos + strlen(token.c_str());
             auto eot = message.find_first_of(":", spos);
             
-            if (eot != std::string::npos)
+            if (eot != std::string::npos && isdigit(message[spos]))
             {
                 auto number = std::stoi(message.substr(spos, eot - spos));
 

@@ -467,6 +467,7 @@
     <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetyped.dll" />
     <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetyped.pdb" />
     <None Include="DebugContent\Textures\T_Bluenoise256.ktx2" />
+    <None Include="DebugContent\Shaders\includes\Constants.glsl" />
   </ItemGroup>
   <ItemGroup>
     <Font Include="DebugContent\Fonts\Helvetica.ttf" />

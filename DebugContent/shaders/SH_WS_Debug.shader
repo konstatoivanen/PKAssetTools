@@ -41,10 +41,10 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
 [pk_local(MainVs)] out float3 vs_COLOR;
 [pk_local(MainVs)] out float2 vs_TEXCOORD0;
 
-[pk_local(MainVs, MainFs)] layout(rg16f, set = PK_SET_SHADER) uniform image2D pk_DebugImage;
-[pk_local(MainFs)] PK_DECLARE_BUFFER(float4, _WriteBuffer, PK_SET_DRAW);
-[pk_local(MainFs)] layout(set = 3) uniform sampler2D tex1;
-[pk_local(MainFs)] layout(set = 3) uniform sampler smp;
+[pk_local(MainVs, MainFs)] uniform image2D pk_DebugImage;
+[pk_local(MainFs)] PK_DECLARE_WRITEONLY_BUFFER(float4, _WriteBuffer, PK_SET_DRAW);
+[pk_local(MainFs)] uniform sampler2D tex1;
+[pk_local(MainFs)] uniform sampler smp;
 [pk_local(STAGE_FRAGMENT)] in float3 vs_COLOR;
 [pk_local(STAGE_FRAGMENT)] in float2 vs_TEXCOORD0;
 [pk_local(STAGE_FRAGMENT)] out float4 outColor;
@@ -75,7 +75,8 @@ void MainFs()
     float3 texcolor = texture(tex1, vs_TEXCOORD0).xyz;
     outColor = float4(albedo * texcolor * vs_COLOR * _Color.rgb, 1.0);
     imageStore(pk_DebugImage, int2(outColor.xy * 1024), float4(outColor.x, 0, 0, 0));
-    PK_BUFFER_DATA(_WriteBuffer, uint(outColor.x * 1024)) = outColor;
+    _WriteBuffer[uint(outColor.x * 1024)] = outColor;
 }
 
 void ColorFs() { outColor = float4(vs_COLOR, 1.0f); }
+
