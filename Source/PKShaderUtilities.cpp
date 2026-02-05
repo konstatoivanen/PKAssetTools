@@ -358,14 +358,12 @@ namespace PKAssets::Shader
 
             currentpos = posopen;
             auto content = source.substr(posopen + lengthOpen, posclose - (posopen + lengthOpen));
-            auto arguments = StringUtilities::Split(content, ",");
+            auto arguments = StringUtilities::Split(content, ", ");
             auto foundEntry = false;
 
             for (auto& arg : arguments)
             {
-                auto trimmed = StringUtilities::Trim(arg);
-
-                if (trimmed.compare(entryPointName) == 0 || trimmed.compare(PK_SHADER_STAGE_NAMES[(uint32_t)stage]) == 0)
+                if (arg.compare(entryPointName) == 0 || arg.compare(PK_SHADER_STAGE_NAMES[(uint32_t)stage]) == 0)
                 {
                     foundEntry = true;
                     break;
@@ -474,13 +472,12 @@ namespace PKAssets::Shader
 
             constexpr auto lengthopen = 7u;
             constexpr auto lengthclose = 1u;
-            auto tokens = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ",");
+            auto tokens = StringUtilities::SplitNoWhiteSpace(source.substr(open + lengthopen, close - (open + lengthopen)), ",");
 
             auto isSet = false;
 
             for (auto& token : tokens)
             {
-                token.erase(std::remove_if(token.begin(), token.end(), std::isspace), token.end());
                 isSet |= strncmp(token.data(), "set=", 4) == 0;
             }
 
@@ -534,7 +531,7 @@ namespace PKAssets::Shader
             }
 
             std::string layout = "layout(";
-            auto values = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ",");
+            auto values = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ", ");
             const char* dimensionNames[3] = { "local_size_x=", "local_size_y=", "local_size_z=" };
 
             for (auto i = 0u; i < values.size(); ++i)
@@ -556,7 +553,7 @@ namespace PKAssets::Shader
         }
     }
 
-    void ConvertPKBuffers(std::string& source)
+    void ConvertHLSLBuffers(std::string& source)
     {
         source.insert(0, PK_GL_HLSL_BUFFER_MACROS);
 
@@ -566,14 +563,14 @@ namespace PKAssets::Shader
         {
             size_t open, close;
 
-            if (!StringUtilities::FindScope(source, currentpos, "buffer<", ">", &open, &close))
+            if (!StringUtilities::FindScope(source, currentpos, "Buffer<", ">", &open, &close))
             {
                 break;
             }
 
             constexpr auto lengthopen = 7u;
             constexpr auto lengthclose = 1u;
-            auto tokens = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ",");
+            auto tokens = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ", ");
             
             if (tokens.size() == 0)
             {
@@ -600,11 +597,27 @@ namespace PKAssets::Shader
 
             auto name = source.substr(nameStart, nameEnd - nameStart);
 
+            auto hasWritableTag = strncmp("RW", source.data() + open - 2ull, 2ull) == 0;
+            auto accessToken = hasWritableTag ? std::string() : "_READONLY";
+
+            if (hasWritableTag)
+            {
+                open -= 2ull;
+            }
+
+            auto uniformTagPos = source.rfind("uniform", open);
+
+            // Remove uniform tag as it is erroneus to use with a buffer.
+            if (uniformTagPos != std::string::npos && source.find_first_not_of(" ", uniformTagPos + 7u) == open)
+            {
+                open = uniformTagPos;
+            }
+
             switch (size)
             {
-                case 0: source.replace(open, nameEnd - open, "PK_HLSL_BUFFER(" + type + "," + name + ")"); break;
-                case 1: source.replace(open, nameEnd - open, "PK_HLSL_BUFFER_ONE(" + type + "," + name + ")"); break;
-                default: source.replace(open, nameEnd - open, "PK_HLSL_BUFFER_FIXED(" + type + "," + name + "," + std::to_string(size) + ")"); break;
+                case 0: source.replace(open, nameEnd - open, "PK_HLSL" + accessToken + "_BUFFER(" + type + "," + name + ")"); break;
+                case 1: source.replace(open, nameEnd - open, "PK_HLSL" + accessToken + "_BUFFER_ONE(" + type + ", " + name + ")"); break;
+                default: source.replace(open, nameEnd - open, "PK_HLSL" + accessToken + "_BUFFER_FIXED(" + type + "," + name + "," + std::to_string(size) + ")"); break;
             }
         }
     }

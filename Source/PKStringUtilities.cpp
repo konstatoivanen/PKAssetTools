@@ -38,6 +38,40 @@ namespace PKAssets::StringUtilities
         return output;
     }
 
+    std::vector<std::string> SplitNoWhiteSpace(const std::string& value, const char* symbols)
+    {
+        std::vector<std::string> output;
+
+        std::string packed;
+        packed.reserve(value.size());
+
+        for (auto i = 0u; i < value.size(); ++i)
+        {
+            if (!isspace(value[i]))
+            {
+                packed.push_back(value[i]);
+            }
+        }
+
+        auto start = packed.find_first_not_of(symbols, 0);
+
+        while (start != std::string::npos)
+        {
+            auto end = packed.find_first_of(symbols, start);
+
+            if (end == std::string::npos)
+            {
+                output.push_back(packed.substr(start));
+                break;
+            }
+
+            output.push_back(packed.substr(start, end - start));
+            start = packed.find_first_not_of(symbols, end);
+        }
+
+        return output;
+    }
+
     std::string ReadFileName(const std::string& filepath)
     {
         auto lastSlash = filepath.find_last_of("/\\");

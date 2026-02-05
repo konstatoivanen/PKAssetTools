@@ -594,8 +594,8 @@ namespace PKAssets::Shader
         ExtractStateAttributes(source, &shader->attributes);
         Instancing::InsertMaterialAssembly(source, materialProperties, &enableInstancing, &nofragInstancing);
         RemoveDescriptorSets(source);
-        ConvertPKBuffers(source);
         ConvertPKNumThreads(source);
+        ConvertHLSLBuffers(source);
         ConvertHLSLTypesToGLSL(source);
 
         if (ExtractEntryPoints(source, entryPoints) != 0)

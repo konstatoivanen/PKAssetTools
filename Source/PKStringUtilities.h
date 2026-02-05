@@ -6,6 +6,7 @@ namespace PKAssets::StringUtilities
 {
     std::string Trim(const std::string& value);
     std::vector<std::string> Split(const std::string& value, const char* symbols);
+    std::vector<std::string> SplitNoWhiteSpace(const std::string& value, const char* symbols);
     std::string ReadFileName(const std::string& filepath);
     std::string ReadDirectory(const std::string& filepath);
     std::string ReadFileRecursiveInclude(const std::string& filepath, std::vector<std::string>& outIncludes);

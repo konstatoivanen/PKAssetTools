@@ -42,8 +42,8 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
 [pk_local(MainVs)] out float2 vs_TEXCOORD0;
 
 [pk_local(MainVs, MainFs)] uniform image2D pk_DebugImage;
-[pk_local(MainFs)] writeonly buffer<float4> _WriteBuffer;
-[pk_local(MainFs)] readonly buffer<float4,1u> _ReadVariable;
+[pk_local(MainFs)] uniform RWBuffer<float4> _WriteBuffer;
+[pk_local(MainFs)] uniform Buffer<float4,1u> _ReadVariable;
 [pk_local(MainFs)] uniform sampler2D tex1;
 [pk_local(MainFs)] uniform sampler smp;
 [pk_local(STAGE_FRAGMENT)] in float3 vs_COLOR;
