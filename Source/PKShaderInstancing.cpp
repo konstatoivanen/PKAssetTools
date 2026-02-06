@@ -23,24 +23,10 @@ namespace PKAssets::Shader::Instancing
                 source.insert(0, Instancing_MeshTask_GLSL); 
                 break;
             case PKShaderStage::MeshAssembly: 
-                if (noFragmentInstancing)
-                {
-                    source.insert(0, Instancing_MeshAssembly_NoFrag_GLSL); 
-                }
-                else
-                {
-                    source.insert(0, Instancing_MeshAssembly_GLSL); 
-                }
+                source.insert(0, noFragmentInstancing ? Instancing_MeshAssembly_NoFrag_GLSL : Instancing_MeshAssembly_GLSL);
                 break;
             case PKShaderStage::Fragment: 
-                if (noFragmentInstancing)
-                {
-                    source.insert(0, Instancing_Fragment_NoFrag_GLSL); 
-                }
-                else
-                {
-                    source.insert(0, Instancing_Fragment_GLSL); 
-                }
+                source.insert(0, noFragmentInstancing ? Instancing_Fragment_NoFrag_GLSL : Instancing_Fragment_GLSL);
                 break;
             default: return;
         }

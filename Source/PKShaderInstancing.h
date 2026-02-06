@@ -84,13 +84,13 @@ namespace PKAssets::Shader::Instancing
     constexpr const static char* Instancing_MeshTask_GLSL = "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS\n";
 
     constexpr const static char* Instancing_MeshAssembly_GLSL =
-        "out flat uint vs_INSTANCE_ID[];                                                                       \n"
-        "#define PK_SET_VERTEX_INSTANCE_ID(vertexIndex, instanceId) vs_INSTANCE_ID[vertexIndex] = instanceId;  \n"
-        "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS                                                             \n";
+        "out flat uint vs_INSTANCE_ID[];                                                                                     \n"
+        "#define PK_INSTANCING_ASSIGN_VERTEX_INSTANCE_ID(vertexIndex, instanceId) vs_INSTANCE_ID[vertexIndex] = instanceId;  \n"
+        "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS                                                                           \n";
 
     constexpr const static char* Instancing_MeshAssembly_NoFrag_GLSL =
-        "#define PK_SET_VERTEX_INSTANCE_ID(vertexIndex, instanceId) \n"
-        "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS                  \n";
+        "#define PK_INSTANCING_ASSIGN_VERTEX_INSTANCE_ID(vertexIndex, instanceId)   \n"
+        "#define PK_INSTANCING_ASSIGN_STAGE_LOCALS                                  \n";
 
     constexpr const static char* Instancing_Fragment_GLSL =
         "in flat uint vs_INSTANCE_ID;                                                           \n"

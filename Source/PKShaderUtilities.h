@@ -58,14 +58,6 @@ namespace PKAssets::Shader
         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
         "#extension GL_EXT_mesh_shader : require \n";
 
-    constexpr const static char* PK_GL_HLSL_BUFFER_MACROS =
-        "#define PK_HLSL_BUFFER(Type, Name) layout(std430) buffer Name##_pkalias { Type Name[]; }\n"
-        "#define PK_HLSL_BUFFER_ONE(Type, Name) layout(std430) buffer Name##_pkalias { Type Name; }\n"
-        "#define PK_HLSL_BUFFER_FIXED(Type, Name, Size) layout(std430) buffer BufferName##_pkalias { Type Name[Size]; }\n"
-        "#define PK_HLSL_READONLY_BUFFER(Type, Name) layout(std430) readonly buffer Name##_pkalias { Type Name[]; }\n"
-        "#define PK_HLSL_READONLY_BUFFER_ONE(Type, Name) layout(std430) readonly buffer Name##_pkalias { Type Name; }\n"
-        "#define PK_HLSL_READONLY_BUFFER_FIXED(Type, Name, Size) layout(std430) readonly buffer BufferName##_pkalias { Type Name[Size]; }\n";
-
     PKElementType GetElementType(SpvReflectFormat format);
     std::string GetGLSLType(PKElementType type);
     PKDescriptorType GetResourceType(SpvReflectDescriptorType type);

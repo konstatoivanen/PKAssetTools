@@ -555,20 +555,18 @@ namespace PKAssets::Shader
 
     void ConvertHLSLBuffers(std::string& source)
     {
-        source.insert(0, PK_GL_HLSL_BUFFER_MACROS);
-
         size_t currentpos = 0ull;
 
         while (true)
         {
             size_t open, close;
 
-            if (!StringUtilities::FindScope(source, currentpos, "Buffer<", ">", &open, &close))
+            if (!StringUtilities::FindScope(source, currentpos, "Buffer <", ">", &open, &close))
             {
                 break;
             }
 
-            constexpr auto lengthopen = 7u;
+            constexpr auto lengthopen = 8u;
             constexpr auto lengthclose = 1u;
             auto tokens = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ", ");
             
@@ -598,7 +596,7 @@ namespace PKAssets::Shader
             auto name = source.substr(nameStart, nameEnd - nameStart);
 
             auto hasWritableTag = strncmp("RW", source.data() + open - 2ull, 2ull) == 0;
-            auto accessToken = hasWritableTag ? std::string() : "_READONLY";
+            auto accessToken = hasWritableTag ? std::string() : " readonly";
 
             if (hasWritableTag)
             {
@@ -615,9 +613,9 @@ namespace PKAssets::Shader
 
             switch (size)
             {
-                case 0: source.replace(open, nameEnd - open, "PK_HLSL" + accessToken + "_BUFFER(" + type + "," + name + ")"); break;
-                case 1: source.replace(open, nameEnd - open, "PK_HLSL" + accessToken + "_BUFFER_ONE(" + type + ", " + name + ")"); break;
-                default: source.replace(open, nameEnd - open, "PK_HLSL" + accessToken + "_BUFFER_FIXED(" + type + "," + name + "," + std::to_string(size) + ")"); break;
+                case 0: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[];}"); break;
+                case 1: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + ";}"); break;
+                default: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[" + std::to_string(size) + "]; }"); break;
             }
         }
     }

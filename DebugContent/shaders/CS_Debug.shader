@@ -8,7 +8,6 @@ layout(push_constant) uniform uPushConstant{
     vec2 uTranslate;
 } pc;
 
-
 shared float g_test;
 shared float g_ModTime;
 
