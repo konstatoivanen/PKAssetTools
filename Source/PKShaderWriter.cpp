@@ -625,8 +625,10 @@ namespace PKAssets::Shader
 
                 ConvertHLSLTypesToGLSL(stageSources[stageIndex]);
                 ConvertHLSLBuffers(stageSources[stageIndex]);
+                ConvertHLSLCBuffers(stageSources[stageIndex]);
                 ConvertPKNumThreads(stageSources[stageIndex]);
                 RemoveDescriptorSets(stageSources[stageIndex]);
+                RemoveUnsupportedRayTracingFields(stageSources[stageIndex], entry.stage);
                 RemoveInactiveGroupSizeLayouts(stageSources[stageIndex], entry.stage);
                 ExtractPushConstants(stageSources[stageIndex], entry.stage, sourceConstants);
             }

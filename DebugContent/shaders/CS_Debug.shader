@@ -16,6 +16,8 @@ PK_DECLARE_LOCAL_CBUFFER(MyPushConstantBlock)
     float4 unused_x;
 };
 
+hitAttributeEXT float2 invalidAttributeDeclaration;
+
 uniform vec2 unused3;
 shared float g_test;
 shared float g_ModTime;

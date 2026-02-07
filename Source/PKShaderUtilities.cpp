@@ -667,6 +667,80 @@ namespace PKAssets::Shader
         }
     }
 
+    void RemoveUnsupportedRayTracingFields(std::string& source, PKShaderStage stage)
+    {
+        auto isRayTracingSupported = false;
+        // Wont detect if these are set to enabled as I'm too lazy to pattern match that here.
+        // Will fail compiling anyway if not enabled.
+        isRayTracingSupported |= source.find("GL_EXT_ray_tracing") != std::string::npos;
+        isRayTracingSupported |= source.find("GL_EXT_ray_query") != std::string::npos;
+
+        auto isRayTracingHitStage = (((uint32_t)PKShaderStageFlags::RayTraceGroupHit | (uint32_t)PKShaderStageFlags::RayTraceGroupMiss) & (1u << (uint32_t)stage)) != 0u;
+
+        size_t currentpos = 0ull;
+
+        while (!isRayTracingSupported)
+        {
+            auto uniformPos = source.find("uniform ", currentpos);
+
+            if (uniformPos == std::string::npos)
+            {
+                break;
+            }
+
+            auto structurePos = source.find_first_not_of(' ', uniformPos + 8u);
+
+            if (structurePos == std::string::npos || strncmp(source.data() + structurePos, "accelerationStructureEXT ", 24u) != 0)
+            {
+                currentpos = uniformPos + 8u;
+                continue;
+            }
+
+            auto endofField = source.find_first_of(';', structurePos);
+
+            if (endofField == std::string::npos)
+            {
+                break;
+            }
+
+            source.erase(uniformPos, endofField + 1u - uniformPos);
+        }
+
+        currentpos = 0ull;
+
+        while (!isRayTracingHitStage || !isRayTracingSupported)
+        {
+            auto attribPos = source.find("hitAttributeEXT ", currentpos);
+
+            if (attribPos == std::string::npos)
+            {
+                break;
+            }
+
+            auto endofField = source.find_first_of(';', attribPos);
+
+            if (endofField == std::string::npos)
+            {
+                break;
+            }
+
+            source.erase(attribPos, endofField + 1u - attribPos);
+        }
+
+        while (isRayTracingHitStage)
+        {
+            auto attribPos = source.find("rayPayloadEXT", currentpos);
+
+            if (attribPos == std::string::npos)
+            {
+                break;
+            }
+
+            currentpos = attribPos + 15u;
+            source.replace(attribPos, 13u, "rayPayloadInEXT");
+        }
+    }
+
     void ConvertPKNumThreads(std::string& source)
     {
         size_t currentpos = 0ull;
@@ -770,6 +844,32 @@ namespace PKAssets::Shader
                 case 1: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + ";}"); break;
                 default: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[" + std::to_string(size) + "]; }"); break;
             }
+        }
+    }
+
+    void ConvertHLSLCBuffers(std::string& source)
+    {
+        size_t currentpos = 0ull;
+
+        while (currentpos != std::string::npos)
+        {
+            auto uniformPos = source.find("uniform ", currentpos);
+
+            if (uniformPos == std::string::npos)
+            {
+                break;
+            }
+
+            auto cbufferPos = source.find_first_not_of(' ', uniformPos + 8u);
+
+            if (cbufferPos == std::string::npos || strncmp(source.data() + cbufferPos, "cbuffer ", 8u) != 0)
+            {
+                currentpos = uniformPos + 8u;
+                continue;
+            }
+
+            source.replace(uniformPos, cbufferPos + 7u - uniformPos, "layout(std140) uniform ");
+            currentpos = uniformPos + 23u;
         }
     }
 

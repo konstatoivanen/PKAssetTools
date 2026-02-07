@@ -55,7 +55,10 @@ namespace PKAssets::Shader
         "#extension GL_ARB_shader_viewport_layer_array : require \n"
         "#extension GL_EXT_shader_image_load_formatted : require \n";
 
-    constexpr const static char* PK_GL_EXTENSIONS_RAYTRACING = "#extension GL_EXT_ray_tracing : require \n";
+    constexpr const static char* PK_GL_EXTENSIONS_RAYTRACING = 
+        "#extension GL_EXT_ray_tracing : require \n"
+        "#extension GL_EXT_ray_tracing_position_fetch : require \n";
+    
     constexpr const static char* PK_GL_EXTENSIONS_MESHSHADING = 
         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
         "#extension GL_EXT_mesh_shader : require \n";
@@ -123,8 +126,10 @@ namespace PKAssets::Shader
     void RemoveInactiveGroupSizeLayouts(std::string& source, PKShaderStage stage);
     void ProcessShaderVersion(std::string& source);
     void RemoveDescriptorSets(std::string& source);
+    void RemoveUnsupportedRayTracingFields(std::string& source, PKShaderStage stage);
     void ConvertPKNumThreads(std::string& source);
     void ConvertHLSLBuffers(std::string& source);
+    void ConvertHLSLCBuffers(std::string& source);
     void ConvertHLSLTypesToGLSL(std::string& source);
     void ExtractPushConstants(std::string& source, PKShaderStage stage, SourcePushConstants& outConstants);
     void CompilePushConstantBlock(std::string* stageSources, const SourcePushConstants& constants);
