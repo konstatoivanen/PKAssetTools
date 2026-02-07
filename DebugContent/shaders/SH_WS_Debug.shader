@@ -50,6 +50,10 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
 [pk_local(STAGE_FRAGMENT)] in float2 vs_TEXCOORD0;
 [pk_local(STAGE_FRAGMENT)] out float4 outColor;
 
+#if defined(SHADER_STAGE_FRAGMENT)
+uniform float MyUnusedStagePushConstant;
+#endif
+
 [pk_local(MainVs)]
 void TestFunc()
 {

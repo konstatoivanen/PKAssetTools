@@ -1,8 +1,161 @@
-#include "PKShaderUtilities.h"
+#include <algorithm>
 #include "PKStringUtilities.h"
+#include "PKShaderUtilities.h"
 
 namespace PKAssets::Shader
 {
+    constexpr static uint32_t PK_SHADER_PRIMITIVE_TYPE_COUNT = 71u;
+
+    constexpr const static char* PK_HLSL_PRIMITIVE_TYPES[] =
+    {
+         "bool2",
+         "bool3",
+         "bool4",
+         "half", 
+         "half2",
+         "half3",
+         "half4",
+         "float2", 
+         "float3", 
+         "float4", 
+         "double", 
+         "double2",
+         "double3",
+         "double4",
+         "short",
+         "short2", 
+         "short3", 
+         "short4", 
+         "ushort", 
+         "ushort2",
+         "ushort3",
+         "ushort4",
+         "byte", 
+         "byte2",
+         "byte3",
+         "byte4",
+         "sbyte",
+         "sbyte2", 
+         "sbyte3", 
+         "sbyte4", 
+         "int2", 
+         "int3", 
+         "int4", 
+         "uint2",
+         "uint3",
+         "uint4",
+         "long", 
+         "long2",
+         "long3",
+         "long4",
+         "ulong",
+         "ulong2", 
+         "ulong3", 
+         "ulong4", 
+         "half2x2",
+         "half2x3",
+         "half2x4",
+         "half3x2",
+         "half3x3",
+         "half3x4",
+         "half4x2",
+         "half4x3",
+         "half4x4",
+         "float2x2", 
+         "float2x3", 
+         "float2x4", 
+         "float3x2", 
+         "float3x3", 
+         "float3x4", 
+         "float4x2", 
+         "float4x3", 
+         "float4x4", 
+         "double2x2",
+         "double2x3",
+         "double2x4",
+         "double3x2",
+         "double3x3",
+         "double3x4",
+         "double4x2",
+         "double4x3",
+         "double4x4",
+    };
+
+    constexpr const static char* PK_GLSL_PRIMITIVE_TYPES[] =
+    {
+        "bvec2",
+        "bvec3",
+        "bvec4",
+        "float16_t",
+        "f16vec2",
+        "f16vec3",
+        "f16vec4",
+        "vec2",
+        "vec3",
+        "vec4",
+        "float64_t",
+        "f64vec2",
+        "f64vec3",
+        "f64vec4",
+        "int16_t",
+        "i16vec2",
+        "i16vec3",
+        "i16vec4",
+        "uint16_t",
+        "u16vec2",
+        "u16vec3",
+        "u16vec4",
+        "uint8_t",
+        "u8vec2",
+        "u8vec3",
+        "u8vec4",
+        "int8_t",
+        "i8vec2",
+        "i8vec3",
+        "i8vec4",
+        "ivec2",
+        "ivec3",
+        "ivec4",
+        "uvec2",
+        "uvec3",
+        "uvec4",
+        "int64_t",
+        "i64vec2",
+        "i64vec3",
+        "i64vec4",
+        "uint64_t",
+        "u64vec2",
+        "u64vec3",
+        "u64vec4",
+        "f16mat2",
+        "f16mat2x3",
+        "f16mat2x4",
+        "f16mat3x2",
+        "f16mat3",
+        "f16mat3x4",
+        "f16mat4x2",
+        "f16mat4x3",
+        "f16mat4",
+        "mat2",
+        "mat2x3",
+        "mat2x4",
+        "mat3x2",
+        "mat3",
+        "mat3x4",
+        "mat4x2",
+        "mat4x3",
+        "mat4",
+        "f64mat2",
+        "f64mat2x3",
+        "f64mat2x4",
+        "f64mat3x2",
+        "f64mat3",
+        "f64mat3x4",
+        "f64mat4x2",
+        "f64mat4x3",
+        "f64mat4",
+    };
+
     PKElementType GetElementType(SpvReflectFormat format)
     {
         switch (format)
@@ -627,96 +780,212 @@ namespace PKAssets::Shader
         StringUtilities::ReplaceAll(source, surroundMask, "asuint", "floatBitsToUint");
         StringUtilities::ReplaceAll(source, surroundMask, "asfloat", "uintBitsToFloat");
 
-        StringUtilities::ReplaceAll(source, surroundMask, "bool2", "bvec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "bool3", "bvec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "bool4", "bvec4");
+        for (auto i = 0u; i < PK_SHADER_PRIMITIVE_TYPE_COUNT; ++i)
+        {
+            StringUtilities::ReplaceAll(source, surroundMask, PK_HLSL_PRIMITIVE_TYPES[i], PK_GLSL_PRIMITIVE_TYPES[i]);
+        }
+    }
 
-        StringUtilities::ReplaceAll(source, surroundMask, "half", "float16_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "half2", "f16vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "half3", "f16vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "half4", "f16vec4");
 
-        StringUtilities::ReplaceAll(source, surroundMask, "float2", "vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "float3", "vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "float4", "vec4");
+    static bool ExtractPrimitiveVariable(size_t& offset, std::string& source, PKShaderStage stage, SourcePushConstants& members)
+    {
+        auto typeStart = source.find_first_not_of(' ', offset);
 
-        StringUtilities::ReplaceAll(source, surroundMask, "double", "float64_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "double2", "f64vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "double3", "f64vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "double4", "f64vec4");
+        if (typeStart == std::string::npos)
+        {
+            return false;
+        }
 
-        StringUtilities::ReplaceAll(source, surroundMask, "short", "int16_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "short2", "i16vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "short3", "i16vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "short4", "i16vec4");
+        auto typeEnd = source.find_first_of(' ', typeStart);
 
-        StringUtilities::ReplaceAll(source, surroundMask, "ushort", "uint16_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "ushort2", "u16vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "ushort3", "u16vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "ushort4", "u16vec4");
+        if (typeEnd == std::string::npos)
+        {
+            return false;
+        }
 
-        StringUtilities::ReplaceAll(source, surroundMask, "byte", "uint8_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "byte2", "u8vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "byte3", "u8vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "byte4", "u8vec4");
+        auto nameStart = source.find_first_not_of(' ', typeEnd);
 
-        StringUtilities::ReplaceAll(source, surroundMask, "sbyte", "int8_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "sbyte2", "i8vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "sbyte3", "i8vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "sbyte4", "i8vec4");
+        if (nameStart == std::string::npos)
+        {
+            return false;
+        }
 
-        StringUtilities::ReplaceAll(source, surroundMask, "int2", "ivec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "int3", "ivec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "int4", "ivec4");
+        auto nameEnd = source.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", nameStart);
 
-        StringUtilities::ReplaceAll(source, surroundMask, "uint2", "uvec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "uint3", "uvec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "uint4", "uvec4");
+        if (nameEnd == std::string::npos || source[nameEnd] != ';')
+        {
+            offset = nameStart;
+            return false;
+        }
 
-        StringUtilities::ReplaceAll(source, surroundMask, "long", "int64_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "long2", "i64vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "long3", "i64vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "long4", "i64vec4");
+        auto isValidType = false;
 
-        StringUtilities::ReplaceAll(source, surroundMask, "ulong", "uint64_t");
-        StringUtilities::ReplaceAll(source, surroundMask, "ulong2", "u64vec2");
-        StringUtilities::ReplaceAll(source, surroundMask, "ulong3", "u64vec3");
-        StringUtilities::ReplaceAll(source, surroundMask, "ulong4", "u64vec4");
+        for (auto i = 0u; i < PK_SHADER_PRIMITIVE_TYPE_COUNT; ++i)
+        {
+            if (strncmp(PK_GLSL_PRIMITIVE_TYPES[i], source.data() + typeStart, typeEnd - typeStart) == 0)
+            {
+                isValidType = true;
+                break;
+            }
+        }
 
-        StringUtilities::ReplaceAll(source, surroundMask, "half2x2", "f16mat2");
-        StringUtilities::ReplaceAll(source, surroundMask, "half2x3", "f16mat2x3");
-        StringUtilities::ReplaceAll(source, surroundMask, "half2x4", "f16mat2x4");
+        if (!isValidType)
+        {
+            offset = nameEnd + 1u;
+            return false;
+        }
 
-        StringUtilities::ReplaceAll(source, surroundMask, "half3x2", "f16mat3x2");
-        StringUtilities::ReplaceAll(source, surroundMask, "half3x3", "f16mat3");
-        StringUtilities::ReplaceAll(source, surroundMask, "half3x4", "f16mat3x4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "half4x2", "f16mat4x2");
-        StringUtilities::ReplaceAll(source, surroundMask, "half4x3", "f16mat4x3");
-        StringUtilities::ReplaceAll(source, surroundMask, "half4x4", "f16mat4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "float2x2", "mat2");
-        StringUtilities::ReplaceAll(source, surroundMask, "float2x3", "mat2x3");
-        StringUtilities::ReplaceAll(source, surroundMask, "float2x4", "mat2x4");
-
-        StringUtilities::ReplaceAll(source, surroundMask, "float3x2", "mat3x2");
-        StringUtilities::ReplaceAll(source, surroundMask, "float3x3", "mat3");
-        StringUtilities::ReplaceAll(source, surroundMask, "float3x4", "mat3x4");
+        offset = nameEnd + 1u;
         
-        StringUtilities::ReplaceAll(source, surroundMask, "float4x2", "mat4x2");
-        StringUtilities::ReplaceAll(source, surroundMask, "float4x3", "mat4x3");
-        StringUtilities::ReplaceAll(source, surroundMask, "float4x4", "mat4");
+        auto type = source.substr(typeStart, typeEnd - typeStart);
+        auto name = source.substr(nameStart, nameEnd - nameStart);
+        auto field = type + " " + name + ";\n";
 
-        StringUtilities::ReplaceAll(source, surroundMask, "double2x2", "f64mat2");
-        StringUtilities::ReplaceAll(source, surroundMask, "double2x3", "f64mat2x3");
-        StringUtilities::ReplaceAll(source, surroundMask, "double2x4", "f64mat2x4");
+        // slow find member. I don't want to implement an insertion ordered map here so whatever.
+        for (auto& member : members)
+        {
+            if (member.name.compare(name) == 0)
+            {
+                if (member.field.compare(field) != 0)
+                {
+                    printf("Warning constant parameter '%s' was declared again with a different format '%s'", member.field.c_str(), field.c_str());
+                }
 
-        StringUtilities::ReplaceAll(source, surroundMask, "double3x2", "f64mat3x2");
-        StringUtilities::ReplaceAll(source, surroundMask, "double3x3", "f64mat3");
-        StringUtilities::ReplaceAll(source, surroundMask, "double3x4", "f64mat3x4");
-        
-        StringUtilities::ReplaceAll(source, surroundMask, "double4x2", "f64mat4x2");
-        StringUtilities::ReplaceAll(source, surroundMask, "double4x3", "f64mat4x3");
-        StringUtilities::ReplaceAll(source, surroundMask, "double4x4", "f64mat4");
+                member.stageFlags |= 1u << (uint32_t)stage;
+                return true;
+            }
+        }
+
+        members.push_back({ name, field, 1u << (uint32_t)stage });
+        return true;
+    }
+
+    static bool ExtractPushConstantBlock(size_t& offset, std::string& source, PKShaderStage stage, SourcePushConstants& members)
+    {
+        size_t blockStart, blockEnd;
+
+        if (!StringUtilities::FindScope(source, offset, "{", "}", &blockStart, &blockEnd))
+        {
+            return false;
+        }
+
+        blockEnd++;
+
+        if (source[blockEnd] != ';')
+        {
+            return false;
+        }
+
+        auto currentPos = blockStart + 1ull;
+
+        while (true)
+        {
+            currentPos = source.find_first_not_of(" \n\r", currentPos);
+
+            if (currentPos == std::string::npos)
+            {
+                break;
+            }
+
+            auto memberEnd = currentPos;
+            if (!ExtractPrimitiveVariable(memberEnd, source, stage, members))
+            {
+                break;
+            }
+
+            currentPos = memberEnd;
+        }
+
+        offset = blockEnd + 1ull;
+        return true;
+    }
+
+    void ExtractPushConstants(std::string& source, PKShaderStage stage, SourcePushConstants& members)
+    {
+        size_t currentpos = 0ull;
+
+        while (true)
+        {
+            auto startSingle = source.find("uniform ", currentpos);
+            auto startLayout = source.find("layout(push_constant) ", currentpos);
+
+            if (startSingle == std::string::npos && startLayout == std::string::npos)
+            {
+                break;
+            }
+
+            if (startSingle < startLayout)
+            {
+                auto endSingle = startSingle + 8ull;
+                if (ExtractPrimitiveVariable(endSingle, source, stage, members))
+                {
+                    source.erase(startSingle, endSingle - startSingle);
+                    continue;
+                }
+
+                currentpos = endSingle;
+            }
+            else
+            {
+                auto endLayout = startLayout + 22ull;
+                if (ExtractPushConstantBlock(endLayout, source, stage, members))
+                {
+                    source.erase(startLayout, endLayout - startLayout);
+                    continue;
+                }
+
+                currentpos = endLayout;
+            }
+        }
+    }
+
+    void CompilePushConstantBlock(std::string* stageSources, const SourcePushConstants& constants)
+    {
+        struct SortedField
+        {
+            std::string field;
+            uint32_t bits;
+        };
+
+        if (constants.size() == 0)
+        {
+            return;
+        }
+
+        std::vector<SortedField> sorted;
+        sorted.reserve(constants.size());
+
+        for (auto& constant : constants)
+        {
+            auto bits = constant.stageFlags;
+            bits = bits - ((bits >> 1) & 0x55555555);        
+            bits = (bits & 0x33333333) + ((bits >> 2) & 0x33333333); 
+            bits = (bits + (bits >> 4)) & 0x0F0F0F0F;
+            bits *= 0x01010101;
+            bits = bits >> 24;
+            sorted.push_back({ constant.field, bits });
+        }
+
+        std::stable_sort(sorted.begin(), sorted.end(), [](const SortedField& a, const SortedField& b)
+        {
+            return a.bits > b.bits;
+        });
+
+        std::string layout;
+        layout.append("layout(push_constant) uniform pk_global_push_constant_block\n{\n");
+        for (auto& member : sorted)
+        {
+            layout.append(member.field);
+        }
+        layout.append("};\n");
+
+        for (auto i = 0u; i < (uint32_t)PKShaderStage::MaxCount; ++i)
+        {
+            if (!stageSources[i].empty())
+            {
+                // Skip version pragma
+                stageSources[i].insert(stageSources[i].find_first_of("\n") + 1ull, layout);
+            }
+        }
     }
 }

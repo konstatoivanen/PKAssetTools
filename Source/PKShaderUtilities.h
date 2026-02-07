@@ -1,6 +1,8 @@
 #pragma once
 #include <shaderc/shaderc.hpp>
 #include <SPIRV-Reflect/spirv_reflect.h>
+#include <map>
+#include <unordered_map>
 #include <PKAsset.h>
 
 namespace PKAssets::Shader
@@ -58,6 +60,55 @@ namespace PKAssets::Shader
         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
         "#extension GL_EXT_mesh_shader : require \n";
 
+    struct SourcePushConstant
+    {
+        std::string name;
+        std::string field;
+        uint32_t stageFlags = 0u;
+    };
+
+    struct EntryPointInfo
+    {
+        PKShaderStage stage;
+        std::string name;
+        std::string functionName;
+        std::string keyword;
+    };
+
+    struct ReflectBinding
+    {
+        uint32_t firstStage = (uint32_t)PKShaderStage::MaxCount;
+        uint32_t maxBinding = 0u;
+        uint32_t count = 0u;
+        uint32_t writeStageMask = (uint32_t)PKShaderStageFlags::None;
+        std::string name;
+        const SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount]{};
+        const SpvReflectDescriptorBinding* get() { return bindings[firstStage]; }
+    };
+
+    struct ReflectPushConstant
+    {
+        uint16_t offset = 0u;
+        uint16_t size = 0u;
+    };
+
+    struct ReflectionData
+    {
+        SpvReflectShaderModule* modulesRel[(int)PKShaderStage::MaxCount]{};
+        SpvReflectShaderModule* modulesDeb[(int)PKShaderStage::MaxCount]{};
+        std::vector<PKVertexInputAttribute> vertexAttributes;
+        std::vector<ReflectBinding> sortedBindings;
+        std::map<std::string, ReflectBinding> uniqueBindings;
+        std::map<std::string, ReflectPushConstant> uniqueConstants;
+        uint32_t constantRangeSize = 0u;
+        uint32_t constantRangeStageFlags = 0u; //PKShaderStageFlags
+        bool logVerbose;
+    };
+
+    typedef std::vector<SourcePushConstant> SourcePushConstants;
+    typedef shaderc::Compiler ShaderCompiler;
+    typedef shaderc::CompileOptions CompileOptions;
+
     PKElementType GetElementType(SpvReflectFormat format);
     std::string GetGLSLType(PKElementType type);
     PKDescriptorType GetResourceType(SpvReflectDescriptorType type);
@@ -75,4 +126,6 @@ namespace PKAssets::Shader
     void ConvertPKNumThreads(std::string& source);
     void ConvertHLSLBuffers(std::string& source);
     void ConvertHLSLTypesToGLSL(std::string& source);
+    void ExtractPushConstants(std::string& source, PKShaderStage stage, SourcePushConstants& outConstants);
+    void CompilePushConstantBlock(std::string* stageSources, const SourcePushConstants& constants);
 }

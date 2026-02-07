@@ -382,6 +382,17 @@ namespace PKAssets::StringUtilities
         return ptr == nullptr ? std::string::npos : (ptr - str);
     }
 
+    void ConvertTabsToSpaces(std::string& value)
+    {
+        for (auto i = 0u; i < value.size(); ++i)
+        {
+            if (value[i] == '\f' || value[i] == '\t' || value[i] == '\v')
+            {
+                value[i] = ' ';
+            }
+        }
+    }
+
     void ReplaceAll(std::string& str, const std::string& surroundMask, const std::string& from, const std::string& to)
     {
         if (from.empty())
