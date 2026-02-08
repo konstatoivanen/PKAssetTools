@@ -127,6 +127,7 @@ namespace PKAssets::Shader
     void ProcessShaderVersion(std::string& source);
     void RemoveDescriptorSets(std::string& source);
     void RemoveUnsupportedRayTracingFields(std::string& source, PKShaderStage stage);
+    void ConvertPrintf(std::string& source);
     void ConvertPKNumThreads(std::string& source);
     void ConvertHLSLBuffers(std::string& source);
     void ConvertHLSLCBuffers(std::string& source);

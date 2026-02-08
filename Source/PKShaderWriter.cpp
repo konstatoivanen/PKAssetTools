@@ -616,7 +616,10 @@ namespace PKAssets::Shader
                 stageSources[stageIndex].insert(0, PK_SHADER_STAGE_DEFINES[(uint32_t)entry.stage]);
                 stageSources[stageIndex].insert(0, variantDefines[variantIndex]);
                 InsertRequiredExtensions(stageSources[stageIndex], entry.stage);
+                // Preprocessor will remove strings if the print extension is not present.
+                ConvertPrintf(stageSources[stageIndex]);
                 ProcessShaderVersion(stageSources[stageIndex]);
+                
 
                 if (PreprocessGLSL(compiler, optionsDebug, entry.stage, entry.name, stageSources[stageIndex]) != 0)
                 {

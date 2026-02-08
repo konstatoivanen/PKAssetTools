@@ -495,7 +495,7 @@ namespace PKAssets::Shader
 
     int RemoveEntryPointLocals(std::string& source, const std::string& entryPointName, PKShaderStage stage)
     {
-        size_t currentpos = 0ull;
+        auto currentpos = 0ull;
 
         const auto lengthOpen = strlen(PK_SHADER_ATTRIB_LOCAL_OPEN);
         const auto lengthClose = strlen(PK_SHADER_ATTRIB_LOCAL_CLOSE);
@@ -559,7 +559,7 @@ namespace PKAssets::Shader
         {
             std::vector<size_t> positions;
 
-            size_t currentpos = 0ull;
+            auto currentpos = 0ull;
 
             while (true)
             {
@@ -613,7 +613,7 @@ namespace PKAssets::Shader
 
     void RemoveDescriptorSets(std::string& source)
     {
-        size_t currentpos = 0ull;
+        auto currentpos = 0ull;
 
         while (true)
         {
@@ -677,7 +677,7 @@ namespace PKAssets::Shader
 
         auto isRayTracingHitStage = (((uint32_t)PKShaderStageFlags::RayTraceGroupHit | (uint32_t)PKShaderStageFlags::RayTraceGroupMiss) & (1u << (uint32_t)stage)) != 0u;
 
-        size_t currentpos = 0ull;
+        auto currentpos = 0ull;
 
         while (!isRayTracingSupported)
         {
@@ -741,9 +741,32 @@ namespace PKAssets::Shader
         }
     }
 
+    void ConvertPrintf(std::string& source)
+    {
+        auto insertExtension = false;
+        auto currentpos = 0ull;
+
+        while (currentpos != std::string::npos)
+        {
+            currentpos = source.find("printf(", currentpos);
+
+            if (currentpos != std::string::npos)
+            {
+                insertExtension = true;
+                source.replace(currentpos, 7ull, "debugPrintfEXT(");
+                currentpos += 15ull;
+            }
+        }
+
+        if (insertExtension)
+        {
+            source.insert(0u, "#extension GL_EXT_debug_printf : require\n");
+        }
+    }
+
     void ConvertPKNumThreads(std::string& source)
     {
-        size_t currentpos = 0ull;
+        auto currentpos = 0ull;
 
         const auto lengthopen = strlen(PK_SHADER_ATTRIB_NUMTHREADS_OPEN);
         const auto lengthclose = strlen(PK_SHADER_ATTRIB_NUMTHREADS_CLOSE);
@@ -782,7 +805,7 @@ namespace PKAssets::Shader
 
     void ConvertHLSLBuffers(std::string& source)
     {
-        size_t currentpos = 0ull;
+        auto currentpos = 0ull;
 
         while (true)
         {
@@ -849,7 +872,7 @@ namespace PKAssets::Shader
 
     void ConvertHLSLCBuffers(std::string& source)
     {
-        size_t currentpos = 0ull;
+        auto currentpos = 0ull;
 
         while (currentpos != std::string::npos)
         {
@@ -1002,7 +1025,7 @@ namespace PKAssets::Shader
 
     void ExtractPushConstants(std::string& source, PKShaderStage stage, SourcePushConstants& members)
     {
-        size_t currentpos = 0ull;
+        auto currentpos = 0ull;
 
         while (true)
         {

@@ -36,4 +36,6 @@ void main()
     int2 size = imageSize(g_Texture).xy;
     float4 value = float4(float2(coord + 0.5f.xx) / float2(size) * g_ModTime * 10.0f + uTranslate, 1.0f, 1.0f) * uScale.xyxy;
     imageStore(g_Texture, coord, value);
+
+    printf("Debug text: %f", uscale.x);
 }
