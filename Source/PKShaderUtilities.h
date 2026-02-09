@@ -44,6 +44,8 @@ namespace PKAssets::Shader
     };
 
     constexpr const static char* PK_GL_EXTENSIONS_COMMON =
+        "#extension GL_KHR_shader_subgroup_arithmetic : require\n"
+        "#extension GL_KHR_shader_subgroup_shuffle : require\n"
         "#extension GL_KHR_shader_subgroup_basic : require\n"
         "#extension GL_KHR_shader_subgroup_ballot : require\n"
         "#extension GL_KHR_shader_subgroup_vote : require\n"
@@ -62,6 +64,8 @@ namespace PKAssets::Shader
     constexpr const static char* PK_GL_EXTENSIONS_MESHSHADING = 
         "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
         "#extension GL_EXT_mesh_shader : require \n";
+
+    constexpr const static char* PK_GL_EXTENSION_PRINTF = "#extension GL_EXT_debug_printf : require\n";
 
     struct SourcePushConstant
     {

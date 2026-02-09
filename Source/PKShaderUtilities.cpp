@@ -760,7 +760,7 @@ namespace PKAssets::Shader
 
         if (insertExtension)
         {
-            source.insert(0u, "#extension GL_EXT_debug_printf : require\n");
+            source.insert(0u, PK_GL_EXTENSION_PRINTF);
         }
     }
 
