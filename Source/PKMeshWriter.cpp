@@ -447,7 +447,6 @@ namespace PKAssets::Mesh
 
         PKVertexAttribute attribute;
         WriteName(attribute.name, PK_MESH_VS_POSITION);
-        attribute.type = PKElementType::Float3;
         attribute.size = sizeof(float) * 3;
         attribute.offset = 0;
         attribute.stream = splitPositionStream ? 1 : 0;
@@ -462,7 +461,6 @@ namespace PKAssets::Mesh
         if (hasNormals)
         {
             WriteName(attribute.name, PK_MESH_VS_NORMAL);
-            attribute.type = useHalfPrecisionNormals ? PKElementType::Half4 : PKElementType::Float3;
             attribute.size = (useHalfPrecisionNormals ? sizeof(uint16_t) * 4 : sizeof(float)) * 3;
             attribute.offset = attributeOffset;
             attribute.stream = 0;
@@ -476,7 +474,6 @@ namespace PKAssets::Mesh
         if (hasTangents)
         {
             WriteName(attribute.name, PK_MESH_VS_TANGENT);
-            attribute.type = useHalfPrecisionTangents ? PKElementType::Half4 : PKElementType::Float4;
             attribute.size = (useHalfPrecisionTangents ? sizeof(uint16_t) * 4 : sizeof(float)) * 4;
             attribute.offset = attributeOffset;
             attribute.stream = 0;
@@ -490,7 +487,6 @@ namespace PKAssets::Mesh
         if (hasUvs)
         {
             WriteName(attribute.name, PK_MESH_VS_TEXCOORD0);
-            attribute.type = useHalfPrecisionUVs ? PKElementType::Half2 : PKElementType::Float2;
             attribute.size = (useHalfPrecisionUVs ? sizeof(uint16_t) * 2 : sizeof(float)) * 2;
             attribute.offset = attributeOffset;
             attribute.stream = 0;
