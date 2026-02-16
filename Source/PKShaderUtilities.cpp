@@ -255,6 +255,7 @@ namespace PKAssets::Shader
             case PKElementType::Texture2DHandle: return "uint";
             case PKElementType::Texture3DHandle: return "uint";
             case PKElementType::TextureCubeHandle: return "uint";
+            case PKElementType::Keyword: return "INVALID";
             case PKElementType::Invalid: return "INVALID";
         }
     }
