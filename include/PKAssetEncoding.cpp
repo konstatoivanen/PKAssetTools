@@ -206,7 +206,7 @@ namespace PKAssets
     {
         PKEncodeTable table{};
         EncodeBuffer(in_data, in_data_size, &table, nullptr);
-        auto compressed_buff = reinterpret_cast<uint8_t*>(malloc(table.size));
+        auto compressed_buff = static_cast<uint8_t*>(malloc(table.size));
         EncodeBuffer(in_data, in_data_size, &table, compressed_buff);
         *out_data = compressed_buff;
         *out_data_size = table.size;
