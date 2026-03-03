@@ -43,13 +43,25 @@ namespace PKAssets::Shader
                 break;
             }
 
+            if (vcount >= PK_ASSET_MAX_SHADER_KEYWORDS)
+            {
+                printf("Warning maximum number of shader variants exceeded!.\n");
+                continue;
+            }
+
             if (dcount >= PK_ASSET_MAX_SHADER_DIRECTIVES)
             {
-                printf("Warning maximum number of shader multicompile directives reached! consider combining directives.");
+                printf("Warning maximum number of shader multicompile directives reached!.\n");
                 continue;
             }
 
             auto directive = StringUtilities::Split(output, " ");
+
+            if (directive.size() >= PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE)
+            {
+                printf("Warning multicompile directive keyword count exceeds supported limits!\n");
+                continue;
+            }
 
             for (auto i = 0u; i < directive.size(); ++i)
             {
@@ -58,7 +70,9 @@ namespace PKAssets::Shader
                 if (keyword != "_")
                 {
                     PKShaderKeyword pkkw{};
-                    pkkw.offsets = (uint32_t)((((dcount << 4) | (i & 0xF)) << 24) | (vcount & 0xFFFFFF));
+                    pkkw.offset = (uint16_t)vcount;
+                    pkkw.directive = dcount;
+                    pkkw.value = i;
                     WriteName(pkkw.name, keyword.c_str());
                     outKeywords.push_back(pkkw);
                 }

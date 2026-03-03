@@ -221,7 +221,7 @@ namespace PKAssets
         uint16_t codes[PK_ASSET_ENCODE_CODE_COUNT]{};
         uint16_t table[table_size]{};
     
-        auto stream_bytes = reinterpret_cast<const uint8_t*>(in_data);
+        auto stream_bytes = static_cast<const uint8_t*>(in_data);
         auto stream_bitbuffer = 0ull;
         auto stream_bitcount = 0u;
         auto stream_bytecount = 0u;
