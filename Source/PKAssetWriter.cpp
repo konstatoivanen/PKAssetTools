@@ -114,7 +114,7 @@ namespace PKAssets
         PKAsset asset;
         PKAssets::OpenAsset(filepath, &asset);
 
-        auto charData = reinterpret_cast<char*>(asset.rawData);
+        auto charData = static_cast<char*>(asset.rawData);
 
         for (auto i = 0ull; i < buffer.size(); ++i)
         {
