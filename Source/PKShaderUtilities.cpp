@@ -331,45 +331,39 @@ namespace PKAssets::Shader
         return name;
     }
 
-    void FindLineRange(const std::string& name, const std::string& message, int* outMin, int* outMax)
+    std::string FormatErrorMessage(const std::string& name, const std::string& source, const std::string& error)
     {
-        *outMin = 0xFFFF;
-        *outMax = -0xFFFF;
+        std::string output;
+        auto lineToken = name + std::string(":");
+        output.reserve(error.size());
+        
+        auto pos = 0ull;
 
-        auto token = name + std::string(":");
-        auto pos = message.find(token.c_str(), 0);
-
-        while (pos != std::string::npos)
+        while (pos < error.size())
         {
-            auto eol = message.find_first_of("\r\n", pos);
-            auto sol = message.find_first_not_of("\r\n", eol);
-            
-            auto spos = pos + strlen(token.c_str());
-            auto eot = message.find_first_of(":", spos);
-            
-            if (eot != std::string::npos && isdigit(message[spos]))
+            auto eol = error.find_first_of("\r\n", pos);
+            eol = pos == std::string::npos ? error.size() - 1ull : eol;
+
+            auto linepos = error.find(lineToken, pos);
+            auto numbeg = linepos + lineToken.size();
+
+            output.append(error.substr(pos, (eol + 1ull) - pos));
+
+            if (linepos < eol && isdigit(error[numbeg]))
             {
-                auto number = std::stoi(message.substr(spos, eot - spos));
+                auto numend = error.find(':', numbeg);
 
-                if (number < *outMin)
+                if (numend < eol)
                 {
-                    *outMin = number;
-                }
-
-                if (number > *outMax)
-                {
-                    *outMax = number;
+                    auto number = std::stoi(error.substr(numbeg, numend - numbeg));
+                    output.append(StringUtilities::GetLineAtIndex(source, number));
                 }
             }
 
-            if (eol == std::string::npos ||
-                sol == std::string::npos)
-            {
-                return;
-            }
-
-            pos = message.find(token.c_str(), sol);
+            pos = eol + 1ull;
         }
+
+        return output;
     }
 
     void ExtractLogVerbose(std::string& source, bool* outValue)
@@ -1109,6 +1103,17 @@ namespace PKAssets::Shader
             {
                 // Skip version pragma
                 stageSources[i].insert(stageSources[i].find_first_of("\n") + 1ull, layout);
+            }
+        }
+    }
+
+    void AddLineCounter(std::string* stageSources)
+    {
+        for (auto i = 0u; i < (uint32_t)PKShaderStage::MaxCount; ++i)
+        {
+            if (!stageSources[i].empty())
+            {
+                stageSources[i].insert(stageSources[i].find_first_of("\r\n") + 1ull, "#line 2\n");
             }
         }
     }

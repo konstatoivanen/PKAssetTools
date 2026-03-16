@@ -191,6 +191,28 @@ namespace PKAssets::StringUtilities
         return firstToken;
     }
 
+    std::string GetLineAtIndex(const std::string& string, size_t index)
+    {
+        auto pos = 0ull;
+        auto lineIndex = 0ull;
+
+        while (pos < string.size())
+        {
+            auto eol = string.find_first_of("\r\n", pos);
+            eol = eol == std::string::npos ? string.size() - 1ull : eol;
+
+            if (lineIndex == index)
+            {
+                return string.substr(pos, (eol + 1ull) - pos);
+            }
+
+            pos = eol + 1ull;
+            lineIndex++;
+        }
+
+        return std::string();
+    }
+
     size_t ExtractToken(size_t offset, const char* token, std::string& source, std::string& output, bool includeToken, bool trim)
     {
         auto pos = source.find(token, offset);

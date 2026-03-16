@@ -230,34 +230,13 @@ namespace PKAssets::Shader
 
         if (result.GetCompilationStatus() != shaderc_compilation_status_success || result.GetNumWarnings() > 0)
         {
-            int minLine, maxLine;
-            FindLineRange(name, result.GetErrorMessage(), &minLine, &maxLine);
-
             #if defined(WIN32)
             SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
             #endif
 
             printf("\n ----------BEGIN ERROR---------- \n");
             printf("\n Stage: %s\n\n", PK_SHADER_STAGE_NAMES[(uint32_t)stage]);
-            printf("%s", result.GetErrorMessage().c_str());
-            printf("\n");
-
-            std::istringstream iss(source);
-            auto index = 0;
-            const auto linePadding = 5;
-            minLine -= linePadding;
-            maxLine += linePadding;
-
-            for (std::string line; std::getline(iss, line);)
-            {
-                if (index > minLine && index < maxLine)
-                {
-                    printf("%i: %s \n", index, line.c_str());
-                }
-
-                index++;
-            }
-
+            printf("%s", FormatErrorMessage(name, source, result.GetErrorMessage()).c_str());
             printf("\n ----------END ERROR---------- \n\n");
 
             #if defined(WIN32)
@@ -651,6 +630,7 @@ namespace PKAssets::Shader
             }
 
             CompilePushConstantBlock(stageSources, sourceConstants);
+            AddLineCounter(stageSources);
 
             ReflectionData reflectionData{};
             reflectionData.logVerbose = logVerbose;

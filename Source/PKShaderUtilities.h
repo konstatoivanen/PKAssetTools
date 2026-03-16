@@ -121,7 +121,7 @@ namespace PKAssets::Shader
     PKDescriptorType GetResourceType(SpvReflectDescriptorType type);
     shaderc_shader_kind ConvertToShadercKind(PKShaderStage stage);
     std::string ReflectBindingName(SpvReflectDescriptorBinding* binding);
-    void FindLineRange(const std::string& name, const std::string& message, int* outMin, int* outMax);
+    std::string FormatErrorMessage(const std::string& name, const std::string& source, const std::string& error);
     void ExtractLogVerbose(std::string& source, bool* outValue);
     void ExtractGenerateDebugInfo(std::string& source, bool* outValue);
     void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes);
@@ -138,4 +138,5 @@ namespace PKAssets::Shader
     void ConvertHLSLTypesToGLSL(std::string& source);
     void ExtractPushConstants(std::string& source, PKShaderStage stage, SourcePushConstants& outConstants);
     void CompilePushConstantBlock(std::string* stageSources, const SourcePushConstants& constants);
+    void AddLineCounter(std::string* stageSources);
 }
