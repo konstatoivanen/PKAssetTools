@@ -13,10 +13,10 @@ namespace PKAssets::Shader
         "STAGE_TESSELATION_CONTROL",
         "STAGE_TESSELATION_EVALUATE",
         "STAGE_GEOMETRY",
-        "STAGE_FRAGMENT",
-        "STAGE_COMPUTE",
         "STAGE_MESH_TASK",
         "STAGE_MESH_ASSEMBLY",
+        "STAGE_FRAGMENT",
+        "STAGE_COMPUTE",
 
         "STAGE_RAY_GENERATION",
         "STAGE_RAY_MISS",
@@ -31,10 +31,10 @@ namespace PKAssets::Shader
         "#define SHADER_STAGE_TESSELATION_CONTROL\n",
         "#define SHADER_STAGE_TESSELATION_EVALUATE\n",
         "#define SHADER_STAGE_GEOMETRY\n",
-        "#define SHADER_STAGE_FRAGMENT\n",
-        "#define SHADER_STAGE_COMPUTE\n",
         "#define SHADER_STAGE_MESH_TASK\n",
         "#define SHADER_STAGE_MESH_ASSEMBLY\n",
+        "#define SHADER_STAGE_FRAGMENT\n",
+        "#define SHADER_STAGE_COMPUTE\n",
 
         "#define SHADER_STAGE_RAY_GENERATION\n",
         "#define SHADER_STAGE_RAY_MISS\n",
@@ -84,13 +84,14 @@ namespace PKAssets::Shader
 
     struct ReflectBinding
     {
-        uint32_t firstStage = (uint32_t)PKShaderStage::MaxCount;
-        uint32_t maxBinding = 0u;
-        uint32_t count = 0u;
-        uint32_t writeStageMask = (uint32_t)PKShaderStageFlags::None;
         std::string name;
+        uint32_t writeStageMask = (uint32_t)PKShaderStageFlags::None;
+        uint32_t accessStageMask = (uint32_t)PKShaderStageFlags::None;
+        PKDescriptorType type = PKDescriptorType::Invalid;
+        uint32_t bindingIndex = 0u;
+        uint32_t setIndex = 0u;
+        uint32_t count = 0u;
         const SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount]{};
-        const SpvReflectDescriptorBinding* get() { return bindings[firstStage]; }
     };
 
     struct ReflectPushConstant

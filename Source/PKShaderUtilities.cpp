@@ -289,10 +289,10 @@ namespace PKAssets::Shader
             case PKShaderStage::TesselationControl: return shaderc_tess_control_shader;
             case PKShaderStage::TesselationEvaluation: return shaderc_tess_evaluation_shader;
             case PKShaderStage::Geometry: return shaderc_geometry_shader;
-            case PKShaderStage::Fragment: return shaderc_fragment_shader;
-            case PKShaderStage::Compute: return shaderc_compute_shader;
             case PKShaderStage::MeshTask: return shaderc_task_shader;
             case PKShaderStage::MeshAssembly: return shaderc_mesh_shader;
+            case PKShaderStage::Fragment: return shaderc_fragment_shader;
+            case PKShaderStage::Compute: return shaderc_compute_shader;
 
             case PKShaderStage::RayGeneration: return shaderc_raygen_shader;
             case PKShaderStage::RayMiss: return shaderc_miss_shader;

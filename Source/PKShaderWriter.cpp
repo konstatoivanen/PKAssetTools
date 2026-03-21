@@ -437,18 +437,21 @@ namespace PKAssets::Shader
 
             auto name = ReflectBindingName(desc);
             auto& binding = reflection.uniqueBindings[name];
-            binding.firstStage = binding.firstStage > (uint32_t)stage ? (int)stage : binding.firstStage;
-            binding.maxBinding = binding.maxBinding > releaseBinding->binding ? binding.maxBinding : releaseBinding->binding;
             binding.name = name;
+            binding.accessStageMask |= 1 << (uint32_t)stage;
+            binding.type = GetResourceType(releaseBinding->descriptor_type);
+            binding.bindingIndex = binding.bindingIndex > releaseBinding->binding ? binding.bindingIndex : releaseBinding->binding;
+            binding.setIndex = 0u;
             binding.count = desc->type_description->op == SpvOpTypeRuntimeArray ? PKAssets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
+            
             auto isWritten = ReflectResourceWrite(moduleDeb->_internal->spirv_code, moduleDeb->_internal->spirv_word_count, desc->spirv_id, GetResourceType(desc->descriptor_type));
 
             if (isWritten)
             {
-                binding.writeStageMask |= 1 << (int)stage;
+                binding.writeStageMask |= 1u << (uint32_t)stage;
             }
 
-            binding.bindings[(int)stage] = releaseBinding;
+            binding.bindings[(uint32_t)stage] = releaseBinding;
 
             if (reflection.logVerbose)
             {
@@ -464,7 +467,7 @@ namespace PKAssets::Shader
         for (auto& kv : reflection.uniqueBindings)
         {
             // Ensure bind arrays are last bindings
-            const auto sortValue = kv.second.count == PK_ASSET_MAX_UNBOUNDED_SIZE ? 0xFFFFFFFFu : kv.second.maxBinding;
+            const auto sortValue = kv.second.count == PK_ASSET_MAX_UNBOUNDED_SIZE ? 0xFFFFFFFFu : kv.second.bindingIndex;
             sortedBindingMap.insert(std::make_pair(sortValue, kv.second));
         }
 
@@ -726,10 +729,11 @@ namespace PKAssets::Shader
                 for (auto j = 0u; j < reflectionData.sortedBindings.size(); ++j)
                 {
                     auto& binding = reflectionData.sortedBindings.at(j);
-                    auto desc = binding.get();
+                    pDescriptors[j].type = binding.type;
+                    pDescriptors[j].set = binding.setIndex;
                     pDescriptors[j].count = binding.count;
-                    pDescriptors[j].type = GetResourceType(desc->descriptor_type);
-                    pDescriptors[j].writeStageMask = (PKShaderStageFlags)binding.writeStageMask;
+                    pDescriptors[j].writeMask = (PKShaderStageFlags)binding.writeStageMask;
+                    pDescriptors[j].accessMask = (PKShaderStageFlags)binding.accessStageMask;
                     WriteName(pDescriptors[j].name, binding.name.c_str());
                 }
             }
