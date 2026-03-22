@@ -116,8 +116,8 @@ namespace PKAssets::Mesh
 
         for (auto i = 0u; i < 3; ++i)
         {
-            out_center[i] = bbmin[i] + (bbmax[i] - bbmin[i]) * 0.5f;
-            out_extents[i] = (bbmax[i] - bbmin[i]) * 0.5f;
+            if (out_center) out_center[i] = bbmin[i] + (bbmax[i] - bbmin[i]) * 0.5f;
+            if (out_extents) out_extents[i] = (bbmax[i] - bbmin[i]) * 0.5f;
         }
     }
 
@@ -231,7 +231,7 @@ namespace PKAssets::Mesh
         {
             auto i0 = indices[i];
             auto i1 = indices[(i / 3u) * 3u + (i + 1u) % 3u];
-            vertex_lock[i0] = 0u;
+            vertex_lock[i0] &= meshopt_SimplifyVertex_Protect;
 
             auto r0 = (uint64_t)(remap ? remap[i0] : i0);
             auto r1 = (uint64_t)(remap ? remap[i1] : i1);
@@ -251,8 +251,8 @@ namespace PKAssets::Mesh
 
             if (count <= 1u)
             {
-                vertex_lock[i0] = 1u;
-                vertex_lock[i1] = 1u;
+                vertex_lock[i0] |= meshopt_SimplifyVertex_Lock;
+                vertex_lock[i1] |= meshopt_SimplifyVertex_Lock;
                 edge_count++;
             }
         }
@@ -264,37 +264,39 @@ namespace PKAssets::Mesh
         unsigned int* meshlet_vertices,
         unsigned char* meshlet_triangles,
         const unsigned int* indices,
-        size_t index_count,
         const float* vertex_positions,
+        size_t index_count,
         size_t vertex_count,
         size_t vertex_positions_stride,
         size_t max_vertices,
         size_t max_triangles,
-        float cone_weight)
+        float cone_weight, 
+        float split_factor,
+        int level)
     {
-        auto count = meshopt_buildMeshlets
-        (
-            meshlets,
-            meshlet_vertices,
-            meshlet_triangles,
-            indices,
+        auto count = meshopt_buildMeshletsFlex(meshlets, 
+            meshlet_vertices, 
+            meshlet_triangles, 
+            indices, 
             index_count,
-            vertex_positions,
-            vertex_count,
-            vertex_positions_stride,
-            max_vertices,
-            max_triangles,
-            cone_weight
-        );
+            vertex_positions, 
+            vertex_count, 
+            vertex_positions_stride, 
+            max_vertices, 
+            max_triangles / 3, 
+            max_triangles, 
+            cone_weight, 
+            split_factor);
 
         for (auto i = 0u; i < count; ++i)
         {
-            meshopt_optimizeMeshlet
+            meshopt_optimizeMeshletLevel
             (
                 meshlet_vertices + meshlets[i].vertex_offset,
+                meshlets[i].vertex_count,
                 meshlet_triangles + meshlets[i].triangle_offset,
                 meshlets[i].triangle_count,
-                meshlets[i].vertex_count
+                level
             );
         }
 
@@ -307,13 +309,20 @@ namespace PKAssets::Mesh
         const float* vertex_positions, 
         const uint32_t* vertex_remap,
         uint8_t* vertex_lock, 
+        const float* attribute_weights,
         size_t vertex_count, 
         size_t vertex_stride, 
+        size_t attribute_weight_count,
         size_t target_index_count, 
         float* out_result_error)
     {
-        LockBorderVertices(indices, index_count, vertex_remap, vertex_lock);
-       
+        if (target_index_count >= index_count)
+        {
+            return index_count;
+        }
+
+        auto has_attributes = vertex_stride > sizeof(float) * 3 && attribute_weight_count > 0;
+
         return meshopt_simplifyWithAttributes
         (
             indices,
@@ -322,14 +331,14 @@ namespace PKAssets::Mesh
             vertex_positions,
             vertex_count,
             vertex_stride,
-            nullptr,
-            0u,
-            nullptr,
-            0u,
+            has_attributes ? vertex_positions + 3ull : nullptr,
+            has_attributes ? vertex_stride : 0u,
+            has_attributes ? attribute_weights : nullptr,
+            has_attributes ? attribute_weight_count : 0u,
             vertex_lock,
             target_index_count,
-            1.0f,
-            meshopt_SimplifySparse,
+            FLT_MAX,
+            meshopt_SimplifySparse | meshopt_SimplifyPermissive | meshopt_SimplifyErrorAbsolute,
             out_result_error
         );
     }

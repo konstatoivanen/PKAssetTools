@@ -48,13 +48,15 @@ namespace PKAssets::Mesh
         unsigned int* meshlet_vertices, 
         unsigned char* meshlet_triangles, 
         const unsigned int* indices, 
+        const float* vertex_positions,
         size_t index_count, 
-        const float* vertex_positions, 
         size_t vertex_count, 
         size_t vertex_positions_stride, 
         size_t max_vertices, 
         size_t max_triangles, 
-        float cone_weight);
+        float cone_weight, 
+        float split_factor,
+        int level);
 
     size_t SimplifyCluster(
         uint32_t* indices,
@@ -62,8 +64,10 @@ namespace PKAssets::Mesh
         const float* vertex_positions,
         const uint32_t* vertex_remap,
         uint8_t* vertex_lock,
+        const float* attribute_weights,
         size_t vertex_count,
         size_t vertex_stride,
+        size_t attribute_weight_count,
         size_t target_index_count,
         float* out_result_error);
 }

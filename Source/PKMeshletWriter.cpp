@@ -1,5 +1,7 @@
 #include <unordered_map>
 #include <meshoptimizer/meshoptimizer.h>
+#define CLUSTERLOD_IMPLEMENTATION
+#include <meshoptimizer/pkmod_clusterlod.h>
 #include <METIS/metis.h>
 #include "PKMeshUtilities.h"
 #include "PKMeshletWriter.h"
@@ -10,19 +12,15 @@ namespace PKAssets::Mesh
     static const uint32_t PK_DAG_TARGET_GROUP_SIZE = 6u;
     static const uint32_t PK_DAG_MAX_LEVELS = 5u;
     static const uint32_t PK_DAG_DECIMATE_FACTOR = 2u;
-    static const float PK_DAG_MIN_SIMPLIFICATION_FACTOR_MESHLET = 0.9f;
-    static const float PK_DAG_MIN_SIMPLIFICATION_FACTOR_LEVEL = 0.9f;
+    static const float PK_DAG_MIN_SIMPLIFICATION_FACTOR_MESHLET = 0.85f;
+    static const float PK_DAG_MIN_SIMPLIFICATION_FACTOR_LEVEL = 0.85f;
+    static const float PK_DAG_ERROR_ACUMULATION = 1.0f;
+    static const float PK_DAG_EDGE_ERROR_LIMIT = 0.125f;
 
     struct MeshletGroup
     {
         uint32_t indices[PK_DAG_MAX_GROUP_SIZE]{};
         uint32_t size = 0u;
-    };
-
-    struct MeshletGroupingContext
-    {
-        MeshletGroup current;
-        MeshletGroup best;
     };
 
     struct MeshletCenterError
@@ -54,6 +52,9 @@ namespace PKAssets::Mesh
 
         uint32_t vertex_stride;
         uint32_t vertex_count;
+
+        const float* attribute_weights;
+        size_t attribute_weight_count;
     };
 
     static std::vector<MeshletGroup> BuildMeshletGroupsMetis(meshopt_Meshlet* meshlets,
@@ -181,6 +182,57 @@ namespace PKAssets::Mesh
         return indices;
     }
 
+    static void LockGroupBorders(
+        uint8_t* vertex_locks, 
+        uint32_t* vertex_remap, 
+        size_t vertex_count,
+        const meshopt_Meshlet* meshlets, 
+        const uint32_t* meshlet_vertices, 
+        const uint8_t* meshlet_triangles,
+        const std::vector<MeshletGroup>& groups)
+    {
+        for (auto i = 0ull; i < vertex_count; ++i)
+        {
+            vertex_locks[i] &= ~((1 << 0) | (1 << 7));
+        }
+
+        for (auto i = 0ull; i < groups.size(); ++i)
+        {
+            // mark all remapped vertices as locked if seen by a prior group
+            for (auto j = 0ull; j < groups[i].size; ++j)
+            {
+                const auto& meshlet = meshlets[groups[i].indices[j]];
+
+                for (auto k = meshlet.triangle_offset; k < (meshlet.triangle_offset + meshlet.triangle_count * 3u); ++k)
+                {
+                    auto v = meshlet_vertices[meshlet.vertex_offset + meshlet_triangles[k]]; 
+                    auto r = vertex_remap[v];
+                    vertex_locks[r] |= vertex_locks[r] >> 7;
+                }
+            }
+
+            // mark all remapped vertices as seen
+            for (size_t j = 0; j < groups[i].size; ++j)
+            {
+                const auto& meshlet = meshlets[groups[i].indices[j]];
+
+                for (auto k = meshlet.triangle_offset; k < (meshlet.triangle_offset + meshlet.triangle_count * 3u); ++k)
+                {
+                    auto v = meshlet_vertices[meshlet.vertex_offset + meshlet_triangles[k]];
+                    auto r = vertex_remap[v];
+                    vertex_locks[r] |= 1 << 7;
+                }
+            }
+        }
+
+        for (size_t i = 0; i < vertex_count; ++i)
+        {
+            auto r = vertex_remap[i];
+            vertex_locks[i] = (vertex_locks[r] & 1) | (vertex_locks[i] & meshopt_SimplifyVertex_Protect);
+        }
+    }
+
+
     static void BuildMeshletDAG(MeshletContext* ctx)
     {
         uint32_t stats_initial_triangle_count = ctx->meshlet_indices_count / 3u;
@@ -202,6 +254,8 @@ namespace PKAssets::Mesh
             meshlet_offset = ctx->meshlet_count;
             meshlet_count = 0u;
 
+            LockGroupBorders(ctx->vertex_lock, ctx->vertex_remap, ctx->vertex_count, ctx->meshlets, ctx->meshlet_vertices, ctx->meshlet_triangles, groups);
+
             for (auto& group : groups)
             {
                 if (group.size <= 1u)
@@ -210,7 +264,7 @@ namespace PKAssets::Mesh
                 }
 
                 auto indices = GetMeshletGroupTriangleIndices(ctx->meshlets, ctx->meshlet_vertices, ctx->meshlet_triangles, group);
-                auto target_index_count = 3u * ((indices.size() / PK_DAG_DECIMATE_FACTOR) / 3u);
+                auto target_index_count = 3u * ((indices.size() / 3) / PK_DAG_DECIMATE_FACTOR);
 
                 MeshletCenterError error{};
                 auto simplified_index_count = SimplifyCluster
@@ -220,8 +274,10 @@ namespace PKAssets::Mesh
                     ctx->vertex_positions,
                     ctx->vertex_remap,
                     ctx->vertex_lock,
+                    ctx->attribute_weights,
                     ctx->vertex_count,
                     ctx->vertex_stride,
+                    ctx->attribute_weight_count,
                     target_index_count,
                     &error.error
                 );
@@ -237,10 +293,7 @@ namespace PKAssets::Mesh
                 total_index_count += indices.size();
                 total_simplified_index_count += simplified_index_count;
 
-                float extents[3];
-                CalculateBounds(ctx->vertex_positions, indices.data(), (uint32_t)(ctx->vertex_stride / sizeof(float)), simplified_index_count, error.center, extents);
-                
-                error.error *= CalculateMaxExtent(extents);
+                CalculateBounds(ctx->vertex_positions, indices.data(), (uint32_t)(ctx->vertex_stride / sizeof(float)), simplified_index_count, error.center, nullptr);
 
                 float max_child_error = 0.0f;
 
@@ -249,7 +302,7 @@ namespace PKAssets::Mesh
                     max_child_error = std::max(max_child_error, ctx->meshlet_lodInfos[group.indices[i]].current.error);
                 }
 
-                error.error += max_child_error;
+                error.error += max_child_error * PK_DAG_ERROR_ACUMULATION;
 
                 for (auto i = 0u; i < group.size; ++i)
                 {
@@ -262,13 +315,15 @@ namespace PKAssets::Mesh
                     ctx->meshlet_vertices + ctx->meshlet_vertices_count,
                     ctx->meshlet_triangles + ctx->meshlet_indices_count,
                     indices.data(),
-                    simplified_index_count,
                     ctx->vertex_positions,
+                    simplified_index_count,
                     ctx->vertex_count,
                     ctx->vertex_stride,
                     PK_MESHLET_MAX_VERTICES,
                     PK_MESHLET_MAX_TRIANGLES,
-                    PK_MESHLET_CONE_WEIGHT
+                    PK_MESHLET_CONE_WEIGHT,
+                    PK_MESHLET_BOUNDS_SPLIT_FACTOR,
+                    lodLevel
                 );
 
                 meshlet_count += simplified_count;
@@ -307,11 +362,10 @@ namespace PKAssets::Mesh
             stats_level_count);
     }
 
-    WritePtr<PKMeshletMesh> CreateMeshletMesh(PKAssetBuffer& buffer,
+    static WritePtr<PKMeshletMesh> CreateMeshletMeshMETIS(PKAssetBuffer& buffer,
                                                 const std::vector<PKSubmesh>& submeshes,
                                                 float* vertices,
                                                 uint32_t* indices,
-                                                uint32_t offsetPosition,
                                                 uint32_t offsetTexcoord,
                                                 uint32_t offsetNormal,
                                                 uint32_t offsetTangent,
@@ -328,6 +382,7 @@ namespace PKAssets::Mesh
         std::vector<uint32_t> vertex_remap(vertexCount);
         std::vector<float> vertex_remap_weights(vertexCount);
         std::vector<uint8_t> vertex_lock(vertexCount);
+        vertex_lock.resize(vertexCount);
 
         auto hasTexcoords = offsetTexcoord != 0xFFFFFFFFu;
         auto hasNormals = offsetNormal != 0xFFFFFFFFu;
@@ -348,22 +403,58 @@ namespace PKAssets::Mesh
         ctx.meshlet_vertices_count = 0u;
         ctx.meshlet_indices_count = 0u;
 
-        ctx.vertex_positions = vertices + (offsetPosition / sizeof(float));
+        const float attribute_weights[] =
+        {
+            0.5f, 0.5f, 0.5f, // Normal 
+            0.5f, 0.5f, 0.5f, 0.5f, // Tangent
+        };
+
+        ctx.vertex_positions = vertices;
         ctx.vertex_lock = vertex_lock.data();
         ctx.vertex_remap = vertex_remap.data();
         ctx.vertex_stride = vertexStride;
         ctx.vertex_count = vertexCount;
-            
+        meshopt_generatePositionRemap(ctx.vertex_remap, ctx.vertex_positions, ctx.vertex_count, ctx.vertex_stride);
+
+        if (hasNormals)
+        {
+            ctx.attribute_weight_count += 3u;
+        }
+
+        if (hasTangents)
+        {
+            ctx.attribute_weight_count += 4u;
+        }
+
+        if (ctx.attribute_weight_count > 0)
+        {
+            ctx.attribute_weights = attribute_weights;
+        }
+
+        if (hasTexcoords && (offsetTexcoord / sizeof(float)) == sm_stridef32 - 2ull)
+        {
+            auto maskOffset = (offsetTexcoord / sizeof(float)) - 3ull;
+            auto vertex_attributes = ctx.vertex_positions + 3ull;
+            auto attribute_protect_mask = (1u << (maskOffset + 0u)) | (1 << (maskOffset + 1u));
+
+            for (auto i = 0ull; i < ctx.vertex_count; ++i)
+            {
+                auto  r = ctx.vertex_remap[i]; // canonical vertex with the same position
+
+                for (auto j = 0ull; j < sm_stridef32; ++j)
+                {
+                    if (r != i && (attribute_protect_mask & (1u << j)) && vertex_attributes[i * sm_stridef32 + j] != vertex_attributes[r * sm_stridef32 + j])
+                    {
+                        ctx.vertex_lock[i] |= meshopt_SimplifyVertex_Protect;
+                    }
+                }
+            }
+        }
+
         std::vector<uint8_t> out_indices;
         std::vector<PKMeshletVertex> out_vertices;
         std::vector<PKMeshletSubmesh> out_submeshes;
         std::vector<PKMeshlet> out_meshlets;
-
-        meshopt_Stream stream;
-        stream.data = ctx.vertex_positions;
-        stream.size = sizeof(float) * 3u;
-        stream.stride = ctx.vertex_stride;
-        meshopt_generateVertexRemapMulti(ctx.vertex_remap, nullptr, ctx.vertex_count, ctx.vertex_count, &stream, 1u);
 
         for (const auto& sm : submeshes)
         {
@@ -376,13 +467,15 @@ namespace PKAssets::Mesh
                 ctx.meshlet_vertices, 
                 ctx.meshlet_triangles, 
                 sm_indices,
-                sm.indexCount, 
                 ctx.vertex_positions,
+                sm.indexCount, 
                 ctx.vertex_count, 
                 ctx.vertex_stride, 
                 PK_MESHLET_MAX_VERTICES,
                 PK_MESHLET_MAX_TRIANGLES,
-                PK_MESHLET_CONE_WEIGHT
+                PK_MESHLET_CONE_WEIGHT,
+                PK_MESHLET_BOUNDS_SPLIT_FACTOR,
+                0
             );
 
             if (ctx.meshlet_count == 0)
@@ -532,5 +625,257 @@ namespace PKAssets::Mesh
         printf("        Meshlet Count: %i\n", (uint32_t)out_meshlets.size());
 
         return mesh;
+    }
+
+    static WritePtr<PKMeshletMesh> CreateMeshletMeshZEUX(PKAssetBuffer& buffer,
+        const std::vector<PKSubmesh>& submeshes,
+        float* vertices,
+        uint32_t* indices,
+        uint32_t offsetTexcoord,
+        uint32_t offsetNormal,
+        uint32_t offsetTangent,
+        uint32_t offsetColor,
+        uint32_t vertexStride,
+        uint32_t vertexCount,
+        uint32_t indexCount)
+    {
+        auto hasTexcoords = offsetTexcoord != 0xFFFFFFFFu;
+        auto hasNormals = offsetNormal != 0xFFFFFFFFu;
+        auto hasTangents = offsetTangent != 0xFFFFFFFFu;
+        auto hasColors = offsetColor != 0xFFFFFFFFu;
+        auto sm_stridef32 = vertexStride / sizeof(float);
+        auto sm_texcoordsf32 = hasTexcoords ? vertices + (offsetTexcoord / sizeof(float)) : nullptr;
+        auto sm_normalsf32 = hasNormals ? vertices + (offsetNormal / sizeof(float)) : nullptr;
+        auto sm_tangentsf32 = hasTangents ? vertices + (offsetTangent / sizeof(float)) : nullptr;
+        auto sm_colorsf32 = hasColors ? vertices + (offsetColor / sizeof(float)) : nullptr;
+
+        std::vector<uint8_t> out_indices;
+        std::vector<PKMeshletVertex> out_vertices;
+        std::vector<PKMeshletSubmesh> out_submeshes;
+        std::vector<PKMeshlet> out_meshlets;
+        std::vector<clodGroup> groups;
+
+        clodConfig config{};
+        config.max_vertices = PK_MESHLET_MAX_VERTICES;
+        config.min_triangles = PK_MESHLET_MAX_TRIANGLES / 3;
+        config.max_triangles = PK_MESHLET_MAX_TRIANGLES;
+        config.partition_spatial = true;
+        config.partition_sort = true;
+        config.partition_size = PK_DAG_TARGET_GROUP_SIZE;
+        config.partition_depth = PK_DAG_MAX_LEVELS;
+        config.cluster_spatial = false;
+        config.cluster_fill_weight = 0.0f;
+        config.cluster_split_factor = 2.0f;
+        config.cluster_cone_factor = PK_MESHLET_CONE_WEIGHT;
+        config.simplify_ratio = 1.0f / PK_DAG_DECIMATE_FACTOR;
+        config.simplify_threshold = PK_DAG_MIN_SIMPLIFICATION_FACTOR_MESHLET;
+        config.simplify_error_merge_previous = 1.0f;
+        config.simplify_error_merge_additive = PK_DAG_ERROR_ACUMULATION;
+        config.simplify_error_factor_sloppy = 2.0f;
+        config.simplify_error_edge_limit = PK_DAG_EDGE_ERROR_LIMIT;
+        config.simplify_permissive = true;
+        config.simplify_fallback_permissive = false; // note: by default we run in permissive mode, but it's also possible to disable that and use it only as a fallback
+        config.simplify_fallback_sloppy = true;
+        config.simplify_regularize = false;
+        config.optimize_bounds = false; // Do not enable. Return values from 
+        config.optimize_clusters = true;
+
+        // Maximum of 11 attributes between position and texcoord.
+        const float attribute_weights[] = 
+        {
+            0.5f, 0.5f, 0.5f, // Normal 
+            0.5f, 0.5f, 0.5f, 0.5f // Tangent
+        };
+
+        clodMesh ctx = {};
+        ctx.indices = indices;
+        ctx.index_count = indexCount;
+        ctx.vertex_count = vertexCount;
+        ctx.vertex_positions = vertices;
+        ctx.vertex_positions_stride = vertexStride;
+        ctx.vertex_attributes = sm_stridef32 > 3 ? vertices + 3 : nullptr; 
+
+        if (hasNormals)
+        {
+            ctx.attribute_count += 3u;
+        }
+
+        if (hasTangents)
+        {
+            ctx.attribute_count += 4u;
+        }
+
+        if (ctx.attribute_count > 0)
+        {
+            ctx.attribute_weights = attribute_weights;
+            ctx.vertex_attributes_stride = vertexStride;
+        }
+
+        if (hasTexcoords && (offsetTexcoord / sizeof(float)) == sm_stridef32 - 2ull)
+        {
+            auto maskOffset = (offsetTexcoord / sizeof(float)) - 3ull;
+            ctx.attribute_protect_mask = (1u << (maskOffset + 0u)) | (1 << (maskOffset + 1u));
+        }
+
+        for (const auto& sm : submeshes)
+        {
+            auto first_meshlet = out_meshlets.size();
+            ctx.indices = indices + sm.firstIndex;
+            ctx.index_count = sm.indexCount;
+
+            groups.clear();
+
+            clodBuild(config, ctx, [&](clodGroup group, const clodCluster* clusters, size_t cluster_count) -> int
+            {
+                groups.push_back(group);
+
+                for (auto i = 0u; i < cluster_count; ++i)
+                {
+                    const auto& meshlet = clusters[i];
+                    const auto indices_offset = out_indices.size();
+                    const auto triangle_offset = indices_offset / 3ull;
+                    const auto vertices_offset = out_vertices.size();
+
+                    uint32_t meshlet_triangle_count = meshlet.index_count / 3;
+                    uint32_t meshlet_vertices[PK_MESHLET_MAX_VERTICES]{};
+                    uint8_t meshlet_triangles[PK_MESHLET_MAX_TRIANGLES * 3u]{};
+                    clodLocalIndices(meshlet_vertices, meshlet_triangles, meshlet.indices, meshlet.index_count);
+                    
+                    auto bounds = meshopt_computeMeshletBounds
+                    (
+                        meshlet_vertices,
+                        meshlet_triangles,
+                        meshlet_triangle_count,
+                        ctx.vertex_positions,
+                        ctx.vertex_count,
+                        ctx.vertex_positions_stride
+                    );
+
+                    // meshopt does sphere bounds where the center is not equal/correct
+                    float center[3];
+                    float extents[3];
+                    CalculateBounds(ctx.vertex_positions, meshlet_vertices, (uint32_t)sm_stridef32, meshlet.vertex_count, center, extents);
+
+                    auto pkmeshlet = PackPKMeshlet
+                    (
+                        (uint32_t)vertices_offset,
+                        (uint32_t)triangle_offset,
+                        meshlet.vertex_count,
+                        meshlet_triangle_count,
+                        bounds.cone_axis_s8,
+                        bounds.cone_cutoff_s8,
+                        bounds.cone_apex,
+                        center,
+                        extents,
+
+                        meshlet.bounds.center,
+                        std::min(meshlet.bounds.error, PK_MESHLET_LOD_MAX_ERROR),
+                        group.simplified.center,
+                        std::min(group.simplified.error, PK_MESHLET_LOD_MAX_ERROR)
+                    );
+
+                    out_indices.resize(out_indices.size() + meshlet.index_count);
+                    memcpy(out_indices.data() + indices_offset, meshlet_triangles, meshlet.index_count);
+
+                    for (auto j = 0u; j < meshlet.vertex_count; ++j)
+                    {
+                        auto vertex_index = meshlet_vertices[j];
+                        auto pPosition = ctx.vertex_positions + vertex_index * sm_stridef32;
+                        auto pTexcoord = sm_texcoordsf32 + vertex_index * sm_stridef32;
+                        auto pNormal = sm_normalsf32 + vertex_index * sm_stridef32;
+                        auto pTangent = sm_tangentsf32 + vertex_index * sm_stridef32;
+                        auto pColors = sm_colorsf32 + vertex_index * sm_stridef32;
+
+                        auto vertex = PackPKMeshletVertex
+                        (
+                            pPosition,
+                            hasTexcoords ? pTexcoord : nullptr,
+                            hasNormals ? pNormal : nullptr,
+                            hasTangents ? pTangent : nullptr,
+                            hasColors ? pColors : nullptr,
+                            sm.bbmin,
+                            sm.bbmax
+                        );
+
+                        out_vertices.push_back(vertex);
+                    }
+
+                    out_meshlets.push_back(pkmeshlet);
+                }
+
+                return int(groups.size() - 1);
+            });
+
+            if (out_meshlets.size() == first_meshlet)
+            {
+                continue;
+            }
+
+            PKMeshletSubmesh meshletSubmesh{};
+            meshletSubmesh.firstMeshlet = (uint32_t)first_meshlet;
+            meshletSubmesh.meshletCount = (uint32_t)(out_meshlets.size() - first_meshlet);
+            memcpy(meshletSubmesh.bbmin, sm.bbmin, sizeof(float) * 3u);
+            memcpy(meshletSubmesh.bbmax, sm.bbmax, sizeof(float) * 3u);
+            out_submeshes.push_back(meshletSubmesh);
+        }
+
+        // Align triangles array size to 4bytes
+        {
+            auto alignedIndicesSize = 12u * ((out_indices.size() + 11ull) / 12u);
+
+            if (out_indices.size() < alignedIndicesSize)
+            {
+                out_indices.resize(alignedIndicesSize);
+                auto padding = alignedIndicesSize - out_indices.size();
+                memset(out_indices.data() + out_indices.size(), 0u, padding);
+            }
+        }
+
+        auto mesh = buffer.Allocate<PKMeshletMesh>();
+
+        mesh->triangleCount = (uint32_t)(out_indices.size() / 3ull);
+        mesh->vertexCount = (uint32_t)out_vertices.size();
+        mesh->submeshCount = (uint32_t)out_submeshes.size();
+        mesh->meshletCount = (uint32_t)out_meshlets.size();
+
+        auto pMeshlets = buffer.Write(out_meshlets.data(), out_meshlets.size());
+        mesh->meshlets.Set(buffer.data(), pMeshlets.get());
+
+        auto pSubmeshes = buffer.Write(out_submeshes.data(), out_submeshes.size());
+        mesh->submeshes.Set(buffer.data(), pSubmeshes.get());
+
+        auto pVertices = buffer.Write(out_vertices.data(), out_vertices.size());
+        mesh->vertices.Set(buffer.data(), pVertices.get());
+
+        auto pIndices = buffer.Write(out_indices.data(), out_indices.size());
+        mesh->indices.Set(buffer.data(), pIndices.get());
+
+        printf("    Meshlet Statistics:\n");
+        printf("        Vertex Count: %i -> %i\n", vertexCount, (uint32_t)out_vertices.size());
+        printf("        Triangle Count: %i -> %i\n", indexCount / 3u, (uint32_t)(out_indices.size() / 3ull));
+        printf("        Vertex Buffer Size: %i -> %i\n", (uint32_t)(vertexCount * vertexStride), (uint32_t)(out_vertices.size() * sizeof(PKMeshletVertex)));
+        printf("        Triangle Buffer Size: %i -> %i\n", (uint32_t)(indexCount * sizeof(uint32_t)), (uint32_t)(out_indices.size()));
+        printf("        Meshlet Count: %i\n", (uint32_t)out_meshlets.size());
+
+        return mesh;
+    }
+
+    WritePtr<PKMeshletMesh> CreateMeshletMesh(PKAssetBuffer& buffer,
+        const std::vector<PKSubmesh>& submeshes,
+        float* vertices,
+        uint32_t* indices,
+        uint32_t offsetTexcoord,
+        uint32_t offsetNormal,
+        uint32_t offsetTangent,
+        uint32_t offsetColor,
+        uint32_t vertexStride,
+        uint32_t vertexCount,
+        uint32_t indexCount)
+    {
+#if 0
+        return CreateMeshletMeshMETIS(buffer, submeshes, vertices, indices, offsetTexcoord, offsetNormal, offsetTangent, offsetColor, vertexStride, vertexCount, indexCount);
+#else
+        return CreateMeshletMeshZEUX(buffer, submeshes, vertices, indices, offsetTexcoord, offsetNormal, offsetTangent, offsetColor, vertexStride, vertexCount, indexCount);
+#endif
     }
 }

@@ -330,6 +330,9 @@
     <ClInclude Include="Include\PKAssetEncoding.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ThirdParty\meshoptimizer\pkmod_clusterlod.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Include\PKAssetLoader.cpp">
@@ -374,9 +377,6 @@
     <ClCompile Include="ThirdParty\meshoptimizer\indexgenerator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ThirdParty\meshoptimizer\overdrawanalyzer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ThirdParty\meshoptimizer\overdrawoptimizer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -389,9 +389,6 @@
     <ClCompile Include="ThirdParty\meshoptimizer\stripifier.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ThirdParty\meshoptimizer\vcacheanalyzer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ThirdParty\meshoptimizer\vcacheoptimizer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -399,9 +396,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ThirdParty\meshoptimizer\vertexfilter.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ThirdParty\meshoptimizer\vfetchanalyzer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ThirdParty\meshoptimizer\vfetchoptimizer.cpp">
@@ -435,6 +429,24 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Include\PKAssetEncoding.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\meshoptimizer\opacitymap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\meshoptimizer\meshletutils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\meshoptimizer\meshletcodec.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\meshoptimizer\indexanalyzer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\meshoptimizer\rasterizer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\meshoptimizer\partition.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

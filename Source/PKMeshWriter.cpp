@@ -688,7 +688,6 @@ namespace PKAssets::Mesh
             submeshesMeshlet,
             verticesMeshlet.data(),
             indicesMeshlet.data(),
-            0u,
             offsetUvsMeshlet,
             offsetNormalsMeshlet,
             offsetTangentsMeshlet,
