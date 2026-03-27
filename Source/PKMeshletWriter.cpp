@@ -272,7 +272,6 @@ namespace PKAssets::Mesh
                     indices.data(),
                     indices.size(),
                     ctx->vertex_positions,
-                    ctx->vertex_remap,
                     ctx->vertex_lock,
                     ctx->attribute_weights,
                     ctx->vertex_count,
@@ -363,16 +362,16 @@ namespace PKAssets::Mesh
     }
 
     static WritePtr<PKMeshletMesh> CreateMeshletMeshMETIS(PKAssetBuffer& buffer,
-                                                const std::vector<PKSubmesh>& submeshes,
-                                                float* vertices,
-                                                uint32_t* indices,
-                                                uint32_t offsetTexcoord,
-                                                uint32_t offsetNormal,
-                                                uint32_t offsetTangent,
-                                                uint32_t offsetColor,
-                                                uint32_t vertexStride,
-                                                uint32_t vertexCount,
-                                                uint32_t indexCount)
+        const std::vector<PKSubmesh>& submeshes,
+        float* vertices,
+        uint32_t* indices,
+        uint32_t offsetTexcoord,
+        uint32_t offsetNormal,
+        uint32_t offsetTangent,
+        uint32_t offsetColor,
+        uint32_t vertexStride,
+        uint32_t vertexCount,
+        uint32_t indexCount)
     {
         auto max_meshlets = meshopt_buildMeshletsBound(indexCount, PK_MESHLET_MAX_VERTICES, PK_MESHLET_MAX_TRIANGLES) * 2u;
         std::vector<meshopt_Meshlet> meshlets(max_meshlets);
@@ -406,7 +405,7 @@ namespace PKAssets::Mesh
         const float attribute_weights[] =
         {
             0.5f, 0.5f, 0.5f, // Normal 
-            0.5f, 0.5f, 0.5f, 0.5f, // Tangent
+            0.5f, 0.5f, 0.5f, 0.75f, // Tangent
         };
 
         ctx.vertex_positions = vertices;
@@ -684,7 +683,7 @@ namespace PKAssets::Mesh
         const float attribute_weights[] = 
         {
             0.5f, 0.5f, 0.5f, // Normal 
-            0.5f, 0.5f, 0.5f, 0.5f // Tangent
+            0.5f, 0.5f, 0.5f, 0.75f // Tangent
         };
 
         clodMesh ctx = {};

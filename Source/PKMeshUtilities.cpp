@@ -307,7 +307,6 @@ namespace PKAssets::Mesh
         uint32_t* indices,
         size_t index_count, 
         const float* vertex_positions, 
-        const uint32_t* vertex_remap,
         uint8_t* vertex_lock, 
         const float* attribute_weights,
         size_t vertex_count, 

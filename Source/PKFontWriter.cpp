@@ -39,7 +39,7 @@ namespace PKAssets::Font
         GeneratorAttributes attributes;
         const double maxCornerAngle = 3.0;
         const double loadEmSize = 16.0;
-        const double invScale = 1.0f / loadEmSize; //packer.getScale();
+        const double invScale = 1.0f / loadEmSize;
         int width = 0, height = 0;
 
         FontGeometry fontGeometry(&glyphs);
@@ -84,7 +84,13 @@ namespace PKAssets::Font
             charactersString.push_back((char)character.unicode);
         }
 
+        const auto metrics = fontGeometry.getMetrics();
         printf("    Characters: %s\n", charactersString.c_str());
+        printf("    Ascender: %4.2f\n", (float)metrics.ascenderY * invScale);
+        printf("    Descender: %4.2f\n", (float)metrics.descenderY * invScale);
+        printf("    Line height: %4.2f\n", (float)metrics.lineHeight * invScale);
+        printf("    Underline: %4.2f\n", (float)metrics.underlineY * invScale);
+        printf("    Underline thickness: %4.2f\n", (float)metrics.underlineThickness * invScale);
         printf("    Width: %i\n", width);
         printf("    Height: %i\n", height);
         printf("    Glyph Count: %i\n", (int)glyphs.size());
@@ -96,7 +102,12 @@ namespace PKAssets::Font
         auto pkFont = buffer.Allocate<PKFont>();
         auto pCharacters = buffer.Write(characters.data(), characters.size());
         pkFont->characters.Set(buffer.data(), pCharacters.get());
-        pkFont->characterCount= characters.size();
+        pkFont->characterCount = characters.size();
+        pkFont->lineHeight = (float)metrics.lineHeight * invScale;
+        pkFont->ascender = (float)metrics.ascenderY * invScale;
+        pkFont->descender = (float)metrics.descenderY * invScale;
+        pkFont->underline = (float)metrics.underlineY * invScale;
+        pkFont->underlineThickness = (float)metrics.underlineThickness * invScale;
 
         msdfgen::BitmapConstRef<byte, 4> bitmap = generator.atlasStorage();
         auto pAtlasData = buffer.Write(bitmap.pixels, bitmap.width * bitmap.height * 4);

@@ -123,6 +123,7 @@ namespace PKAssets::Shader
     shaderc_shader_kind ConvertToShadercKind(PKShaderStage stage);
     std::string ReflectBindingName(SpvReflectDescriptorBinding* binding);
     std::string FormatErrorMessage(const std::string& name, const std::string& source, const std::string& error);
+    uint32_t CountBits(uint32_t value);
     void ExtractLogVerbose(std::string& source, bool* outValue);
     void ExtractGenerateDebugInfo(std::string& source, bool* outValue);
     void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes);

@@ -462,21 +462,65 @@ namespace PKAssets::Shader
 
     static void CompressBindIndices(ReflectionData& reflection)
     {
-        std::multimap<uint32_t, ReflectBinding> sortedBindingMap;
+        auto setflags = 0u;
 
         for (auto& kv : reflection.uniqueBindings)
         {
-            // Ensure bind arrays are last bindings
-            const auto sortValue = kv.second.count == PK_ASSET_MAX_UNBOUNDED_SIZE ? 0xFFFFFFFFu : kv.second.bindingIndex;
-            sortedBindingMap.insert(std::make_pair(sortValue, kv.second));
+            kv.second.setIndex = 0u;
+
+            for (; kv.second.setIndex < (uint32_t)PKShaderStage::MaxCount; ++kv.second.setIndex)
+            {
+                if (kv.second.accessStageMask & (1u << kv.second.setIndex))
+                {
+                    setflags |= (1u << kv.second.setIndex);
+                    break;
+                }
+            }
         }
 
-        reflection.sortedBindings.clear();
+        auto setcounter = 0u;
+        uint32_t setremap[(uint32_t)PKShaderStage::MaxCount]{};
 
-        for (auto& kv : sortedBindingMap)
+        for (auto i = 0u; i < (uint32_t)PKShaderStage::MaxCount; ++i)
         {
+            if (setflags & (1u << i))
+            {
+                setremap[i] = setcounter++;
+            }
+        }
+
+        std::vector<ReflectBinding> sortedBindings;
+        reflection.sortedBindings.clear();
+        reflection.sortedBindings.reserve(reflection.uniqueBindings.size());
+
+        for (auto& kv : reflection.uniqueBindings)
+        {
+            kv.second.setIndex = setremap[kv.second.setIndex];
             reflection.sortedBindings.push_back(kv.second);
         }
+
+        #define USE_NEW_SETS_STRATEGY 0
+
+        std::sort(reflection.sortedBindings.begin(), reflection.sortedBindings.end(), [](const ReflectBinding& a, const ReflectBinding& b)
+        {
+            #if USE_NEW_SETS_STRATEGY
+            if (a.setIndex != b.setIndex)
+            {
+                return a.setIndex < b.setIndex;
+            }
+            #endif
+
+            if ((a.count == PK_ASSET_MAX_UNBOUNDED_SIZE) != (b.count == PK_ASSET_MAX_UNBOUNDED_SIZE))
+            {
+                return (a.count == PK_ASSET_MAX_UNBOUNDED_SIZE) < (b.count == PK_ASSET_MAX_UNBOUNDED_SIZE);
+            }
+
+            #if USE_NEW_SETS_STRATEGY
+            return a.name < b.name;
+            #else
+            return a.bindingIndex < b.bindingIndex;
+            #endif
+        });
 
         uint32_t bindingCounter = 0u;
 
@@ -488,7 +532,11 @@ namespace PKAssets::Shader
             {
                 if (binding.bindings[i] != nullptr)
                 {
+                    #if USE_NEW_SETS_STRATEGY
+                    spvReflectChangeDescriptorBindingNumbers(reflection.modulesRel[i], binding.bindings[i], bindId, binding.setIndex);
+                    #else
                     spvReflectChangeDescriptorBindingNumbers(reflection.modulesRel[i], binding.bindings[i], bindId, 0u);
+                    #endif
                 }
             }
         }

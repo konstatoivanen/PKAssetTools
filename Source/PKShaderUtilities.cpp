@@ -366,6 +366,16 @@ namespace PKAssets::Shader
         return output;
     }
 
+    uint32_t CountBits(uint32_t bits)
+    {
+        bits = bits - ((bits >> 1) & 0x55555555);
+        bits = (bits & 0x33333333) + ((bits >> 2) & 0x33333333);
+        bits = (bits + (bits >> 4)) & 0x0F0F0F0F;
+        bits *= 0x01010101;
+        bits = bits >> 24;
+        return bits;
+    }
+
     void ExtractLogVerbose(std::string& source, bool* outValue)
     {
         auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_LOGVERBOSE, source, true);
@@ -1075,13 +1085,7 @@ namespace PKAssets::Shader
 
         for (auto& constant : constants)
         {
-            auto bits = constant.stageFlags;
-            bits = bits - ((bits >> 1) & 0x55555555);        
-            bits = (bits & 0x33333333) + ((bits >> 2) & 0x33333333); 
-            bits = (bits + (bits >> 4)) & 0x0F0F0F0F;
-            bits *= 0x01010101;
-            bits = bits >> 24;
-            sorted.push_back({ constant.field, bits });
+            sorted.push_back({ constant.field, CountBits(constant.stageFlags) });
         }
 
         std::stable_sort(sorted.begin(), sorted.end(), [](const SortedField& a, const SortedField& b)
