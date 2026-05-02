@@ -105,11 +105,11 @@ namespace PKAssets::Mesh
     {
         MikktsInterface1::PKMeshData data;
         data.vertices = reinterpret_cast<float*>(vertices);
-        data.stride = stride;
-        data.vertexOffset = vertexOffset;
-        data.normalOffset = normalOffset;
-        data.tangentOffset = tangentOffset;
-        data.texcoordOffset = texcoordOffset;
+        data.stride = stride / sizeof(float);
+        data.vertexOffset = vertexOffset / sizeof(float);
+        data.normalOffset = normalOffset / sizeof(float);
+        data.tangentOffset = tangentOffset / sizeof(float);
+        data.texcoordOffset = texcoordOffset / sizeof(float);
         data.indices = indices;
         data.vcount = vcount;
         data.icount = icount;
@@ -589,8 +589,7 @@ namespace PKAssets::Mesh
         if (hasTangents)
         {
             auto vfloats = reinterpret_cast<float*>(vertices.data());
-            auto fstride = (uint32_t)(stride / sizeof(float));
-            CalculateTangents(vfloats, fstride, 0, 3, 6, 10, indices.data(), vcount, (uint32_t)indices.size());
+            CalculateTangents(vfloats, stride, 0, offsetNormals, offsetTangents, offsetUVs, indices.data(), vcount, (uint32_t)indices.size());
         }
 
         // Hack: Create these here so that meshlet creation can use them correctly without reduced precision.
@@ -611,7 +610,7 @@ namespace PKAssets::Mesh
 
         if (hasNormals && useHalfPrecisionNormals)
         {
-            // Upon stride reduction we need to correct the read strides of other attributes.
+            printf("Packing half precision normals\n");
             auto strideDelta = ConvertFloatToHalfAttribute(vertices, stride, offsetNormals, 3, vcount);
             stride += strideDelta;
             offsetTangents += strideDelta;
@@ -620,6 +619,7 @@ namespace PKAssets::Mesh
 
         if (hasTangents && useHalfPrecisionTangents)
         {
+            printf("Packing half precision tangents\n");
             auto strideDelta = ConvertFloatToHalfAttribute(vertices, stride, offsetTangents, 4, vcount);
             stride += strideDelta;
             offsetUVs += strideDelta;
@@ -627,6 +627,7 @@ namespace PKAssets::Mesh
 
         if (hasUvs && useHalfPrecisionUVs)
         {
+            printf("Packing half precision uvs\n");
             auto strideDelta = ConvertFloatToHalfAttribute(vertices, stride, offsetUVs, 2, vcount);
             stride += strideDelta;
         }
