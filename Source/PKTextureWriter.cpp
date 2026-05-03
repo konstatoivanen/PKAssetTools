@@ -1,4 +1,3 @@
-#pragma once
 #define KHRONOS_STATIC
 #include <KTX/ktx.h>
 #include <KTX/vulkan_format.h>

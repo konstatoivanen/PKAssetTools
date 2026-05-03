@@ -72,6 +72,7 @@ namespace PKAssets
             buffer.Write<uint8_t>(&padding, 1u);
         }
 
+        buffer.header->decodePadding = 0u;
         buffer.header->uncompressedSize = buffer.size();
 
         auto useCompression = !forceNoCompression;
@@ -93,6 +94,9 @@ namespace PKAssets
                 PKAssetBuffer compact;
                 compact.header[0] = buffer.header[0];
                 compact.header->isCompressed = true;
+                // In place encode padding aligned to 16 bytes. write to main header as well to avoid missmatch errors in encode/decode test.
+                compact.header->decodePadding = static_cast<uint16_t>((table.decodePadding + 15u) / 16u);
+                buffer.header->decodePadding = compact.header->decodePadding;
                 auto pData = compact.Allocate<uint8_t>(table.size);
                 EncodeBuffer(srcData, srcSize, &table, pData.get());
                 fwrite(compact.data(), sizeof(char), compact.size(), file);
@@ -116,11 +120,13 @@ namespace PKAssets
 
         auto charData = static_cast<char*>(asset.rawData);
 
+        printf("\n");
+
         for (auto i = 0ull; i < buffer.size(); ++i)
         {
             if (charData[i] != buffer.data()[i])
             {
-                printf(" Failed: \n Read Write missmatch at byte index: %lli \n", i);
+                printf("Read Write missmatch '%ui' != '%ui' at '%lli'\n", (uint8_t)charData[i], (uint8_t)buffer.data()[i], i);
             }
         }
 

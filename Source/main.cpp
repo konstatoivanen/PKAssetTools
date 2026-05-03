@@ -62,6 +62,7 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
             auto srcpathstr = entryPath.string();
             auto writeStatus = Shader::WriteShader(srcpathstr.c_str(), dstpathstr.c_str(), stemOffset);
             WriteFileStatus(writeStatus, dstpathstr.c_str(), stemOffset);
+            fflush(stdout);
             continue;
         }
 
@@ -71,6 +72,7 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
             auto srcpathstr = entryPath.string();
             auto writeStatus = Mesh::WriteMesh(srcpathstr.c_str(), dstpathstr.c_str(), stemOffset);
             WriteFileStatus(writeStatus, dstpathstr.c_str(), stemOffset);
+            fflush(stdout);
             continue;
         }
 
@@ -80,6 +82,7 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
             auto srcpathstr = entryPath.string();
             auto writeStatus = Font::WriteFont(srcpathstr.c_str(), dstpathstr.c_str(), stemOffset);
             WriteFileStatus(writeStatus, dstpathstr.c_str(), stemOffset);
+            fflush(stdout);
             continue;
         }
 
@@ -89,6 +92,7 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
             auto srcpathstr = entryPath.string();
             auto writeStatus = Texture::WriteTexture(srcpathstr.c_str(), dstpathstr.c_str(), stemOffset);
             WriteFileStatus(writeStatus, dstpathstr.c_str(), stemOffset);
+            fflush(stdout);
             continue;
         }
     }

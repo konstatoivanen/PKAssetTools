@@ -332,44 +332,42 @@ namespace PKAssets::Mesh
     int32_t ConvertFloatToHalfAttribute(Buffer& vertices, size_t stride, size_t offset, size_t elementCount, size_t vertexCount)
     {
         // 4 byte alignment
-        auto alignedElements = 2u * ((elementCount + 1u) / 2u);
+        auto alignedCount = 2u * ((elementCount + 1u) / 2u);
 
         auto fullSize = sizeof(float) * elementCount;
-        auto halfSize = sizeof(uint16_t) * alignedElements;
+        auto halfSize = sizeof(uint16_t) * alignedCount;
         auto newStride = stride - (fullSize - halfSize);
         auto dstTrailOffset = offset + halfSize;
         auto srcTrailOffset = offset + fullSize;
-
-        Buffer newVertices;
-        newVertices.resize(newStride * vertexCount);
+        auto newSize = newStride * vertexCount;
+        auto newVertices = static_cast<uint8_t*>(malloc(newSize));
 
         for (auto i = 0u; i < vertexCount; ++i)
         {
+            auto pVertexSrc = vertices.data() + stride * i;
+            auto pVertexDst = newVertices + newStride * i;
+            auto pf32Vec = (float*)(pVertexSrc + offset);
+
             if (offset > 0)
             {
-                memcpy(newVertices.data() + newStride * i, vertices.data() + stride * i, offset);
+                memcpy(pVertexDst, pVertexSrc, offset);
             }
 
             if (dstTrailOffset <= newStride)
             {
-                memcpy(newVertices.data() + newStride * i + dstTrailOffset, vertices.data() + stride * i + srcTrailOffset, newStride - dstTrailOffset);
+                memcpy(pVertexDst + dstTrailOffset, pVertexSrc + srcTrailOffset, newStride - dstTrailOffset);
             }
 
-            for (auto j = 0u; j < elementCount; ++j)
+            for (auto j = 0u; j < alignedCount; ++j)
             {
-                auto vec = (float*)(vertices.data() + stride * i + offset);
-                auto half = PackHalf(vec[j]);
-                memcpy(newVertices.data() + newStride * i + offset + sizeof(uint16_t) * j, &half, sizeof(uint16_t));
-            }
-
-            // Fill possible trailing uint16 to fullfill 4 byte alignment.
-            for (auto j = elementCount; j < alignedElements; ++j)
-            {
-                memset(newVertices.data() + newStride * i + offset * sizeof(uint16_t) * j, 0u, sizeof(uint16_t));
+                uint16_t half = j < elementCount ? PackHalf(pf32Vec[j]) : 0u;
+                memcpy(pVertexDst + offset + sizeof(uint16_t) * j, &half, sizeof(uint16_t));
             }
         }
 
-        vertices.swap(newVertices);
+        vertices.resize(newSize);
+        memcpy(vertices.data(), newVertices, newSize);
+        free(newVertices);
 
         return (int32_t)newStride - (int32_t)stride;
     }
