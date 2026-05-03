@@ -482,6 +482,6 @@
     <None Include="DebugContent\Shaders\includes\Constants.glsl" />
   </ItemGroup>
   <ItemGroup>
-    <Font Include="DebugContent\Fonts\Helvetica.ttf" />
+    <Font Include="DebugContent\Fonts\FSEX302.ttf" />
   </ItemGroup>
 </Project>

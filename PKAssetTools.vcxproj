@@ -385,7 +385,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <None Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gend.pdb" />
   </ItemGroup>
   <ItemGroup>
-    <Font Include="DebugContent\Fonts\Helvetica.ttf" />
+    <Font Include="DebugContent\Fonts\FSEX302.ttf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
