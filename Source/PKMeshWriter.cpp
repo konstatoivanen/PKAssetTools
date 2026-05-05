@@ -445,13 +445,13 @@ namespace PKAssets::Mesh
 
         PKVertexAttribute attribute;
         WriteName(attribute.name, PK_MESH_VS_POSITION);
-        attribute.size = sizeof(float) * 3;
+        attribute.format = (uint8_t)PKElementType::Float3;
         attribute.offset = 0;
         attribute.stream = splitPositionStream ? 1 : 0;
         attributes.push_back(attribute);
 
-        auto attributeOffset = splitPositionStream ? 0 : attribute.size;
-        auto stride = attribute.size;
+        auto attributeOffset = splitPositionStream ? 0 : PKElementTypeToSize((PKElementType)attribute.format);
+        auto stride = PKElementTypeToSize((PKElementType)attribute.format);
         auto offsetNormals = 0u;
         auto offsetTangents = 0u;
         auto offsetUVs = 0u;
@@ -459,39 +459,39 @@ namespace PKAssets::Mesh
         if (hasNormals)
         {
             WriteName(attribute.name, PK_MESH_VS_NORMAL);
-            attribute.size = useHalfPrecisionNormals ? sizeof(uint16_t) * 4 : sizeof(float) * 3;
+            attribute.format = useHalfPrecisionNormals ? (uint8_t)PKElementType::Half4 : (uint8_t)PKElementType::Float3;
             attribute.offset = attributeOffset;
             attribute.stream = 0;
             attributes.push_back(attribute);
 
             offsetNormals = stride;
-            attributeOffset += attribute.size;
+            attributeOffset += PKElementTypeToSize((PKElementType)attribute.format);
             stride += sizeof(float) * 3;
         }
 
         if (hasTangents)
         {
             WriteName(attribute.name, PK_MESH_VS_TANGENT);
-            attribute.size = useHalfPrecisionTangents ? sizeof(uint16_t) * 4 : sizeof(float) * 4;
+            attribute.format = useHalfPrecisionTangents ? (uint8_t)PKElementType::Half4 : (uint8_t)PKElementType::Float4;
             attribute.offset = attributeOffset;
             attribute.stream = 0;
             attributes.push_back(attribute);
 
             offsetTangents = stride;
-            attributeOffset += attribute.size;
+            attributeOffset += PKElementTypeToSize((PKElementType)attribute.format);
             stride += sizeof(float) * 4;
         }
 
         if (hasUvs)
         {
             WriteName(attribute.name, PK_MESH_VS_TEXCOORD0);
-            attribute.size = useHalfPrecisionUVs ? sizeof(uint16_t) * 2 : sizeof(float) * 2;
+            attribute.format = useHalfPrecisionUVs ? (uint8_t)PKElementType::Half2 : (uint8_t)PKElementType::Float2;
             attribute.offset = attributeOffset;
             attribute.stream = 0;
             attributes.push_back(attribute);
 
             offsetUVs = stride;
-            attributeOffset += attribute.size;
+            attributeOffset += PKElementTypeToSize((PKElementType)attribute.format);
             stride += sizeof(float) * 2;
         }
 
@@ -580,9 +580,9 @@ namespace PKAssets::Mesh
         SimplifyMesh(vertices, stride, simplificationDesc, indices, submeshes);
         OptimizeMesh(vertices, stride, indices, submeshes);
 
-        auto vcount = (uint32_t)(vertices.size() / stride);
         constexpr auto ushortmax = std::numeric_limits<uint16_t>().max();
-        auto indexType = vcount > ushortmax ? PKElementType::Uint : PKElementType::Ushort;
+        const auto vcount = (uint32_t)(vertices.size() / stride);
+        const auto indexSize = (uint32_t)(vcount > ushortmax ? sizeof(uint32_t) : sizeof(uint16_t));
 
         if (hasTangents)
         {
@@ -640,7 +640,7 @@ namespace PKAssets::Mesh
         WriteName(buffer.header->name, filename.c_str());
         auto mesh = buffer.Allocate<PKMesh>();
 
-        mesh->indexType = indexType;
+        mesh->indexSize = indexSize;
         mesh->submeshCount = (uint32_t)submeshes.size();
         mesh->vertexAttributeCount = (uint32_t)attributes.size();
         mesh->vertexCount = vcount;
@@ -655,7 +655,7 @@ namespace PKAssets::Mesh
         auto pVertexBuffer = buffer.Write(vertices.data(), vertices.size());
         mesh->vertexBuffer.Set(buffer.data(), pVertexBuffer.get());
 
-        if (indexType == PKElementType::Uint)
+        if (indexSize == sizeof(uint32_t))
         {
             auto pIndexBuffer = buffer.Write(indices.data(), indices.size());
             mesh->indexBuffer.Set(buffer.data(), pIndexBuffer.get());
@@ -665,13 +665,13 @@ namespace PKAssets::Mesh
             // Align uint16 index array to 4 byte size
             auto alignedIndexCount = 2u * (indices.size() + 1u) / 2u;
 
-            auto pIndexBuffer = buffer.Allocate<unsigned short>(alignedIndexCount);
+            auto pIndexBuffer = buffer.Allocate<uint16_t>(alignedIndexCount);
             auto pIndices = pIndexBuffer.get();
             mesh->indexBuffer.Set(buffer.data(), pIndexBuffer.get());
 
             for (auto i = 0u; i < indices.size(); ++i)
             {
-                pIndices[i] = (unsigned short)indices.at(i);
+                pIndices[i] = (uint16_t)indices.at(i);
             }
 
             for (auto i = indices.size(); i < alignedIndexCount; ++i)
