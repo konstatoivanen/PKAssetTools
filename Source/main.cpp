@@ -5,6 +5,7 @@
 #include "PKMeshWriter.h"
 #include "PKFontWriter.h"
 #include "PKTextureWriter.h"
+#include "PKIESProfileWriter.h"
 #include "PKFileVersionUtilities.h"
 
 using namespace PKAssets;
@@ -35,7 +36,7 @@ static void WriteFileStatus(const int32_t status, const char* path, const size_t
 {
     switch (status)
     {
-        case -1: printf("Failed to asset: %s \n", path + stemOffset); break;
+        case -1: printf("Failed to write asset: %s \n", path + stemOffset); break;
         case 1: printf("Asset was up to date: %s \n", path + stemOffset); break;
     }
 }
@@ -91,6 +92,16 @@ void ProcessFilesRecursive(const std::string& basedir, const std::filesystem::pa
             auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_TEXTURE).string();
             auto srcpathstr = entryPath.string();
             auto writeStatus = Texture::WriteTexture(srcpathstr.c_str(), dstpathstr.c_str(), stemOffset);
+            WriteFileStatus(writeStatus, dstpathstr.c_str(), stemOffset);
+            fflush(stdout);
+            continue;
+        }
+
+        if (extension.compare(IES::PK_ASSET_IES_SRC_EXTENSION) == 0)
+        {
+            auto dstpathstr = dstpath.replace_extension(PK_ASSET_EXTENSION_IESPROFILE).string();
+            auto srcpathstr = entryPath.string();
+            auto writeStatus = IES::WriteIESProfile(srcpathstr.c_str(), dstpathstr.c_str(), stemOffset);
             WriteFileStatus(writeStatus, dstpathstr.c_str(), stemOffset);
             fflush(stdout);
             continue;

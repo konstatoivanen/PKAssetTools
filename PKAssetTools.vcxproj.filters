@@ -333,6 +333,9 @@
     <ClInclude Include="ThirdParty\meshoptimizer\pkmod_clusterlod.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Source\PKIESProfileWriter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Include\PKAssetLoader.cpp">
@@ -449,6 +452,9 @@
     <ClCompile Include="ThirdParty\meshoptimizer\partition.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\PKIESProfileWriter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Library Include="ThirdParty\shaderc\Binaries\shaderc_combined.lib" />
@@ -480,6 +486,12 @@
     <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetyped.pdb" />
     <None Include="DebugContent\Textures\T_Bluenoise256.ktx2" />
     <None Include="DebugContent\Shaders\includes\Constants.glsl" />
+    <None Include="DebugContent\IESProfiles\IES_10W_10D.ies" />
+    <None Include="DebugContent\IESProfiles\IES_10W_35D.ies" />
+    <None Include="DebugContent\IESProfiles\IES_20W_15D.ies" />
+    <None Include="DebugContent\IESProfiles\IES_45W_45D.ies" />
+    <None Include="DebugContent\IESProfiles\IES_150W_45D.ies" />
+    <None Include="DebugContent\IESProfiles\IES_300W_85D.ies" />
   </ItemGroup>
   <ItemGroup>
     <Font Include="DebugContent\Fonts\FSEX302.ttf" />

@@ -207,6 +207,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Include\PKAssetEncoding.h" />
+    <ClInclude Include="Source\PKIESProfileWriter.h" />
     <ClInclude Include="Source\PKFontWriter.h" />
     <ClInclude Include="Source\PKTextureWriter.h" />
     <ClInclude Include="ThirdParty\KTX\khr_df.h" />
@@ -316,6 +317,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
   <ItemGroup>
     <ClCompile Include="Include\PKAssetEncoding.cpp" />
     <ClCompile Include="Source\PKFontWriter.cpp" />
+    <ClCompile Include="Source\PKIESProfileWriter.cpp" />
     <ClCompile Include="Source\PKTextureWriter.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\allocator.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\clusterizer.cpp" />
@@ -369,6 +371,12 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
+    <None Include="DebugContent\IESProfiles\IES_10W_10D.ies" />
+    <None Include="DebugContent\IESProfiles\IES_10W_35D.ies" />
+    <None Include="DebugContent\IESProfiles\IES_150W_45D.ies" />
+    <None Include="DebugContent\IESProfiles\IES_20W_15D.ies" />
+    <None Include="DebugContent\IESProfiles\IES_300W_85D.ies" />
+    <None Include="DebugContent\IESProfiles\IES_45W_45D.ies" />
     <None Include="DebugContent\Models\MDL_Debug.mdl" />
     <None Include="DebugContent\Models\MDL_Debug.mdl.pkmeta" />
     <None Include="DebugContent\Shaders\CS_Debug.shader" />
