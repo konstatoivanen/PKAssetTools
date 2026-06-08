@@ -336,6 +336,9 @@
     <ClInclude Include="Source\PKIESProfileWriter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Source\PKTextureUtilities.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Include\PKAssetLoader.cpp">
@@ -453,6 +456,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\PKIESProfileWriter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\PKTextureUtilities.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

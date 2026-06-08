@@ -4,6 +4,7 @@
 #include <filesystem>
 #include "PKStringUtilities.h"
 #include "PKMeshUtilities.h"
+#include "PKTextureUtilities.h"
 #include "PKAssetWriter.h"
 #include "PKFileVersionUtilities.h"
 
@@ -377,18 +378,25 @@ namespace PKAssets::IES
         pkIESProfile->candelaMax = maxValue;
         pkIESProfile->candelaAverage = candelaAverage;
 
-        auto pData = buffer.Allocate<uint16_t>(PK_IES_PROFILE_WIDTH * PK_IES_PROFILE_HEIGHT);
-        pkIESProfile->data.Set(buffer.data(), pData.get());
-
-        auto pValues = pData.get();
-
-        for (auto yy = 0u; yy < PK_IES_PROFILE_HEIGHT; ++yy)
-        for (auto xx = 0u; xx < PK_IES_PROFILE_WIDTH; ++xx)
         {
-            auto angleV = xx * 180.0f / PK_IES_PROFILE_WIDTH;
-            auto angleH = yy * 180.0f / PK_IES_PROFILE_HEIGHT;
-            auto value = invMaxValue * Interpolate2D(profile, angleV, angleH);
-            *pValues++ = Mesh::PackHalf(value);
+            std::vector<float> values;
+            values.resize(PK_IES_PROFILE_WIDTH * PK_IES_PROFILE_HEIGHT);
+            auto pValuesf32 = values.data();
+
+            for (auto yy = 0u; yy < PK_IES_PROFILE_HEIGHT; ++yy)
+            for (auto xx = 0u; xx < PK_IES_PROFILE_WIDTH; ++xx)
+            {
+                auto angleV = xx * 180.0f / PK_IES_PROFILE_WIDTH;
+                auto angleH = yy * 180.0f / PK_IES_PROFILE_HEIGHT;
+                *pValuesf32++ = invMaxValue * Interpolate2D(profile, angleV, angleH);
+            }
+
+            auto compressedSize = 0ull;
+            Texture::BlockCompressBC4(values.data(), PK_IES_PROFILE_WIDTH, PK_IES_PROFILE_HEIGHT, nullptr, &compressedSize);
+
+            auto pData = buffer.Allocate<uint8_t>(compressedSize);
+            pkIESProfile->data.Set(buffer.data(), pData.get());
+            Texture::BlockCompressBC4(values.data(), PK_IES_PROFILE_WIDTH, PK_IES_PROFILE_HEIGHT, pData.get(), &compressedSize);
         }
 
         return WriteAsset(pathDst, pathStemOffset, buffer, false);

@@ -210,6 +210,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClInclude Include="Source\PKIESProfileWriter.h" />
     <ClInclude Include="Source\PKFontWriter.h" />
     <ClInclude Include="Source\PKTextureWriter.h" />
+    <ClInclude Include="Source\PKTextureUtilities.h" />
     <ClInclude Include="ThirdParty\KTX\khr_df.h" />
     <ClInclude Include="ThirdParty\KTX\ktx.h" />
     <ClInclude Include="ThirdParty\KTX\vulkan_format.h" />
@@ -319,6 +320,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClCompile Include="Source\PKFontWriter.cpp" />
     <ClCompile Include="Source\PKIESProfileWriter.cpp" />
     <ClCompile Include="Source\PKTextureWriter.cpp" />
+    <ClCompile Include="Source\PKTextureUtilities.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\allocator.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\clusterizer.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\indexanalyzer.cpp" />
