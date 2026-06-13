@@ -339,6 +339,18 @@
     <ClInclude Include="Source\PKTextureUtilities.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ThirdParty\bc7enc_rdo\bc7enc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\bc7enc_rdo\rgbcx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\bc7enc_rdo\rgbcx_table4.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\bc7enc_rdo\rgbcx_table4_small.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Include\PKAssetLoader.cpp">
@@ -459,6 +471,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\PKTextureUtilities.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\bc7enc_rdo\bc7enc.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\bc7enc_rdo\rgbcx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

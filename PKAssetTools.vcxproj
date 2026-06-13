@@ -211,6 +211,10 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClInclude Include="Source\PKFontWriter.h" />
     <ClInclude Include="Source\PKTextureWriter.h" />
     <ClInclude Include="Source\PKTextureUtilities.h" />
+    <ClInclude Include="ThirdParty\bc7enc_rdo\bc7enc.h" />
+    <ClInclude Include="ThirdParty\bc7enc_rdo\rgbcx.h" />
+    <ClInclude Include="ThirdParty\bc7enc_rdo\rgbcx_table4.h" />
+    <ClInclude Include="ThirdParty\bc7enc_rdo\rgbcx_table4_small.h" />
     <ClInclude Include="ThirdParty\KTX\khr_df.h" />
     <ClInclude Include="ThirdParty\KTX\ktx.h" />
     <ClInclude Include="ThirdParty\KTX\vulkan_format.h" />
@@ -321,6 +325,8 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClCompile Include="Source\PKIESProfileWriter.cpp" />
     <ClCompile Include="Source\PKTextureWriter.cpp" />
     <ClCompile Include="Source\PKTextureUtilities.cpp" />
+    <ClCompile Include="ThirdParty\bc7enc_rdo\bc7enc.cpp" />
+    <ClCompile Include="ThirdParty\bc7enc_rdo\rgbcx.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\allocator.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\clusterizer.cpp" />
     <ClCompile Include="ThirdParty\meshoptimizer\indexanalyzer.cpp" />

@@ -1,125 +1,259 @@
 #include <malloc.h>
 #include "PKTextureUtilities.h"
 
+#define RGBCX_IMPLEMENTATION
+#include <bc7enc_rdo/rgbcx.h>
+
 namespace PKAssets::Texture
 {
-    // stb_dxt.h - v1.12 - DXT1/DXT5 compressor - public domain
-    // original by fabian "ryg" giesen - ported to C by stb
-    /*
-        MIT License
-        Copyright (c) 2017 Sean Barrett
-        Permission is hereby granted, free of charge, to any person obtaining a copy of
-        this software and associated documentation files (the "Software"), to deal in
-        the Software without restriction, including without limitation the rights to
-        use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-        of the Software, and to permit persons to whom the Software is furnished to do
-        so, subject to the following conditions:
-        The above copyright notice and this permission notice shall be included in all
-        copies or substantial portions of the Software.
-        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-        SOFTWARE.
-    */
-    static void CompressBlockBC4(unsigned char* dest, unsigned char* src, int stride)
+    PKTextureFormat VkFormatToPKTextureFormat(VkFormat format)
     {
-        int i, dist, bias, dist4, dist2, bits, mask;
-
-        // find min/max color
-        int mn, mx;
-        mn = mx = src[0];
-
-        for (i = 1; i < 16; i++)
+        switch (format)
         {
-            if (src[i * stride] < mn)
-            {
-                mn = src[i * stride];
-
-            }
-            else if (src[i * stride] > mx)
-            {
-                mx = src[i * stride];
-            }
-        }
-
-        // encode them
-        dest[0] = (unsigned char)mx;
-        dest[1] = (unsigned char)mn;
-        dest += 2;
-
-        // determine bias and emit color indices
-        // given the choice of mx/mn, these indices are optimal:
-        // http://fgiesen.wordpress.com/2009/12/15/dxt5-alpha-block-index-determination/
-        dist = mx - mn;
-        dist4 = dist * 4;
-        dist2 = dist * 2;
-        bias = (dist < 8) ? (dist - 1) : (dist / 2 + 2);
-        bias -= mn * 7;
-        bits = 0, mask = 0;
-
-        for (i = 0; i < 16; i++) 
-        {
-            int a = src[i * stride] * 7 + bias;
-            int ind, t;
-
-            // select index. this is a "linear scale" lerp factor between 0 (val=min) and 7 (val=max).
-            t = (a >= dist4) ? -1 : 0; ind = t & 4; a -= dist4 & t;
-            t = (a >= dist2) ? -1 : 0; ind += t & 2; a -= dist2 & t;
-            ind += (a >= dist);
-
-            // turn linear scale into DXT index (0/1 are extremal pts)
-            ind = -ind & 7;
-            ind ^= (2 > ind);
-
-            // write index
-            mask |= ind << bits;
-
-            if ((bits += 3) >= 8) 
-            {
-                *dest++ = (unsigned char)mask;
-                mask >>= 8;
-                bits -= 8;
-            }
+            case VK_FORMAT_R8_UNORM: return PKTextureFormat::R8_Unorm;
+            case VK_FORMAT_R8_SNORM: return PKTextureFormat::R8_Snorm;
+            case VK_FORMAT_R8_UINT: return PKTextureFormat::R8_Uint;
+            case VK_FORMAT_R8_SINT: return PKTextureFormat::R8_Int;
+            case VK_FORMAT_R16_SFLOAT: return PKTextureFormat::R16_Float;
+            case VK_FORMAT_R16_UINT: return PKTextureFormat::R16_Uint;
+            case VK_FORMAT_R16_SINT: return PKTextureFormat::R16_Int;
+            case VK_FORMAT_R8G8_UNORM: return PKTextureFormat::RG8_Unorm;
+            case VK_FORMAT_R8G8_SNORM: return PKTextureFormat::RG8_Snorm;
+            case VK_FORMAT_R8G8_UINT: return PKTextureFormat::RG8_Uint;
+            case VK_FORMAT_R8G8_SINT: return PKTextureFormat::RG8_Int;
+            case VK_FORMAT_R8G8B8_UNORM: return PKTextureFormat::RGB8_Unorm;
+            case VK_FORMAT_R8G8B8_SNORM: return PKTextureFormat::RGB8_Snorm;
+            case VK_FORMAT_R8G8B8_SRGB: return PKTextureFormat::RGB8_Srgb;
+            case VK_FORMAT_R8G8B8_UINT: return PKTextureFormat::RGB8_Uint;
+            case VK_FORMAT_R8G8B8_SINT: return PKTextureFormat::RGB8_Int;
+            case VK_FORMAT_R32_SFLOAT: return PKTextureFormat::R32_Float;
+            case VK_FORMAT_R32_UINT: return PKTextureFormat::R32_Uint;
+            case VK_FORMAT_R32_SINT: return PKTextureFormat::R32_Int;
+            case VK_FORMAT_R16G16_SFLOAT: return PKTextureFormat::RG16_Float;
+            case VK_FORMAT_R16G16_UINT: return PKTextureFormat::RG16_Uint;
+            case VK_FORMAT_R16G16_SINT: return PKTextureFormat::RG16_Int;
+            case VK_FORMAT_R8G8B8A8_UNORM: return PKTextureFormat::RGBA8_Unorm;
+            case VK_FORMAT_R8G8B8A8_SNORM: return PKTextureFormat::RGBA8_Snorm;
+            case VK_FORMAT_R8G8B8A8_SRGB: return PKTextureFormat::RGBA8_Srgb;
+            case VK_FORMAT_B8G8R8A8_UINT: return PKTextureFormat::RGBA8_Uint;
+            case VK_FORMAT_B8G8R8A8_SINT: return PKTextureFormat::RGBA8_Int;
+            case VK_FORMAT_B8G8R8A8_UNORM: return PKTextureFormat::BGRA8_Unorm;
+            case VK_FORMAT_B8G8R8A8_SNORM: return PKTextureFormat::BGRA8_Srgb;
+            case VK_FORMAT_R16G16B16_SFLOAT: return PKTextureFormat::RGB16_Float;
+            case VK_FORMAT_R16G16B16_UINT: return PKTextureFormat::RGB16_Uint;
+            case VK_FORMAT_R16G16B16_SINT: return PKTextureFormat::RGB16_Int;
+            case VK_FORMAT_R32G32_SFLOAT: return PKTextureFormat::RG32_Float;
+            case VK_FORMAT_R32G32_UINT: return PKTextureFormat::RG32_Uint;
+            case VK_FORMAT_R32G32_SINT: return PKTextureFormat::RG32_Int;
+            case VK_FORMAT_R16G16B16A16_UNORM: return PKTextureFormat::RGBA16_Unorm;
+            case VK_FORMAT_R16G16B16A16_SFLOAT: return PKTextureFormat::RGBA16_Float;
+            case VK_FORMAT_R16G16B16A16_UINT: return PKTextureFormat::RGBA16_Uint;
+            case VK_FORMAT_R16G16B16A16_SINT: return PKTextureFormat::RGBA16_Int;
+            case VK_FORMAT_R32G32B32_SFLOAT: return PKTextureFormat::RGB32_Float;
+            case VK_FORMAT_R32G32B32_UINT: return PKTextureFormat::RGB32_Uint;
+            case VK_FORMAT_R32G32B32_SINT: return PKTextureFormat::RGB32_Int;
+            case VK_FORMAT_R32G32B32A32_SFLOAT: return PKTextureFormat::RGBA32_Float;
+            case VK_FORMAT_R32G32B32A32_UINT: return PKTextureFormat::RGBA32_Uint;
+            case VK_FORMAT_R32G32B32A32_SINT: return PKTextureFormat::RGBA32_Int;
+            case VK_FORMAT_R64G64B64A64_UINT: return PKTextureFormat::RGBA64_Uint;
+            case VK_FORMAT_R5G6B5_UNORM_PACK16: return PKTextureFormat::RGB565_Unorm;
+            case VK_FORMAT_R4G4B4A4_UNORM_PACK16: return PKTextureFormat::RGBA4_Unorm;
+            case VK_FORMAT_A2B10G10R10_UNORM_PACK32: return PKTextureFormat::RGB10A2_Unorm;
+            case VK_FORMAT_R5G5B5A1_UNORM_PACK16: return PKTextureFormat::RGB5A1_Unorm;
+            case VK_FORMAT_B10G11R11_UFLOAT_PACK32: return PKTextureFormat::B10G11R11U_Float;
+            case VK_FORMAT_E5B9G9R9_UFLOAT_PACK32: return PKTextureFormat::RGB9E5_Float;
+            case VK_FORMAT_S8_UINT: return PKTextureFormat::Stencil8;
+            case VK_FORMAT_D16_UNORM: return PKTextureFormat::Depth16;
+            case VK_FORMAT_D32_SFLOAT: return PKTextureFormat::Depth32_Float;
+            case VK_FORMAT_D24_UNORM_S8_UINT: return PKTextureFormat::Depth24_Stencil8;
+            case VK_FORMAT_D32_SFLOAT_S8_UINT: return PKTextureFormat::Depth32_Float_Stencil8;
+            case VK_FORMAT_BC1_RGB_UNORM_BLOCK: return PKTextureFormat::BC1_RGB;
+            case VK_FORMAT_BC1_RGB_SRGB_BLOCK: return PKTextureFormat::BC1_RGB_Srgb;
+            case VK_FORMAT_BC1_RGBA_UNORM_BLOCK: return PKTextureFormat::BC1_RGBA;
+            case VK_FORMAT_BC1_RGBA_SRGB_BLOCK: return PKTextureFormat::BC1_RGBA_Srgb;
+            case VK_FORMAT_BC3_UNORM_BLOCK: return PKTextureFormat::BC3_RGBA;
+            case VK_FORMAT_BC3_SRGB_BLOCK: return PKTextureFormat::BC3_RGBA_Srgb;
+            case VK_FORMAT_BC4_UNORM_BLOCK: return PKTextureFormat::BC4_R_Unorm;
+            case VK_FORMAT_BC4_SNORM_BLOCK: return PKTextureFormat::BC4_R_Snorm;
+            case VK_FORMAT_BC5_UNORM_BLOCK: return PKTextureFormat::BC5_RG_Unorm;
+            case VK_FORMAT_BC5_SNORM_BLOCK: return PKTextureFormat::BC5_RG_Snorm;
+            case VK_FORMAT_BC6H_UFLOAT_BLOCK: return PKTextureFormat::BC6H_RGB_Ufloat;
+            case VK_FORMAT_BC6H_SFLOAT_BLOCK: return PKTextureFormat::BC6H_RGB_Sfloat;
+            case VK_FORMAT_BC7_UNORM_BLOCK: return PKTextureFormat::BC7_RGBA;
+            default: return PKTextureFormat::Invalid;
         }
     }
 
-    int BlockCompressBC4(float* src, uint32_t w, uint32_t h, uint8_t* dst, size_t* dstSize)
+    int BlockCompressBCUnorm(BlockCompressContext* ctx, void* dstData, size_t* dstSize)
     {
-        if (w == 0u || h == 0u || w % 4u != 0u || h % 4u != 0u || !src)
+        if (!ctx || ctx->width == 0u || ctx->height == 0u || ctx->width % 4u != 0u || ctx->height % 4u != 0u || !ctx->src_data)
         {
             return -1;
         }
 
-        auto wb = w / 4ull;
-        auto hb = h / 4ull;
-        auto size = wb * hb * 8ull;
-        *dstSize = size;
+        size_t src_bpp = 0u;
+        size_t dst_bpp = 0u;
 
-        if (!dst)
+        switch (ctx->src_format)
         {
+            case PKTextureFormat::R8_Unorm:
+            case PKTextureFormat::R8_Snorm:
+                src_bpp = 1ull;
+                break;
+            case PKTextureFormat::RG8_Unorm:
+            case PKTextureFormat::RG8_Snorm:
+                src_bpp = 2ull;
+                break;
+            case PKTextureFormat::RGB8_Unorm:
+            case PKTextureFormat::RGB8_Srgb:
+            case PKTextureFormat::RGB8_Snorm:
+                src_bpp = 3ull;
+                break;
+            case PKTextureFormat::RGBA8_Unorm:
+            case PKTextureFormat::RGBA8_Srgb:
+            case PKTextureFormat::RGBA8_Snorm:
+            case PKTextureFormat::BGRA8_Unorm:
+            case PKTextureFormat::BGRA8_Srgb:
+                src_bpp = 4ull;
+                break;
+            default:
+                printf("Unsupported source format!\n");
+                return -1;
+        }
+
+        switch (ctx->dst_format)
+        {
+            case PKTextureFormat::BC1_RGB:
+            case PKTextureFormat::BC1_RGBA:
+            case PKTextureFormat::BC1_RGB_Srgb:
+            case PKTextureFormat::BC1_RGBA_Srgb:
+            case PKTextureFormat::BC4_R_Unorm:
+            case PKTextureFormat::BC4_R_Snorm:
+                dst_bpp = 4ull;
+                break;
+            case PKTextureFormat::BC3_RGBA: 
+            case PKTextureFormat::BC3_RGBA_Srgb:
+            case PKTextureFormat::BC5_RG_Unorm:
+            case PKTextureFormat::BC5_RG_Snorm:
+            case PKTextureFormat::BC7_RGBA:
+                dst_bpp = 8ull;
+                break;
+            default:
+                printf("Unsupported destination format!\n");
+                return -1;
+        }
+
+        auto bytes_per_block = (16ull * dst_bpp) / 8ull;
+        auto blocks_x = ctx->width / 4ull;
+        auto blocks_y = ctx->height / 4ull;
+        auto total_blocks = blocks_x * blocks_y;
+        auto data_size = total_blocks * bytes_per_block;
+
+        if (!dstData)
+        {
+            *dstSize = data_size;
             return 0;
         }
 
-        for (auto yy = 0u; yy < hb; ++yy)
-        for (auto xx = 0u; xx < wb; ++xx)
+        if (*dstSize != data_size)
         {
-            uint8_t block[16];
+            printf("Destination data size missmatch!\n");
+            return -1;
+        }
+        
+        rgbcx::init(ctx->bc1_mode);
+        bc7enc_compress_block_init();
 
-            for (auto by = 0u; by < 4u; ++by)
-            for (auto bx = 0u; bx < 4u; ++bx)
+        bc7enc_compress_block_params block_params{};
+        bc7enc_compress_block_params_init(&block_params);
+        
+        if (!ctx->perceptual)
+        {
+            bc7enc_compress_block_params_init_linear_weights(&block_params);
+        }
+
+        block_params.m_max_partitions = ctx->bc7enc_max_partitions_to_scan;
+        block_params.m_uber_level = ctx->bc7_uber_level > BC7ENC_MAX_UBER_LEVEL ? BC7ENC_MAX_UBER_LEVEL : ctx->bc7_uber_level;
+
+        if (ctx->bc7enc_mode6_only)
+        {
+            block_params.m_mode_mask = 1 << 6;
+        }
+
+        auto head = reinterpret_cast<uint8_t*>(dstData);
+
+        for (auto by = 0u; by < blocks_y; ++by)
+        for (auto bx = 0u; bx < blocks_x; ++bx)
+        {
+            uint8_t pixels[4ull * 16ull]{};
+
+            for (auto yy = 0u; yy < 4u; ++yy)
+            for (auto xx = 0u; xx < 4u; ++xx)
             {
-                auto index = (yy * 4u + by) * w + (xx * 4u + bx);
-                auto value = src[index];
-                auto quantized32 = static_cast<uint32_t>(value * 255.0f);
-                auto quantized8 = static_cast<uint8_t>(quantized32 > 255u ? 255u : quantized32);
-                block[by * 4u + bx] = quantized8;
+                auto index_src = (by * 4u + yy) * ctx->width + (bx * 4u + xx);
+                auto index_dst = yy * 4u + xx;
+                memcpy(&pixels[0] + index_dst * 4ull, ctx->src_data + index_src * src_bpp, src_bpp);
             }
 
-            CompressBlockBC4(dst, block, 1u);
-            dst += 8ull;
+            switch (ctx->dst_format)
+            {
+                case PKTextureFormat::BC1_RGB:
+                case PKTextureFormat::BC1_RGBA:
+                case PKTextureFormat::BC1_RGB_Srgb:
+                case PKTextureFormat::BC1_RGBA_Srgb:
+                {
+                    rgbcx::encode_bc1(ctx->bc1_quality_level, head, pixels, ctx->use_bc1_3color_mode, ctx->use_bc1_3color_mode_for_black);
+                }
+                break;
+                case PKTextureFormat::BC3_RGBA: 
+                case PKTextureFormat::BC3_RGBA_Srgb: 
+                {
+                    if (ctx->use_hq_bc345)
+                    {
+                        rgbcx::encode_bc3_hq(ctx->bc1_quality_level, head, pixels, ctx->bc345_search_rad, ctx->bc345_mode_mask);
+                    }
+                    else
+                    {
+                        rgbcx::encode_bc3(ctx->bc1_quality_level, head, pixels);
+                    }
+                }
+                break;
+                case PKTextureFormat::BC4_R_Unorm:
+                case PKTextureFormat::BC4_R_Snorm:
+                {
+                    if (ctx->use_hq_bc345)
+                    {
+                        rgbcx::encode_bc4_hq(head, pixels, 4, ctx->bc345_search_rad, ctx->bc345_mode_mask);
+                    }
+                    else
+                    {
+                        rgbcx::encode_bc4(head, pixels, 4);
+                    }
+                }
+                break;
+                case PKTextureFormat::BC5_RG_Unorm:
+                case PKTextureFormat::BC5_RG_Snorm:
+                {
+                    if (ctx->use_hq_bc345)
+                    {
+                        rgbcx::encode_bc5_hq(head, pixels, 0u, 1u, 4, ctx->bc345_search_rad, ctx->bc345_mode_mask);
+                    }
+                    else
+                    {
+                        rgbcx::encode_bc5(head, pixels, 0u, 1u, 4);
+                    }
+                }
+                break;
+                case PKTextureFormat::BC7_RGBA:
+                {
+                    bc7enc_compress_block(head, pixels, &block_params);
+                }
+                break;
+
+                default: break;
+            }
+
+            head += bytes_per_block;
         }
 
         return 0;

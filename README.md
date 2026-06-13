@@ -4,7 +4,10 @@ A repository of build tools used to cook assets for use in PKRenderer.
 ## Features
 - GLSL To spriv compilation.
 - .obj to custom binary mesh format conversion.
-- Lossless file compression (Huffman encoding).
+- .ttf to custom font format conversion.
+- .ktx to custom texture format conversion.
+- .ies to custom ies format conversion.
+- Lossless file compression.
 
 ## Shader Format
 - Converts glsl shader files to **.pkshader** files.
@@ -21,8 +24,19 @@ A repository of build tools used to cook assets for use in PKRenderer.
 - Optimizes output vertex & index buffers using zeux meshoptimizer.
 - Generates meshlets and a directed acyclic graph lod structure.
 
+## Texture
+- Converts .ktx textures to a simple binary files for quick disk to rhi buffer streaming.
+
+## Font Format
+- Converts .ttf files to msdf atlas textures along with a glyph array.
+- Only supports ASCII character set.
+
+## IES Profile Format
+- Converts .ies files into BC4 compressed texture files.
+
 ## Planned Features
-- Add support for gltf conversion.
+- Add support for .gltf conversion.
+- Add support for .fbx conversion.
 - Implement some form of asset packaging.
 
 ## Dependencies
@@ -35,5 +49,6 @@ A repository of build tools used to cook assets for use in PKRenderer.
 - [msdf-atlas-gen](https://github.com/Chlumsky/msdf-atlas-gen)
 - [shaderc](https://github.com/google/shaderc)
 - [METIS](https://github.com/KarypisLab/METIS)
+- [bc7enc_rdo](https://github.com/richgel999/bc7enc_rdo)
 	- Due to the large sizes of the static libraries they were omitted from this repository. You can get them from the link above.
 	- shaderc_combined.lib & shaderc_combinedd.lib specifically.

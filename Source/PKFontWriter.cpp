@@ -1,5 +1,6 @@
 #include <msdf-atlas-gen/msdf-atlas-gen.h>
 #include "PKStringUtilities.h"
+#include "PKTextureUtilities.h"
 #include "PKAssetWriter.h"
 #include "PKFileVersionUtilities.h"
 
@@ -51,7 +52,7 @@ namespace PKAssets::Font
             glyph.edgeColoring(&msdfgen::edgeColoringInkTrap, maxCornerAngle, 0);
         }
 
-        packer.setDimensionsConstraint(DimensionsConstraint::SQUARE);
+        packer.setDimensionsConstraint(DimensionsConstraint::MULTIPLE_OF_FOUR_SQUARE);
         packer.setScale(loadEmSize);
         packer.setPixelRange(PK_FONT_MSDF_UNIT);
         packer.setMiterLimit(1.0);
@@ -110,11 +111,24 @@ namespace PKAssets::Font
         pkFont->underlineThickness = (float)metrics.underlineThickness * invScale;
 
         msdfgen::BitmapConstRef<byte, 4> bitmap = generator.atlasStorage();
-        auto pAtlasData = buffer.Write(bitmap.pixels, bitmap.width * bitmap.height * 4);
-        pkFont->atlasData.Set(buffer.data(), pAtlasData.get());
+
+        Texture::BlockCompressContext ctx{};
+        ctx.src_format = PKTextureFormat::RGBA8_Unorm;
+        ctx.dst_format = PK_FONT_FORMAT;
+        ctx.src_data = bitmap.pixels;
+        ctx.width = bitmap.width;
+        ctx.height = bitmap.height;
+
+        auto compressedSize = 0ull;
+        Texture::BlockCompressBCUnorm(&ctx, nullptr, &compressedSize);
+
+        auto pData = buffer.Allocate<uint8_t>(compressedSize);
+        pkFont->atlasData.Set(buffer.data(), pData.get());
+        Texture::BlockCompressBCUnorm(&ctx, pData.get(), &compressedSize);
+
         pkFont->atlasResolution[0] = bitmap.width;
         pkFont->atlasResolution[1] = bitmap.height;
-        pkFont->atlasDataSize = bitmap.width* bitmap.height * 4;
+        pkFont->atlasDataSize = compressedSize;
 
         msdfgen::destroyFont(font);
         msdfgen::deinitializeFreetype(ft);

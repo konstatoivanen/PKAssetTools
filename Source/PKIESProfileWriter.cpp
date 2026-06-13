@@ -379,24 +379,34 @@ namespace PKAssets::IES
         pkIESProfile->candelaAverage = candelaAverage;
 
         {
-            std::vector<float> values;
+            std::vector<uint8_t> values;
             values.resize(PK_IES_PROFILE_WIDTH * PK_IES_PROFILE_HEIGHT);
-            auto pValuesf32 = values.data();
+            auto pValues8u = values.data();
 
             for (auto yy = 0u; yy < PK_IES_PROFILE_HEIGHT; ++yy)
             for (auto xx = 0u; xx < PK_IES_PROFILE_WIDTH; ++xx)
             {
                 auto angleV = xx * 180.0f / PK_IES_PROFILE_WIDTH;
                 auto angleH = yy * 180.0f / PK_IES_PROFILE_HEIGHT;
-                *pValuesf32++ = invMaxValue * Interpolate2D(profile, angleV, angleH);
+                auto unorm = invMaxValue * Interpolate2D(profile, angleV, angleH);
+                auto quantized32 = static_cast<uint32_t>(unorm * 255.0f);
+                auto quantized8 = static_cast<uint8_t>(quantized32 > 255u ? 255u : quantized32);
+                *pValues8u++ = quantized8;
             }
 
+            Texture::BlockCompressContext ctx{};
+            ctx.src_format = PKTextureFormat::R8_Unorm;
+            ctx.dst_format = PK_IES_PROFILE_FORMAT;
+            ctx.src_data = values.data();
+            ctx.width = PK_IES_PROFILE_WIDTH;
+            ctx.height = PK_IES_PROFILE_HEIGHT;
+
             auto compressedSize = 0ull;
-            Texture::BlockCompressBC4(values.data(), PK_IES_PROFILE_WIDTH, PK_IES_PROFILE_HEIGHT, nullptr, &compressedSize);
+            Texture::BlockCompressBCUnorm(&ctx, nullptr, &compressedSize);
 
             auto pData = buffer.Allocate<uint8_t>(compressedSize);
             pkIESProfile->data.Set(buffer.data(), pData.get());
-            Texture::BlockCompressBC4(values.data(), PK_IES_PROFILE_WIDTH, PK_IES_PROFILE_HEIGHT, pData.get(), &compressedSize);
+            Texture::BlockCompressBCUnorm(&ctx, pData.get(), &compressedSize);
         }
 
         return WriteAsset(pathDst, pathStemOffset, buffer, false);
