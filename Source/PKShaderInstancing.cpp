@@ -118,9 +118,9 @@ namespace PKAssets::Shader::Instancing
 
             switch (prop.type)
             {
-                case PKElementType::Texture2DHandle: block += "uint " + name + "_Handle;\n"; break;
-                case PKElementType::Texture3DHandle: block += "uint " + name + "_Handle;\n"; break;
-                case PKElementType::TextureCubeHandle: block += "uint " + name + "_Handle;\n"; break;
+                case PKElementType::Texture2D: block += "uint " + name + "_Handle;\n"; break;
+                case PKElementType::Texture3D: block += "uint " + name + "_Handle;\n"; break;
+                case PKElementType::TextureCube: block += "uint " + name + "_Handle;\n"; break;
                 default: block += GetGLSLType(prop.type) + " " + name + ";\n"; break;
             }
         }
@@ -133,9 +133,9 @@ namespace PKAssets::Shader::Instancing
 
             switch (prop.type)
             {
-                case PKElementType::Texture2DHandle:
-                case PKElementType::Texture3DHandle:
-                case PKElementType::TextureCubeHandle:
+                case PKElementType::Texture2D:
+                case PKElementType::Texture3D:
+                case PKElementType::TextureCube:
                     block += "    " + name + "_Handle = prop." + name + ";\n";
                     break;
 
@@ -153,9 +153,9 @@ namespace PKAssets::Shader::Instancing
 
             switch (prop.type)
             {
-                case PKElementType::Texture2DHandle: block += "#define " + name + " pk_Instancing_Textures2D[" + name + "_Handle]\n"; break;
-                case PKElementType::Texture3DHandle: block += "#define " + name + " pk_Instancing_Textures3D[" + name + "_Handle]\n"; break;
-                case PKElementType::TextureCubeHandle: block += "#define " + name + " pk_Instancing_TexturesCube[" + name + "_Handle]\n"; break;
+                case PKElementType::Texture2D: block += "#define " + name + " pk_Instancing_Textures2D[" + name + "_Handle]\n"; break;
+                case PKElementType::Texture3D: block += "#define " + name + " pk_Instancing_Textures3D[" + name + "_Handle]\n"; break;
+                case PKElementType::TextureCube: block += "#define " + name + " pk_Instancing_TexturesCube[" + name + "_Handle]\n"; break;
                 default: break;
             }
         }

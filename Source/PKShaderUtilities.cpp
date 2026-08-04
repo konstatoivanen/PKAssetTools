@@ -252,9 +252,9 @@ namespace PKAssets::Shader
             case PKElementType::Half2x2: return "f16mat2";
             case PKElementType::Half3x3: return "f16mat3";
             case PKElementType::Half4x4: return "f16mat4";
-            case PKElementType::Texture2DHandle: return "uint";
-            case PKElementType::Texture3DHandle: return "uint";
-            case PKElementType::TextureCubeHandle: return "uint";
+            case PKElementType::Texture2D: return "uint";
+            case PKElementType::Texture3D: return "uint";
+            case PKElementType::TextureCube: return "uint";
             case PKElementType::Keyword: return "INVALID";
             case PKElementType::Invalid: return "INVALID";
         }
