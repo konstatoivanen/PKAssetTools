@@ -3,7 +3,7 @@
 
 #include "includes/DebugUtilities.glsl"
 
-layout(rgba8, set = 4) uniform image2D g_Texture;
+layout(rgba8, set = 4) uniform RWTexture2D<float4> g_Texture;
 
 uniform vec2 unused0;
 uniform vec2 unused1;

@@ -136,6 +136,7 @@ namespace PKAssets::Shader
     void ConvertPrintf(std::string& source);
     void ConvertPKNumThreads(std::string& source);
     void ConvertHLSLBuffers(std::string& source);
+    void ConvertHLSLTextures(std::string& source);
     void ConvertHLSLCBuffers(std::string& source);
     void ConvertHLSLTypesToGLSL(std::string& source);
     void ExtractPushConstants(std::string& source, PKShaderStage stage, SourcePushConstants& outConstants);

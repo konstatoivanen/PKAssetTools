@@ -4,8 +4,6 @@
 
 namespace PKAssets::Shader
 {
-    constexpr static uint32_t PK_SHADER_PRIMITIVE_TYPE_COUNT = 71u;
-
     constexpr const static char* PK_HLSL_PRIMITIVE_TYPES[] =
     {
          "bool2",
@@ -78,7 +76,7 @@ namespace PKAssets::Shader
          "double3x4",
          "double4x2",
          "double4x3",
-         "double4x4",
+         "double4x4"
     };
 
     constexpr const static char* PK_GLSL_PRIMITIVE_TYPES[] =
@@ -153,8 +151,24 @@ namespace PKAssets::Shader
         "f64mat3x4",
         "f64mat4x2",
         "f64mat4x3",
-        "f64mat4",
+        "f64mat4"
     };
+
+    constexpr const static char* PK_HLSL_TEXTURE_POSTFIXES[] =
+    {
+        "1D",
+        "1DArray",
+        "2D",
+        "2DArray",
+        "2DMS",
+        "2DMSArray",
+        "3D",
+        "Cube",
+        "CubeArray"
+    };
+
+    constexpr static uint32_t PK_SHADER_PRIMITIVE_TYPE_COUNT = std::size(PK_HLSL_PRIMITIVE_TYPES);
+    constexpr static uint32_t PK_HLSL_TEXTURE_POSTFIX_COUNT = std::size(PK_HLSL_TEXTURE_POSTFIXES);
 
     PKElementType GetElementType(SpvReflectFormat format)
     {
@@ -872,6 +886,87 @@ namespace PKAssets::Shader
                 case 1: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + ";}"); break;
                 default: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[" + std::to_string(size) + "]; }"); break;
             }
+        }
+    }
+
+    void ConvertHLSLTextures(std::string& source)
+    {
+        auto currentpos = 0ull;
+
+        while (true)
+        {
+            const auto textureLength = 7ull;
+            auto open = source.find("Texture", currentpos);
+            auto close = open + textureLength;
+
+            if (open == std::string::npos)
+            {
+                break;
+            }
+
+            if (!isalnum(source[close]))
+            {
+                currentpos = close;
+                continue;
+            }
+
+            auto hasWritableTag = strncmp("RW", source.data() + open - 2ull, 2ull) == 0;
+            auto type = std::string(hasWritableTag ? "image" : "texture");
+
+            if (hasWritableTag)
+            {
+                open -= 2ull;
+            }
+
+            auto postfix = 0u;
+
+            for (auto i = 0u; i < PK_HLSL_TEXTURE_POSTFIX_COUNT; ++i)
+            {
+                const auto length = strlen(PK_HLSL_TEXTURE_POSTFIXES[i]);
+
+                if (strncmp(source.c_str() + close, PK_HLSL_TEXTURE_POSTFIXES[i], length) == 0)
+                {
+                    type.append(PK_HLSL_TEXTURE_POSTFIXES[i]);
+                    postfix = length;
+                    break;
+                }
+            }
+
+            if (!postfix)
+            {
+                currentpos = close;
+                continue;
+            }
+
+            close += postfix;
+
+            if (!isspace(source[close]))
+            {
+                currentpos = close;
+                continue;
+            }
+
+            size_t formatOpen, formatClose;
+
+            if (StringUtilities::FindScope(source, close, "<", ">", &formatOpen, &formatClose) && formatOpen == close + 1ull)
+            {
+                // Uint types begin with u. This is after glsl type conversion.
+                if (source[formatOpen + 2u] == 'u')
+                {
+                    type.insert(0, "u");
+                }
+
+                // Int types begin with i. This is after glsl type conversion.
+                if (source[formatOpen + 2u] == 'i')
+                {
+                    type.insert(0, "i");
+                }
+
+                close = formatClose + 1u;
+            }
+
+            source.replace(open, close - open, type);
+            currentpos = open;
         }
     }
 

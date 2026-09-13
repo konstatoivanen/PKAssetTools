@@ -672,6 +672,7 @@ namespace PKAssets::Shader
 
                 ConvertHLSLTypesToGLSL(stageSources[stageIndex]);
                 ConvertHLSLBuffers(stageSources[stageIndex]);
+                ConvertHLSLTextures(stageSources[stageIndex]);
                 ConvertHLSLCBuffers(stageSources[stageIndex]);
                 ConvertPKNumThreads(stageSources[stageIndex]);
                 RemoveDescriptorSets(stageSources[stageIndex]);
