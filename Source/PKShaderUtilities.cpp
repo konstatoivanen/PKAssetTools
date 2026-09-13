@@ -154,17 +154,18 @@ namespace PKAssets::Shader
         "f64mat4"
     };
 
+    // Order matters for search
     constexpr const static char* PK_HLSL_TEXTURE_POSTFIXES[] =
     {
-        "1D",
         "1DArray",
-        "2D",
+        "1D",
+        "2DMSArray",
         "2DArray",
         "2DMS",
-        "2DMSArray",
+        "2D",
         "3D",
+        "CubeArray",
         "Cube",
-        "CubeArray"
     };
 
     constexpr static uint32_t PK_SHADER_PRIMITIVE_TYPE_COUNT = std::size(PK_HLSL_PRIMITIVE_TYPES);
