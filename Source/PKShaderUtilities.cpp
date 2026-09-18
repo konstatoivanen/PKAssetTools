@@ -315,7 +315,7 @@ namespace PKAssets::Shader
             case PKShaderStage::RayAnyHit: return shaderc_anyhit_shader;
             case PKShaderStage::RayIntersection: return shaderc_intersection_shader;
 
-            case PKShaderStage::MaxCount: return shaderc_shader_kind::shaderc_glsl_infer_from_source;
+            case PKShaderStage::EnumCount: return shaderc_shader_kind::shaderc_glsl_infer_from_source;
         }
     }
 
@@ -1197,7 +1197,7 @@ namespace PKAssets::Shader
         }
         layout.append("};\n");
 
-        for (auto i = 0u; i < (uint32_t)PKShaderStage::MaxCount; ++i)
+        for (auto i = 0u; i < (uint32_t)PKShaderStage::EnumCount; ++i)
         {
             if (!stageSources[i].empty())
             {
@@ -1209,7 +1209,7 @@ namespace PKAssets::Shader
 
     void AddLineCounter(std::string* stageSources)
     {
-        for (auto i = 0u; i < (uint32_t)PKShaderStage::MaxCount; ++i)
+        for (auto i = 0u; i < (uint32_t)PKShaderStage::EnumCount; ++i)
         {
             if (!stageSources[i].empty())
             {

@@ -133,7 +133,7 @@ namespace PKAssets::Shader
 
             auto stage = PKAssets::StringToPKShaderStage(directives[0].c_str());
 
-            if (stage == PKShaderStage::MaxCount)
+            if (stage == PKShaderStage::EnumCount)
             {
                 printf("Unsupported shader stage specified! \n");
                 return -1;
@@ -266,7 +266,7 @@ namespace PKAssets::Shader
 
     static void ReleaseReflectionData(ReflectionData& reflection)
     {
-        for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
+        for (auto i = 0u; i < (int)PKShaderStage::EnumCount; ++i)
         {
             if (reflection.modulesRel[i])
             {
@@ -468,7 +468,7 @@ namespace PKAssets::Shader
         {
             kv.second.setIndex = 0u;
 
-            for (; kv.second.setIndex < (uint32_t)PKShaderStage::MaxCount; ++kv.second.setIndex)
+            for (; kv.second.setIndex < (uint32_t)PKShaderStage::EnumCount; ++kv.second.setIndex)
             {
                 if (kv.second.accessStageMask & (1u << kv.second.setIndex))
                 {
@@ -479,9 +479,9 @@ namespace PKAssets::Shader
         }
 
         auto setcounter = 0u;
-        uint32_t setremap[(uint32_t)PKShaderStage::MaxCount]{};
+        uint32_t setremap[(uint32_t)PKShaderStage::EnumCount]{};
 
-        for (auto i = 0u; i < (uint32_t)PKShaderStage::MaxCount; ++i)
+        for (auto i = 0u; i < (uint32_t)PKShaderStage::EnumCount; ++i)
         {
             if (setflags & (1u << i))
             {
@@ -528,7 +528,7 @@ namespace PKAssets::Shader
         {
             auto bindId = bindingCounter++;
 
-            for (auto i = 0u; i < (int)PKShaderStage::MaxCount; ++i)
+            for (auto i = 0u; i < (int)PKShaderStage::EnumCount; ++i)
             {
                 if (binding.bindings[i] != nullptr)
                 {
@@ -630,12 +630,12 @@ namespace PKAssets::Shader
 
         for (uint32_t variantIndex = 0; variantIndex < shader->variantcount; ++variantIndex)
         {
-            EntryPointInfo* stageEntries[(uint32_t)PKShaderStage::MaxCount]{};
-            std::string stageSources[(uint32_t)PKShaderStage::MaxCount]{};
+            EntryPointInfo* stageEntries[(uint32_t)PKShaderStage::EnumCount]{};
+            std::string stageSources[(uint32_t)PKShaderStage::EnumCount]{};
             SourcePushConstants sourceConstants;
 
             // Preprocess GLSL source text.
-            for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::MaxCount; ++stageIndex)
+            for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
             {
                 auto entryIndex = FindActiveEntryPointIndexForStage(entryPoints, variantDefines[variantIndex], (PKShaderStage)stageIndex);
 
@@ -688,7 +688,7 @@ namespace PKAssets::Shader
             reflectionData.logVerbose = logVerbose;
 
             // Compile to SPRIV
-            for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::MaxCount; ++stageIndex)
+            for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
             {
                 if (stageEntries[stageIndex] != nullptr)
                 {
@@ -720,7 +720,7 @@ namespace PKAssets::Shader
 
             CompressBindIndices(reflectionData);
 
-            for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::MaxCount; ++stageIndex)
+            for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
             {
                 if (reflectionData.modulesRel[stageIndex])
                 {

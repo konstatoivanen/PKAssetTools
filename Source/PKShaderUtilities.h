@@ -7,7 +7,7 @@
 
 namespace PKAssets::Shader
 {
-    constexpr const static char* PK_SHADER_STAGE_NAMES[(uint32_t)PKShaderStage::MaxCount] =
+    constexpr const static char* PK_SHADER_STAGE_NAMES[(uint32_t)PKShaderStage::EnumCount] =
     {
         "STAGE_VERTEX",
         "STAGE_TESSELATION_CONTROL",
@@ -25,7 +25,7 @@ namespace PKAssets::Shader
         "STAGE_RAY_INTERSECTION"
     };
 
-    constexpr const static char* PK_SHADER_STAGE_DEFINES[(uint32_t)PKShaderStage::MaxCount] =
+    constexpr const static char* PK_SHADER_STAGE_DEFINES[(uint32_t)PKShaderStage::EnumCount] =
     {
         "#define SHADER_STAGE_VERTEX\n",
         "#define SHADER_STAGE_TESSELATION_CONTROL\n",
@@ -91,7 +91,7 @@ namespace PKAssets::Shader
         uint32_t bindingIndex = 0u;
         uint32_t setIndex = 0u;
         uint32_t count = 0u;
-        const SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::MaxCount]{};
+        const SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::EnumCount]{};
     };
 
     struct ReflectPushConstant
@@ -102,8 +102,8 @@ namespace PKAssets::Shader
 
     struct ReflectionData
     {
-        SpvReflectShaderModule* modulesRel[(int)PKShaderStage::MaxCount]{};
-        SpvReflectShaderModule* modulesDeb[(int)PKShaderStage::MaxCount]{};
+        SpvReflectShaderModule* modulesRel[(int)PKShaderStage::EnumCount]{};
+        SpvReflectShaderModule* modulesDeb[(int)PKShaderStage::EnumCount]{};
         std::vector<PKVertexInputAttribute> vertexAttributes;
         std::vector<ReflectBinding> sortedBindings;
         std::map<std::string, ReflectBinding> uniqueBindings;
