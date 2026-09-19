@@ -131,7 +131,7 @@ namespace PKAssets::Shader
                 return -1;
             }
 
-            auto stage = PKAssets::StringToPKShaderStage(directives[0].c_str());
+            auto stage = StringToPKShaderStage(directives[0].c_str());
 
             if (stage == PKShaderStage::EnumCount)
             {

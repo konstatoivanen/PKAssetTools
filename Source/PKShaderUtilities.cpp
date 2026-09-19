@@ -171,6 +171,194 @@ namespace PKAssets::Shader
     constexpr static uint32_t PK_SHADER_PRIMITIVE_TYPE_COUNT = std::size(PK_HLSL_PRIMITIVE_TYPES);
     constexpr static uint32_t PK_HLSL_TEXTURE_POSTFIX_COUNT = std::size(PK_HLSL_TEXTURE_POSTFIXES);
 
+    const static char* PKElementType_NAMES[] =
+    {
+        "Invalid",
+        "float",
+        "float2",
+        "float3",
+        "float4",
+        "double",
+        "double2",
+        "double3",
+        "double4",
+        "half",
+        "half2",
+        "half3",
+        "half4",
+        "int",
+        "int2",
+        "int3",
+        "int4",
+        "uint",
+        "uint2",
+        "uint3",
+        "uint4",
+        "short",
+        "short2",
+        "short3",
+        "short4",
+        "ushort",
+        "ushort2",
+        "ushort3",
+        "ushort4",
+        "long",
+        "long2",
+        "long3",
+        "long4",
+        "ulong",
+        "ulong2",
+        "ulong3",
+        "ulong4",
+        "float2x2",
+        "float3x3",
+        "float4x4",
+        "float3x4",
+        "double2x2",
+        "double3x3",
+        "double4x4",
+        "half2x2",
+        "half3x3",
+        "half4x4",
+        "texture2D",
+        "texture3D",
+        "textureCube",
+        "keyword",
+    };
+
+    // Special names for these. Follow defines
+    const static char* PKShaderStage_NAMES[] =
+    {
+        "SHADER_STAGE_VERTEX",
+        "SHADER_STAGE_TESSELATION_CONTROL",
+        "SHADER_STAGE_TESSELATION_EVALUATE",
+        "SHADER_STAGE_GEOMETRY",
+        "SHADER_STAGE_MESH_TASK",
+        "SHADER_STAGE_MESH_ASSEMBLY",
+        "SHADER_STAGE_FRAGMENT",
+        "SHADER_STAGE_COMPUTE",
+        "SHADER_STAGE_RAY_GENERATION",
+        "SHADER_STAGE_RAY_MISS",
+        "SHADER_STAGE_RAY_CLOSEST_HIT",
+        "SHADER_STAGE_RAY_ANY_HIT",
+        "SHADER_STAGE_RAY_INTERSECTION",
+        "SHADER_STAGE_INVALID"
+    };
+
+    const static char* PKComparison_NAMES[] =
+    {
+        "Off",
+        "Never",
+        "Less",
+        "Equal",
+        "LessEqual",
+        "Greater",
+        "NotEqual",
+        "GreaterEqual",
+        "Always",
+    };
+
+    const static char* PKCullMode_NAMES[] =
+    {
+        "Off",
+        "Front",
+        "Back"
+    };
+
+    const static char* PKBlendFactor_NAMES[] =
+    {
+        "None",
+        "One",
+        "Zero",
+        "SrcColor",
+        "SrcAlpha",
+        "DstColor",
+        "DstAlpha",
+        "OneMinusSrcColor",
+        "OneMinusSrcAlpha",
+        "OneMinusDstColor",
+        "OneMinusDstAlpha",
+        "ConstColor",
+        "OneMinusConstColor",
+        "ConstAlpha",
+        "OneMinusConstAlpha",
+    };
+
+    const static char* PKBlendOp_NAMES[] =
+    {
+        "None",
+        "Add",
+        "Subtract",
+        "ReverseSubtract",
+        "Min",
+        "Max",
+    };
+
+    const static char* PKRasterMode_NAMES[] =
+    {
+        "Default",
+        "OverEstimate",
+        "UnderEstimate",
+    };
+
+    template<size_t size>
+    static uint32_t FindEnumIndexFromString(const char* (&arr)[size], const char* str, uint32_t fallback)
+    {
+        auto length = str ? strnlen(str, 64) : 0u;
+
+        for (auto i = 0u; length && i < size; ++i)
+        {
+            if (strncmp(arr[i], str, length) == 0)
+            {
+                return i;
+            }
+        }
+
+        return fallback;
+    }
+
+    #define DECLARE_STRING_TO_ENUM(TType, TFallback) TType StringTo##TType(const char* str) { return (TType)FindEnumIndexFromString(TType##_NAMES, str, (uint32_t)TFallback); }
+
+    DECLARE_STRING_TO_ENUM(PKElementType, PKElementType::Invalid)
+    DECLARE_STRING_TO_ENUM(PKShaderStage, PKShaderStage::EnumCount)
+    DECLARE_STRING_TO_ENUM(PKComparison, PKComparison::Off)
+    DECLARE_STRING_TO_ENUM(PKCullMode, PKCullMode::Off)
+    DECLARE_STRING_TO_ENUM(PKBlendFactor, PKBlendFactor::None)
+    DECLARE_STRING_TO_ENUM(PKBlendOp, PKBlendOp::None)
+    DECLARE_STRING_TO_ENUM(PKRasterMode, PKRasterMode::Default)
+
+    #undef DECLARE_STRING_TO_ENUM
+
+    PKColorMask StringToPKColorMask(const char* str)
+    {
+        auto length = str ? strnlen(str, 4) : 0;
+
+        if (length == 0)
+        {
+            return PKColorMask::RGBA;
+        }
+
+        uint8_t mask = (uint8_t)PKColorMask::NONE;
+
+        for (auto i = 0u; i < length; ++i)
+        {
+            switch (str[i])
+            {
+            case 'X':
+            case 'R': mask = mask | (uint8_t)PKColorMask::R; break;
+            case 'Y':
+            case 'G': mask = mask | (uint8_t)PKColorMask::G; break;
+            case 'Z':
+            case 'B': mask = mask | (uint8_t)PKColorMask::B; break;
+            case 'W':
+            case 'A': mask = mask | (uint8_t)PKColorMask::A; break;
+            default: break;
+            }
+        }
+
+        return (PKColorMask)mask;
+    }
+
     PKElementType GetElementType(SpvReflectFormat format)
     {
         switch (format)
@@ -421,7 +609,7 @@ namespace PKAssets::Shader
 
         if (!valueZTest.empty())
         {
-            attributes->ztest = PKAssets::StringToPKComparison(valueZTest.c_str());
+            attributes->ztest = StringToPKComparison(valueZTest.c_str());
         }
 
         if (!valueBlendColor.empty())
@@ -434,9 +622,9 @@ namespace PKAssets::Shader
 
             if (keywords.size() == 3)
             {
-                attributes->blendOpColor = PKAssets::StringToPKBlendOp(keywords.at(0).c_str());
-                attributes->blendSrcFactorColor = PKAssets::StringToPKBlendFactor(keywords.at(1).c_str());
-                attributes->blendDstFactorColor = PKAssets::StringToPKBlendFactor(keywords.at(2).c_str());
+                attributes->blendOpColor = StringToPKBlendOp(keywords.at(0).c_str());
+                attributes->blendSrcFactorColor = StringToPKBlendFactor(keywords.at(1).c_str());
+                attributes->blendDstFactorColor = StringToPKBlendFactor(keywords.at(2).c_str());
             }
         }
 
@@ -450,9 +638,9 @@ namespace PKAssets::Shader
 
             if (keywords.size() == 3)
             {
-                attributes->blendOpAlpha = PKAssets::StringToPKBlendOp(keywords.at(0).c_str());
-                attributes->blendSrcFactorAlpha = PKAssets::StringToPKBlendFactor(keywords.at(0).c_str());
-                attributes->blendDstFactorAlpha = PKAssets::StringToPKBlendFactor(keywords.at(2).c_str());
+                attributes->blendOpAlpha = StringToPKBlendOp(keywords.at(0).c_str());
+                attributes->blendSrcFactorAlpha = StringToPKBlendFactor(keywords.at(0).c_str());
+                attributes->blendDstFactorAlpha = StringToPKBlendFactor(keywords.at(2).c_str());
             }
         }
 
@@ -481,7 +669,7 @@ namespace PKAssets::Shader
 
             if (keywords.size() > 0)
             {
-                attributes->rasterMode = PKAssets::StringToPKRasterMode(keywords.at(0).c_str());
+                attributes->rasterMode = StringToPKRasterMode(keywords.at(0).c_str());
             }
 
             if (keywords.size() > 1)
@@ -490,8 +678,8 @@ namespace PKAssets::Shader
             }
         }
 
-        attributes->colorMask = PKAssets::StringToPKColorMask(valueColorMask.c_str());
-        attributes->cull = PKAssets::StringToPKCullMode(valueCull.c_str());
+        attributes->colorMask = StringToPKColorMask(valueColorMask.c_str());
+        attributes->cull = StringToPKCullMode(valueCull.c_str());
     }
 
     void InsertRequiredExtensions(std::string& source, PKShaderStage stage)
