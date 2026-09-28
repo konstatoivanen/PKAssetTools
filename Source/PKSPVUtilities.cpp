@@ -54,8 +54,7 @@ namespace PKAssets::Shader
     bool ReflectResourceWrite(const uint32_t* code, const uint32_t wordCount, uint32_t variable, PKDescriptorType type)
     {
         if (type != PKDescriptorType::Image && 
-            type != PKDescriptorType::StorageBuffer && 
-            type != PKDescriptorType::DynamicStorageBuffer)
+            type != PKDescriptorType::StorageBuffer)
         {
             return false;
         }
