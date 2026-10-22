@@ -91,7 +91,8 @@ namespace PKAssets::Shader
         uint32_t bindingIndex = 0u;
         uint32_t setIndex = 0u;
         uint32_t count = 0u;
-        const SpvReflectDescriptorBinding* bindings[(int)PKShaderStage::EnumCount]{};
+        uint32_t wordOffsetBinding[(int)PKShaderStage::EnumCount]{};
+        uint32_t wordOffsetSet[(int)PKShaderStage::EnumCount]{};
     };
 
     struct ReflectPushConstant
@@ -102,14 +103,13 @@ namespace PKAssets::Shader
 
     struct ReflectionData
     {
-        SpvReflectShaderModule* modulesRel[(int)PKShaderStage::EnumCount]{};
-        SpvReflectShaderModule* modulesDeb[(int)PKShaderStage::EnumCount]{};
+        SpvReflectShaderModule* modules[(int)PKShaderStage::EnumCount]{};
+        std::vector<uint32_t> deadVariableIds[(int)PKShaderStage::EnumCount]{};
         std::vector<PKVertexInputAttribute> vertexAttributes;
         std::vector<ReflectBinding> sortedBindings;
         std::map<std::string, ReflectBinding> uniqueBindings;
         std::map<std::string, ReflectPushConstant> uniqueConstants;
         uint32_t constantRangeSize = 0u;
-        uint32_t constantRangeStageFlags = 0u; //PKShaderStageFlags
         bool logVerbose;
     };
 
@@ -151,4 +151,7 @@ namespace PKAssets::Shader
     void ExtractPushConstants(std::string& source, PKShaderStage stage, SourcePushConstants& outConstants);
     void CompilePushConstantBlock(std::string* stageSources, const SourcePushConstants& constants);
     void AddLineCounter(std::string* stageSources);
+
+    void RemoveUnusedResourcesAndFunctions(std::string& source);
+    void RemoveUnusedStageOutputs(std::string* stageSources);
 }

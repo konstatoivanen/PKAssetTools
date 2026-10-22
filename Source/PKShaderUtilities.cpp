@@ -4,6 +4,15 @@
 
 namespace PKAssets::Shader
 {
+    struct TopLevelStatement
+    {
+        size_t start = 0ull;
+        size_t end = 0ull;
+        size_t openBrace = std::string::npos;
+        size_t closeBrace = std::string::npos;
+        bool isFunction = false;
+    };
+
     constexpr const static char* PK_HLSL_PRIMITIVE_TYPES[] =
     {
          "bool2",
@@ -329,6 +338,172 @@ namespace PKAssets::Shader
 
     #undef DECLARE_STRING_TO_ENUM
 
+    static bool IsIdentifierChar(char c)
+    {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+    }
+    
+    static size_t CountIdentifierOccurrences(const std::string& source, std::string_view identifier)
+    {
+        if (identifier.empty())
+        {
+            return 0ull;
+        }
+
+        size_t count = 0ull;
+        size_t pos = 0ull;
+
+        while ((pos = source.find(identifier.data(), pos, identifier.size())) != std::string::npos)
+        {
+            const bool validBefore = (pos == 0ull) || (!IsIdentifierChar(source[pos - 1ull]) && source[pos - 1ull] != '.');
+            const size_t end = pos + identifier.size();
+            const bool validAfter = (end >= source.size()) || !IsIdentifierChar(source[end]);
+
+            if (validBefore && validAfter)
+            {
+                count++;
+            }
+
+            pos = end;
+        }
+
+        return count;
+    }
+
+    static std::vector<TopLevelStatement> ScanTopLevelStatements(const std::string& source)
+    {
+        std::vector<TopLevelStatement> statements;
+        size_t i = 0ull;
+        const size_t len = source.size();
+        size_t stmtStart = 0ull;
+        size_t openBrace = std::string::npos;
+        size_t closeBrace = std::string::npos;
+        int32_t braceDepth = 0;
+        int32_t parenDepth = 0;
+        bool isFunctionHeader = false;
+
+        auto skipWhitespace = [&]()
+        {
+            while (i < len && (source[i] == ' ' || source[i] == '\t' || source[i] == '\r' || source[i] == '\n'))
+            {
+                ++i;
+            }
+        };
+
+        skipWhitespace();
+        stmtStart = i;
+
+        while (i < len)
+        {
+            const char c = source[i];
+
+            if (braceDepth == 0 && parenDepth == 0 && c == '#')
+            {
+                while (i < len && source[i] != '\n')
+                {
+                    ++i;
+                }
+                skipWhitespace();
+                stmtStart = i;
+                continue;
+            }
+
+            if (c == '(')
+            {
+                parenDepth++;
+            }
+            else if (c == ')')
+            {
+                parenDepth = std::max(0, parenDepth - 1);
+            }
+            else if (c == '{')
+            {
+                if (braceDepth == 0)
+                {
+                    openBrace = i;
+                    size_t prev = i;
+                    while (prev > stmtStart && isspace((unsigned char)source[prev - 1ull]))
+                    {
+                        --prev;
+                    }
+                    isFunctionHeader = (prev > stmtStart && source[prev - 1ull] == ')');
+                }
+                braceDepth++;
+            }
+            else if (c == '}')
+            {
+                braceDepth = std::max(0, braceDepth - 1);
+                if (braceDepth == 0)
+                {
+                    closeBrace = i;
+                    if (isFunctionHeader)
+                    {
+                        statements.push_back({ stmtStart, i + 1ull, openBrace, closeBrace, true });
+                        openBrace = closeBrace = std::string::npos;
+                        isFunctionHeader = false;
+                        ++i;
+                        skipWhitespace();
+                        stmtStart = i;
+                        continue;
+                    }
+                }
+            }
+            else if (c == ';' && braceDepth == 0 && parenDepth == 0)
+            {
+                statements.push_back({ stmtStart, i + 1ull, openBrace, closeBrace, false });
+                openBrace = closeBrace = std::string::npos;
+                isFunctionHeader = false;
+                ++i;
+                skipWhitespace();
+                stmtStart = i;
+                continue;
+            }
+
+            ++i;
+        }
+
+        return statements;
+    }
+
+    static std::string StripLayoutQualifiers(std::string str)
+    {
+        size_t pos = 0ull;
+        while (true)
+        {
+            size_t open, close;
+            if (!StringUtilities::FindScope(str, pos, "layout(", ")", &open, &close))
+            {
+                break;
+            }
+            str.erase(open, (close + 1ull) - open);
+            pos = open;
+        }
+        return str;
+    }
+
+    static std::string ExtractLastIdentifierBefore(std::string_view text)
+    {
+        const size_t bracket = text.find('[');
+        if (bracket != std::string_view::npos)
+        {
+            text = text.substr(0, bracket);
+        }
+
+        size_t end = text.size();
+        while (end > 0ull && !IsIdentifierChar(text[end - 1ull]))
+        {
+            --end;
+        }
+
+        size_t start = end;
+        while (start > 0ull && IsIdentifierChar(text[start - 1ull]))
+        {
+            --start;
+        }
+
+        return std::string(text.substr(start, end - start));
+    }
+
     PKColorMask StringToPKColorMask(const char* str)
     {
         auto length = str ? strnlen(str, 4) : 0;
@@ -433,7 +608,7 @@ namespace PKAssets::Shader
             case PKElementType::Short2: return "i16vec2";
             case PKElementType::Short3: return "i16vec3";
             case PKElementType::Short4: return "i16vec4";
-            case PKElementType::Ushort: return "u16int";
+            case PKElementType::Ushort: return "uint16_t";
             case PKElementType::Ushort2: return "u16vec2";
             case PKElementType::Ushort3: return "u16vec3";
             case PKElementType::Ushort4: return "u16vec4";
@@ -1249,6 +1424,11 @@ namespace PKAssets::Shader
         auto name = source.substr(nameStart, nameEnd - nameStart);
         auto field = type + " " + name + ";\n";
 
+        if (CountIdentifierOccurrences(source, name) <= 1ull)
+        {
+            return true;
+        }
+
         // slow find member. I don't want to implement an insertion ordered map here so whatever.
         for (auto& member : members)
         {
@@ -1398,6 +1578,249 @@ namespace PKAssets::Shader
             if (!stageSources[i].empty())
             {
                 stageSources[i].insert(stageSources[i].find_first_of("\r\n") + 1ull, "#line 2\n");
+            }
+        }
+    }
+    
+    void RemoveUnusedResourcesAndFunctions(std::string& source)
+    {
+        bool changed = true;
+        while (changed)
+        {
+            changed = false;
+            const auto statements = ScanTopLevelStatements(source);
+
+            for (int32_t s = (int32_t)statements.size() - 1; s >= 0; --s)
+            {
+                const auto& stmt = statements[s];
+
+                if (stmt.isFunction)
+                {
+                    // Find function name before parameter list '('
+                    int32_t pDepth = 0;
+                    size_t paramOpen = std::string::npos;
+                    for (size_t k = stmt.openBrace; k > stmt.start; --k)
+                    {
+                        if (source[k - 1ull] == ')') pDepth++;
+                        else if (source[k - 1ull] == '(')
+                        {
+                            if (--pDepth == 0)
+                            {
+                                paramOpen = k - 1ull;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (paramOpen != std::string::npos)
+                    {
+                        const auto funcName = ExtractLastIdentifierBefore(std::string_view(source.data() + stmt.start, paramOpen - stmt.start));
+                        if (!funcName.empty() && funcName != "main" && CountIdentifierOccurrences(source, funcName) <= 1ull)
+                        {
+                            source.erase(stmt.start, stmt.end - stmt.start);
+                            changed = true;
+                        }
+                    }
+                    continue;
+                }
+
+                // Block declaration: uniform / buffer { ... } [instanceName];
+                if (stmt.openBrace != std::string::npos && stmt.closeBrace != std::string::npos)
+                {
+                    const auto header = StripLayoutQualifiers(source.substr(stmt.start, stmt.openBrace - stmt.start));
+                    const auto tokens = StringUtilities::Split(header, " \t\r\n");
+
+                    bool isResourceBlock = false;
+                    for (const auto& t : tokens)
+                    {
+                        if (t == "uniform" || t == "buffer")
+                        {
+                            isResourceBlock = true;
+                            break;
+                        }
+                    }
+
+                    if (!isResourceBlock)
+                    {
+                        continue;
+                    }
+
+                    const auto instanceName = ExtractLastIdentifierBefore(std::string_view(source.data() + stmt.closeBrace + 1ull, (stmt.end - 1ull) - (stmt.closeBrace + 1ull)));
+
+                    if (!instanceName.empty())
+                    {
+                        if (CountIdentifierOccurrences(source, instanceName) <= 1ull)
+                        {
+                            source.erase(stmt.start, stmt.end - stmt.start);
+                            changed = true;
+                        }
+                    }
+                    else
+                    {
+                        const auto body = source.substr(stmt.openBrace + 1ull, stmt.closeBrace - (stmt.openBrace + 1ull));
+                        const auto memberDecls = StringUtilities::Split(body, ";");
+                        bool anyMemberUsed = false;
+
+                        for (const auto& memberDecl : memberDecls)
+                        {
+                            const auto memberName = ExtractLastIdentifierBefore(memberDecl);
+                            if (!memberName.empty() && CountIdentifierOccurrences(source, memberName) > 1ull)
+                            {
+                                anyMemberUsed = true;
+                                break;
+                            }
+                        }
+
+                        if (!anyMemberUsed)
+                        {
+                            source.erase(stmt.start, stmt.end - stmt.start);
+                            changed = true;
+                        }
+                    }
+                    continue;
+                }
+
+                // Simple declaration: [layout(...)] uniform Type Name[...];
+                const auto decl = StripLayoutQualifiers(source.substr(stmt.start, (stmt.end - 1ull) - stmt.start));
+                const auto tokens = StringUtilities::Split(decl, " \t\r\n");
+                if (tokens.size() >= 3ull && tokens[0] == "uniform")
+                {
+                    const auto varName = ExtractLastIdentifierBefore(decl);
+                    if (!varName.empty() && CountIdentifierOccurrences(source, varName) <= 1ull)
+                    {
+                        source.erase(stmt.start, stmt.end - stmt.start);
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
+
+    void RemoveUnusedStageOutputs(std::string* stageSources)
+    {
+        // Find the last active pre-fragment graphics stage
+        int32_t producerStage = -1;
+        for (int32_t stage = (int32_t)PKShaderStage::MeshAssembly; stage >= (int32_t)PKShaderStage::Vertex; --stage)
+        {
+            if (!stageSources[stage].empty())
+            {
+                producerStage = stage;
+                break;
+            }
+        }
+
+        if (producerStage == -1)
+        {
+            return;
+        }
+
+        std::vector<std::string> activeFragInputs;
+        auto& fragSource = stageSources[(uint32_t)PKShaderStage::Fragment];
+
+        if (!fragSource.empty())
+        {
+            const auto fragStmts = ScanTopLevelStatements(fragSource);
+            for (int32_t s = (int32_t)fragStmts.size() - 1; s >= 0; --s)
+            {
+                const auto& stmt = fragStmts[s];
+                if (stmt.isFunction || stmt.openBrace != std::string::npos)
+                {
+                    continue;
+                }
+
+                auto decl = StripLayoutQualifiers(fragSource.substr(stmt.start, (stmt.end - 1ull) - stmt.start));
+                const size_t bracketPos = decl.find('[');
+                if (bracketPos != std::string::npos)
+                {
+                    decl.erase(bracketPos);
+                }
+
+                const auto tokens = StringUtilities::Split(decl, " \t\r\n");
+                if (tokens.size() < 3ull)
+                {
+                    continue;
+                }
+
+                bool isInput = false;
+                for (size_t i = 0ull; i + 2ull < tokens.size(); ++i)
+                {
+                    if (tokens[i] == "in")
+                    {
+                        isInput = true;
+                        break;
+                    }
+                }
+
+                if (isInput)
+                {
+                    const auto& varName = tokens.back();
+                    if (CountIdentifierOccurrences(fragSource, varName) <= 1ull)
+                    {
+                        fragSource.erase(stmt.start, stmt.end - stmt.start);
+                    }
+                    else
+                    {
+                        activeFragInputs.push_back(varName);
+                    }
+                }
+            }
+        }
+
+        auto& prodSource = stageSources[producerStage];
+        const auto prodStmts = ScanTopLevelStatements(prodSource);
+
+        for (int32_t s = (int32_t)prodStmts.size() - 1; s >= 0; --s)
+        {
+            const auto& stmt = prodStmts[s];
+            if (stmt.isFunction || stmt.openBrace != std::string::npos)
+            {
+                continue;
+            }
+
+            auto decl = StripLayoutQualifiers(prodSource.substr(stmt.start, (stmt.end - 1ull) - stmt.start));
+            std::string arraySuffix;
+            const size_t bracketPos = decl.find('[');
+            if (bracketPos != std::string::npos)
+            {
+                arraySuffix = decl.substr(bracketPos);
+                decl.erase(bracketPos);
+            }
+
+            const auto tokens = StringUtilities::Split(decl, " \t\r\n");
+            if (tokens.size() < 3ull)
+            {
+                continue;
+            }
+
+            bool isOutput = false;
+            for (size_t i = 0ull; i + 2ull < tokens.size(); ++i)
+            {
+                if (tokens[i] == "out")
+                {
+                    isOutput = true;
+                    break;
+                }
+            }
+
+            if (!isOutput)
+            {
+                continue;
+            }
+
+            const auto& varName = tokens.back();
+            const auto& typeName = tokens[tokens.size() - 2ull];
+            const bool usedInFrag = std::find(activeFragInputs.begin(), activeFragInputs.end(), varName) != activeFragInputs.end();
+
+            if (!usedInFrag)
+            {
+                // Demote unused stage output to a private global variable so spirv-opt dead-strips all writes to it
+                if (arraySuffix == "[]")
+                {
+                    arraySuffix = "[256]";
+                }
+
+                const std::string replacement = typeName + " " + varName + arraySuffix + ";";
+                prodSource.replace(stmt.start, stmt.end - stmt.start, replacement);
             }
         }
     }

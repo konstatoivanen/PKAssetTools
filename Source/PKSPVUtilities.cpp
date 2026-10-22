@@ -169,4 +169,123 @@ namespace PKAssets::Shader
 
         return false;
     }
+
+    std::vector<uint32_t> CleanSPIRV(const uint32_t* code, uint32_t wordCount, const std::vector<uint32_t>& deadVariableIds, bool stripDebugInfo)
+    {
+        std::vector<uint32_t> out;
+        out.reserve(wordCount);
+
+        // Copy 5-word SPIR-V header
+        for (uint32_t i = 0u; i < 5u && i < wordCount; ++i)
+        {
+            out.push_back(code[i]);
+        }
+
+        auto isDeadId = [&](uint32_t id)
+        {
+            for (uint32_t deadId : deadVariableIds)
+            {
+                if (deadId == id)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        uint32_t i = 5u;
+
+        while (i < wordCount)
+        {
+            const SpvOp opcode = (SpvOp)(code[i] & 0xFFFFu);
+            const uint16_t wcount = (code[i] >> 16) & 0xFFFFu;
+            const uint32_t* params = code + i + 1u;
+
+            if (wcount == 0u)
+            {
+                break;
+            }
+
+            if (stripDebugInfo)
+            {
+                if (opcode == SpvOpSourceContinued ||
+                    opcode == SpvOpSource ||
+                    opcode == SpvOpSourceExtension ||
+                    opcode == SpvOpName ||
+                    opcode == SpvOpMemberName ||
+                    opcode == SpvOpLine ||
+                    opcode == SpvOpNoLine ||
+                    opcode == SpvOpModuleProcessed)
+                {
+                    i += wcount;
+                    continue;
+                }
+            }
+
+            if (!deadVariableIds.empty())
+            {
+                // Strip decorations and debug names targeting dead descriptor variables
+                if ((opcode == SpvOpDecorate || opcode == SpvOpMemberDecorate || opcode == SpvOpName) && wcount >= 2u && isDeadId(params[0]))
+                {
+                    i += wcount;
+                    continue;
+                }
+
+                // Strip the dead OpVariable declaration itself
+                if (opcode == SpvOpVariable && wcount >= 4u && isDeadId(params[1]))
+                {
+                    i += wcount;
+                    continue;
+                }
+
+                // Strip dead global variable IDs from OpEntryPoint's trailing interface list (SPIR-V 1.4+)
+                if (opcode == SpvOpEntryPoint)
+                {
+                    const size_t headerIdx = out.size();
+                    out.push_back(code[i]);     // opcode + word count placeholder
+                    out.push_back(params[0]);   // ExecutionModel
+                    out.push_back(params[1]);   // EntryPoint <id>
+
+                    // Copy null-terminated entry point name string words
+                    uint16_t w = 3u;
+                    while (w < wcount)
+                    {
+                        const uint32_t word = code[i + w];
+                        out.push_back(word);
+                        w++;
+
+                        if ((word & 0xFFu) == 0u ||
+                            (word & 0xFF00u) == 0u ||
+                            (word & 0xFF0000u) == 0u ||
+                            (word & 0xFF000000u) == 0u)
+                        {
+                            break;
+                        }
+                    }
+
+                    uint16_t newWCount = w;
+
+                    for (; w < wcount; ++w)
+                    {
+                        const uint32_t interfaceId = code[i + w];
+
+                        if (!isDeadId(interfaceId))
+                        {
+                            out.push_back(interfaceId);
+                            newWCount++;
+                        }
+                    }
+
+                    out[headerIdx] = ((uint32_t)newWCount << 16u) | (uint32_t)opcode;
+                    i += wcount;
+                    continue;
+                }
+            }
+
+            out.insert(out.end(), code + i, code + i + wcount);
+            i += wcount;
+        }
+
+        return out;
+    }
 }
