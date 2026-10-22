@@ -105,7 +105,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;ThirdParty/METIS/Binaries/metisd.lib;ThirdParty/METIS/Binaries/GKlibd.lib;ThirdParty/KTX/Binaries/ktxd.lib;ThirdParty/KTX/Binaries/ktx_readd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;ThirdParty/KTX/Binaries/ktxd.lib;ThirdParty/KTX/Binaries/ktx_readd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -132,7 +132,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;ThirdParty/METIS/Binaries/metisd.lib;ThirdParty/METIS/Binaries/GKlibd.lib;ThirdParty/KTX/Binaries/ktxd.lib;ThirdParty/KTX/Binaries/ktx_readd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;ThirdParty/KTX/Binaries/ktxd.lib;ThirdParty/KTX/Binaries/ktx_readd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -162,7 +162,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;ThirdParty/METIS/Binaries/metis.lib;ThirdParty/METIS/Binaries/GKlib.lib;ThirdParty/KTX/Binaries/ktx.lib;ThirdParty/KTX/Binaries/ktx_read.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;ThirdParty/KTX/Binaries/ktx.lib;ThirdParty/KTX/Binaries/ktx_read.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -193,7 +193,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;ThirdParty/METIS/Binaries/metis.lib;ThirdParty/METIS/Binaries/GKlib.lib;ThirdParty/KTX/Binaries/ktx.lib;ThirdParty/KTX/Binaries/ktx_read.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;ThirdParty/KTX/Binaries/ktx.lib;ThirdParty/KTX/Binaries/ktx_read.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -220,7 +220,6 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClInclude Include="ThirdParty\KTX\vulkan_format.h" />
     <ClInclude Include="ThirdParty\meshoptimizer\pkmod_clusterlod.h" />
     <ClInclude Include="ThirdParty\meshoptimizer\meshoptimizer.h" />
-    <ClInclude Include="ThirdParty\METIS\metis.h" />
     <ClInclude Include="ThirdParty\mikktspace\mikktspace.h" />
     <ClInclude Include="Include\PKAsset.h" />
     <ClInclude Include="Include\PKAssetLoader.h" />
@@ -286,6 +285,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\ext\import-svg.h" />
     <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\ext\resolve-shape-geometry.h" />
     <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\ext\save-png.h" />
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\msdfgen-config.h" />
     <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\msdfgen-ext.h" />
     <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\msdfgen.h" />
     <ClInclude Include="ThirdParty\msdf-atlas-gen\Padding.h" />
@@ -368,10 +368,6 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <Library Include="ThirdParty\KTX\Binaries\ktxd.lib" />
     <Library Include="ThirdParty\KTX\Binaries\ktx_read.lib" />
     <Library Include="ThirdParty\KTX\Binaries\ktx_readd.lib" />
-    <Library Include="ThirdParty\METIS\Binaries\GKlib.lib" />
-    <Library Include="ThirdParty\METIS\Binaries\GKlibd.lib" />
-    <Library Include="ThirdParty\METIS\Binaries\metis.lib" />
-    <Library Include="ThirdParty\METIS\Binaries\metisd.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gen.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gend.lib" />
     <Library Include="ThirdParty\shaderc\Binaries\shaderc_combined.lib" />

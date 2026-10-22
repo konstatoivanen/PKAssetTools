@@ -312,9 +312,6 @@
     <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\msdfgen-ext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ThirdParty\METIS\metis.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Source\PKTextureWriter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -349,6 +346,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ThirdParty\bc7enc_rdo\rgbcx_table4_small.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\msdfgen-config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -485,10 +485,6 @@
     <Library Include="ThirdParty\shaderc\Binaries\shaderc_combinedd.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gen.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gend.lib" />
-    <Library Include="ThirdParty\METIS\Binaries\metis.lib" />
-    <Library Include="ThirdParty\METIS\Binaries\metisd.lib" />
-    <Library Include="ThirdParty\METIS\Binaries\GKlib.lib" />
-    <Library Include="ThirdParty\METIS\Binaries\GKlibd.lib" />
     <Library Include="ThirdParty\KTX\Binaries\ktx.lib" />
     <Library Include="ThirdParty\KTX\Binaries\ktx_read.lib" />
     <Library Include="ThirdParty\KTX\Binaries\ktx_readd.lib" />
