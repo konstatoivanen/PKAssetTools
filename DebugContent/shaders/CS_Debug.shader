@@ -22,7 +22,7 @@ uniform vec2 unused3;
 shared float g_test;
 shared float g_ModTime;
 
-[pk_numthreads(16,4,1)]
+[numthreads(16,4,1)]
 void main()
 {
     if (gl_LocalInvocationIndex == 0)
@@ -30,7 +30,7 @@ void main()
         g_ModTime = mod(float(gl_WorkGroupID.x), 10.0f);
     }
 
-    barrier();
+    GroupMemoryBarrierWithGroupSync();
 
     int2 coord = int2(gl_GlobalInvocationID.xy);
     int2 size = imageSize(g_Texture).xy;

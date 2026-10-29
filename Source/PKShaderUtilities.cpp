@@ -1190,12 +1190,12 @@ namespace PKAssets::Shader
         {
             size_t open, close;
 
-            if (!StringUtilities::FindScope(source, currentpos, "Buffer <", ">", &open, &close))
+            if (!StringUtilities::FindScope(source, currentpos, "StructuredBuffer <", ">", &open, &close))
             {
                 break;
             }
 
-            constexpr auto lengthopen = 8u;
+            constexpr auto lengthopen = 18u;
             constexpr auto lengthclose = 1u;
             auto tokens = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ", ");
             
@@ -1240,6 +1240,8 @@ namespace PKAssets::Shader
                 open = uniformTagPos;
             }
 
+            // This has been deprecated and should not be used.
+            // Only array dynamic array types are supported.
             switch (size)
             {
                 case 0: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[];}"); break;
@@ -1360,8 +1362,20 @@ namespace PKAssets::Shader
     {
         const std::string surroundMask = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.";
         StringUtilities::ReplaceAll(source, surroundMask, "lerp", "mix");
+        StringUtilities::ReplaceAll(source, surroundMask, "frac", "fract");
+        StringUtilities::ReplaceAll(source, surroundMask, "rsqrt", "inversesqrt");
         StringUtilities::ReplaceAll(source, surroundMask, "asuint", "floatBitsToUint");
         StringUtilities::ReplaceAll(source, surroundMask, "asfloat", "uintBitsToFloat");
+        StringUtilities::ReplaceAll(source, surroundMask, "GroupMemoryBarrierWithGroupSync", "barrier");
+        StringUtilities::ReplaceAll(source, surroundMask, "WaveIsFirstLane", "subgroupElect");
+        StringUtilities::ReplaceAll(source, surroundMask, "WaveActiveAllTrue", "subgroupAll");
+        StringUtilities::ReplaceAll(source, surroundMask, "WaveActiveAnyTrue", "subgroupAny");
+        StringUtilities::ReplaceAll(source, surroundMask, "WaveReadLaneAt", "subgroupShuffle");
+        StringUtilities::ReplaceAll(source, surroundMask, "WaveReadFirstLane", "subgroupBroadcastFirst");
+        StringUtilities::ReplaceAll(source, surroundMask, "WaveActiveSum", "subgroupAdd");
+        StringUtilities::ReplaceAll(source, surroundMask, "WaveActiveMax", "subgroupMax");
+        StringUtilities::ReplaceAll(source, surroundMask, "WaveActiveBallot", "subgroupBallot");
+        StringUtilities::ReplaceAll(source, surroundMask, "countbits", "bitCount");
 
         for (auto i = 0u; i < PK_SHADER_PRIMITIVE_TYPE_COUNT; ++i)
         {

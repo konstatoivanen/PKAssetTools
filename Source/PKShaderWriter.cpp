@@ -329,7 +329,6 @@ namespace PKAssets::Shader
 
     static void GetPushConstants(ReflectionData& reflection, PKShaderStage stage)
     {
-        auto stageFlag = (1u << (uint32_t)stage);
         const auto* module = reflection.modules[(uint32_t)stage];
         const auto* block = spvReflectGetEntryPointPushConstantBlock(module, "main", nullptr);
 
