@@ -1,9 +1,30 @@
 #pragma once
+#include <vector>
+#include <string>
 #include <PKAsset.h>
 
 namespace PKAssets::Shader
 {
-    bool ReflectResourceWrite(const uint32_t* code, const uint32_t wordCount, uint32_t variable, PKDescriptorType type);
-    bool ReflectLocalSize(const uint32_t* code, const uint32_t wordCount, uint32_t* outLocalSize);
-    std::vector<uint32_t> CleanSPIRV(const uint32_t* code, uint32_t wordCount, const std::vector<uint32_t>& deadVariableIds, bool stripDebugInfo);
+    struct SpvPushConstantMember
+    {
+        std::string name;
+        uint32_t wordOffset = 0u;
+        uint16_t offset = 0u;
+        bool isAccessed = false;
+        bool isWritten = false;
+    };
+
+    struct SpvStageReflection
+    {
+        std::vector<uint32_t> spirv;
+        std::vector<SpvPushConstantMember> pushConstantMembers;
+        std::vector<PKVertexInputAttribute> vertexAttributes;
+        uint16_t groupSize[3]{};
+    };
+
+    bool ReflectSPIRVStage(
+        const uint32_t* code,
+        size_t wordCount,
+        PKShaderStage stage,
+        SpvStageReflection* outReflection);
 }

@@ -30,27 +30,6 @@
     <ClInclude Include="Source\PKStringUtilities.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ThirdParty\shaderc\env.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\shaderc\shaderc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\shaderc\shaderc.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\shaderc\status.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\shaderc\visibility.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\SPIRV-Reflect\spirv.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\SPIRV-Reflect\spirv_reflect.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Source\PKMeshWriter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -351,6 +330,21 @@
     <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\msdfgen-config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ThirdParty\slang\slang.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\slang\slang-com-helper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\slang\slang-com-ptr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\slang\slang-image-format-defs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\slang\slang-deprecated.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Include\PKAssetLoader.cpp">
@@ -366,9 +360,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\PKStringUtilities.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ThirdParty\SPIRV-Reflect\spirv_reflect.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\PKMeshWriter.cpp">
@@ -481,14 +472,14 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Library Include="ThirdParty\shaderc\Binaries\shaderc_combined.lib" />
-    <Library Include="ThirdParty\shaderc\Binaries\shaderc_combinedd.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gen.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gend.lib" />
     <Library Include="ThirdParty\KTX\Binaries\ktx.lib" />
     <Library Include="ThirdParty\KTX\Binaries\ktx_read.lib" />
     <Library Include="ThirdParty\KTX\Binaries\ktx_readd.lib" />
     <Library Include="ThirdParty\KTX\Binaries\ktxd.lib" />
+    <Library Include="ThirdParty\slang\Binaries\slang.lib" />
+    <Library Include="ThirdParty\slang\Binaries\slang-compiler.lib" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
@@ -512,6 +503,10 @@
     <None Include="DebugContent\IESProfiles\IES_45W_45D.ies" />
     <None Include="DebugContent\IESProfiles\IES_150W_45D.ies" />
     <None Include="DebugContent\IESProfiles\IES_300W_85D.ies" />
+    <None Include="ThirdParty\slang\Binaries\slang.dll" />
+    <None Include="ThirdParty\slang\Binaries\slang-compiler.dll" />
+    <None Include="ThirdParty\slang\Binaries\slang-glslang.dll" />
+    <None Include="ThirdParty\slang\Binaries\slang-glsl-module.dll" />
   </ItemGroup>
   <ItemGroup>
     <Font Include="DebugContent\Fonts\FSEX302.ttf" />

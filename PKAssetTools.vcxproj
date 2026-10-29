@@ -105,7 +105,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;ThirdParty/KTX/Binaries/ktxd.lib;ThirdParty/KTX/Binaries/ktx_readd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;ThirdParty/KTX/Binaries/ktxd.lib;ThirdParty/KTX/Binaries/ktx_readd.lib;ThirdParty/slang/Binaries/slang.lib;ThirdParty/slang/Binaries/slang-compiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -132,7 +132,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combinedd.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;ThirdParty/KTX/Binaries/ktxd.lib;ThirdParty/KTX/Binaries/ktx_readd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gend.lib;ThirdParty/KTX/Binaries/ktxd.lib;ThirdParty/KTX/Binaries/ktx_readd.lib;ThirdParty/slang/Binaries/slang.lib;ThirdParty/slang/Binaries/slang-compiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -162,7 +162,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;ThirdParty/KTX/Binaries/ktx.lib;ThirdParty/KTX/Binaries/ktx_read.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;ThirdParty/KTX/Binaries/ktx.lib;ThirdParty/KTX/Binaries/ktx_read.lib;ThirdParty/slang/Binaries/slang.lib;ThirdParty/slang/Binaries/slang-compiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -193,7 +193,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ThirdParty/shaderc/Binaries/shaderc_combined.lib;ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;ThirdParty/KTX/Binaries/ktx.lib;ThirdParty/KTX/Binaries/ktx_read.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty/msdf-atlas-gen/Binaries/msdf-atlas-gen.lib;ThirdParty/KTX/Binaries/ktx.lib;ThirdParty/KTX/Binaries/ktx_read.lib;ThirdParty/slang/Binaries/slang.lib;ThirdParty/slang/Binaries/slang-compiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\PKAssetTools\ThirdParty;</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -300,13 +300,11 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClInclude Include="ThirdParty\msdf-atlas-gen\types.h" />
     <ClInclude Include="ThirdParty\msdf-atlas-gen\utf8.h" />
     <ClInclude Include="ThirdParty\msdf-atlas-gen\Workload.h" />
-    <ClInclude Include="ThirdParty\shaderc\env.h" />
-    <ClInclude Include="ThirdParty\shaderc\shaderc.h" />
-    <ClInclude Include="ThirdParty\shaderc\shaderc.hpp" />
-    <ClInclude Include="ThirdParty\shaderc\status.h" />
-    <ClInclude Include="ThirdParty\shaderc\visibility.h" />
-    <ClInclude Include="ThirdParty\SPIRV-Reflect\spirv.h" />
-    <ClInclude Include="ThirdParty\SPIRV-Reflect\spirv_reflect.h" />
+    <ClInclude Include="ThirdParty\slang\slang-com-helper.h" />
+    <ClInclude Include="ThirdParty\slang\slang-com-ptr.h" />
+    <ClInclude Include="ThirdParty\slang\slang-deprecated.h" />
+    <ClInclude Include="ThirdParty\slang\slang-image-format-defs.h" />
+    <ClInclude Include="ThirdParty\slang\slang.h" />
     <ClInclude Include="ThirdParty\tinyobjloader\tiny_obj_loader.h" />
     <ClInclude Include="Source\PKFileVersionUtilities.h" />
     <ClInclude Include="Source\PKMeshletWriter.h" />
@@ -349,7 +347,6 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClCompile Include="ThirdParty\mikktspace\mikktspace.c" />
     <ClCompile Include="Include\PKAsset.cpp" />
     <ClCompile Include="Include\PKAssetLoader.cpp" />
-    <ClCompile Include="ThirdParty\SPIRV-Reflect\spirv_reflect.cpp" />
     <ClCompile Include="ThirdParty\tinyobjloader\tiny_obj_loader.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\PKAssetWriter.cpp" />
@@ -370,8 +367,8 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <Library Include="ThirdParty\KTX\Binaries\ktx_readd.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gen.lib" />
     <Library Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gend.lib" />
-    <Library Include="ThirdParty\shaderc\Binaries\shaderc_combined.lib" />
-    <Library Include="ThirdParty\shaderc\Binaries\shaderc_combinedd.lib" />
+    <Library Include="ThirdParty\slang\Binaries\slang-compiler.lib" />
+    <Library Include="ThirdParty\slang\Binaries\slang.lib" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
@@ -395,6 +392,10 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetyped.dll" />
     <None Include="ThirdParty\msdf-atlas-gen\Binaries\freetyped.pdb" />
     <None Include="ThirdParty\msdf-atlas-gen\Binaries\msdf-atlas-gend.pdb" />
+    <None Include="ThirdParty\slang\Binaries\slang-compiler.dll" />
+    <None Include="ThirdParty\slang\Binaries\slang-glsl-module.dll" />
+    <None Include="ThirdParty\slang\Binaries\slang-glslang.dll" />
+    <None Include="ThirdParty\slang\Binaries\slang.dll" />
   </ItemGroup>
   <ItemGroup>
     <Font Include="DebugContent\Fonts\FSEX302.ttf" />

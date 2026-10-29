@@ -7,7 +7,6 @@
 
 namespace PKAssets::Mesh
 {
-    static const uint32_t PK_DAG_MAX_GROUP_SIZE = 12u;
     static const uint32_t PK_DAG_TARGET_GROUP_SIZE = 6u;
     static const uint32_t PK_DAG_MAX_LEVELS = 5u;
     static const uint32_t PK_DAG_DECIMATE_FACTOR = 2u;

@@ -1,8 +1,11 @@
 #include <unordered_map>
+#include <unordered_set>
 #include <map>
 #include <stdexcept>
 #include <sstream>
-#include <shaderc/shaderc.hpp>
+#include <algorithm>
+#include <slang/slang.h>
+#include <slang/slang-com-ptr.h>
 #include "PKStringUtilities.h"
 #include "PKSPVUtilities.h"
 #include "PKShaderUtilities.h"
@@ -15,14 +18,63 @@
 #include <Windows.h>
 #undef far
 #undef near
+#undef max
+#undef min
 #endif
 
 namespace PKAssets::Shader
 {
-    static bool ReadFile(const std::string& filepath, std::string& ouput, std::filesystem::file_time_type lastDestWriteTime)
+    static slang::IGlobalSession* GetSlangGlobalSession()
+    {
+        static Slang::ComPtr<slang::IGlobalSession> s_globalSession;
+
+        if (!s_globalSession)
+        {
+            if (SLANG_FAILED(slang::createGlobalSession(s_globalSession.writeRef())))
+            {
+                printf("Failed to create Slang global session!\n");
+                return nullptr;
+            }
+        }
+        
+        return s_globalSession.get();
+    }
+
+    static void PrintError(Slang::ComPtr<slang::IBlob>& diagnostics, const std::string& filename, const std::string& userSource, const std::string& context, bool format)
+    {
+        #if defined(WIN32)
+        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
+        #endif
+
+        printf("\n ----------BEGIN ERROR---------- \n");
+
+        if (!context.empty())
+        {
+            printf("%s\n", context.c_str());
+        }
+
+        if (diagnostics && format)
+        {
+            std::string err(static_cast<const char*>(diagnostics->getBufferPointer()), diagnostics->getBufferSize());
+            printf("%s", FormatErrorMessage(filename, userSource, err).c_str());
+        }
+        
+        if (diagnostics && !format)
+        {
+            printf("%s\n", static_cast<const char*>(diagnostics->getBufferPointer()));
+        }
+
+        printf("\n ----------END ERROR---------- \n\n");
+
+        #if defined(WIN32)
+        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+        #endif
+    }
+
+    static bool ReadFile(const std::string& filepath, std::string& output, std::filesystem::file_time_type lastDestWriteTime)
     {
         std::vector<std::string> includes;
-        ouput = StringUtilities::ReadFileRecursiveInclude(filepath, includes);
+        output = StringUtilities::ReadFileRecursiveInclude(filepath, includes);
         return PKVersionUtilities::IsFileAnyOutOfDate(includes, lastDestWriteTime);
     }
 
@@ -71,8 +123,8 @@ namespace PKAssets::Shader
                 {
                     PKShaderKeyword pkkw{};
                     pkkw.offset = (uint16_t)vcount;
-                    pkkw.directive = dcount;
-                    pkkw.value = i;
+                    pkkw.directive = (uint8_t)dcount;
+                    pkkw.value = (uint8_t)i;
                     WriteName(pkkw.name, keyword.c_str());
                     outKeywords.push_back(pkkw);
                 }
@@ -111,8 +163,9 @@ namespace PKAssets::Shader
 
     static int ExtractEntryPoints(std::string& source, std::vector<EntryPointInfo>& entryPoints)
     {
+        std::unordered_set<std::string> processedEntryPoints;
         std::string output;
-        size_t pos = 0;
+        auto pos = 0ull;
 
         while (true)
         {
@@ -127,7 +180,7 @@ namespace PKAssets::Shader
 
             if (directives.size() != 2 && directives.size() != 3)
             {
-                printf("Entry point declaration contains an invalid amount of arguments (should be name, stage)\n");
+                printf("Entry point declaration contains an invalid amount of arguments (should be stage, name)\n");
                 return -1;
             }
 
@@ -141,41 +194,26 @@ namespace PKAssets::Shader
 
             EntryPointInfo info;
             info.name = directives[1];
-            info.functionName = "void " + info.name + "()";
             info.stage = stage;
             info.keyword = directives.size() == 3 ? directives[2] : "";
 
-            if (source.find(info.functionName, 0u) == std::string::npos)
+            if (!processedEntryPoints.count(info.name))
             {
-                printf("Definition for declared entry point %s was not found!", info.name.c_str());
-                return -1;
+                const auto attribute = PKShaderStageToSlangAttribute(stage);
+
+                if (!StringUtilities::InjectFunctionAttribute(source, info.name, attribute))
+                {
+                    printf("Definition for declared entry point %s was not found!\n", info.name.c_str());
+                    return -1;
+                }
+
+                processedEntryPoints.insert(info.name);
             }
 
             entryPoints.push_back(info);
         }
 
         return 0;
-    }
-
-    static void SetActiveEntryPoint(std::string& source, const std::vector<EntryPointInfo>& entries, uint32_t activeIndex)
-    {
-        for (auto i = 0u; i < entries.size(); ++i)
-        {
-            if (i != activeIndex)
-            {
-                auto& entry = entries.at(i);
-                auto position = source.find(entry.functionName, 0u);
-
-                size_t scopeEnd;
-                
-                if (StringUtilities::FindScope(source, position, '{', '}', nullptr, &scopeEnd))
-                {
-                    source.erase(position, (scopeEnd + 1u) - position);
-                }
-            }
-        }
-
-        source.replace(source.find(entries[activeIndex].functionName), entries[activeIndex].functionName.size(), "void main()");
     }
 
     static int32_t FindActiveEntryPointIndexForStage(const std::vector<EntryPointInfo>& entries, const std::string& defines, PKShaderStage stage)
@@ -190,12 +228,11 @@ namespace PKAssets::Shader
                 {
                     auto keypos = defines.find(entries[i].keyword, 0u);
 
-                    // Need to check that the match is exact in case of similar keyword define in another pass.
-                    if (keypos != std::string::npos && isspace(defines[keypos + entries[i].keyword.size()]))
+                    if (keypos != std::string::npos && isspace((unsigned char)defines[keypos + entries[i].keyword.size()]))
                     {
                         return i;
                     }
-                
+
                     continue;
                 }
 
@@ -206,292 +243,340 @@ namespace PKAssets::Shader
         return maxIndex;
     }
 
-    static int32_t PreprocessGLSL(const ShaderCompiler& compiler, const CompileOptions& options, PKShaderStage stage, const std::string& name, std::string& source)
+    static slang::CompilerOptionEntry MakeIntOption(slang::CompilerOptionName name, int value)
     {
-        auto result = compiler.PreprocessGlsl(source, ConvertToShadercKind(stage), name.c_str(), options);
-
-        if (result.GetCompilationStatus() != shaderc_compilation_status_success)
-        {
-            printf("\n ----------BEGIN ERROR---------- \n");
-            printf("\n Stage: %s\n\n", PK_SHADER_STAGE_NAMES[(uint32_t)stage]);
-            printf("%s", result.GetErrorMessage().c_str());
-            printf("\n ----------END ERROR---------- \n\n");
-            return -1;
-        }
-
-        source = std::string(result.cbegin(), result.cend());
-        return 0;
+        slang::CompilerOptionEntry entry{};
+        entry.name = name;
+        entry.value.kind = slang::CompilerOptionValueKind::Int;
+        entry.value.intValue0 = value;
+        return entry;
     }
 
-    static SpvReflectShaderModule* CompileToSPIRV(const ShaderCompiler& compiler, const CompileOptions& options, PKShaderStage stage, const std::string& name, const std::string& source)
+    static void AddCapabilityOption(slang::IGlobalSession* globalSession, std::vector<slang::CompilerOptionEntry>& options, const char* capabilityName)
     {
-        // Will crash to buffer owerflow on variable name syntax errors :/
-        auto result = compiler.CompileGlslToSpv(source, ConvertToShadercKind(stage), name.c_str(), options);
+        const auto capability = globalSession->findCapability(capabilityName);
 
-        if (result.GetCompilationStatus() != shaderc_compilation_status_success || result.GetNumWarnings() > 0)
+        if (capability != SLANG_CAPABILITY_UNKNOWN)
         {
-            #if defined(WIN32)
-            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
-            #endif
-
-            printf("\n ----------BEGIN ERROR---------- \n");
-            printf("\n Stage: %s\n\n", PK_SHADER_STAGE_NAMES[(uint32_t)stage]);
-            printf("%s", FormatErrorMessage(name, source, result.GetErrorMessage()).c_str());
-            printf("\n ----------END ERROR---------- \n\n");
-
-            #if defined(WIN32)
-            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
-            #endif
+            options.push_back(MakeIntOption(slang::CompilerOptionName::Capability, (int32_t)capability));
         }
-
-        if (result.GetCompilationStatus() != shaderc_compilation_status_success)
-        {
-            printf("Failed to compile SPIRV from shader variant source! \n");
-            return nullptr;
-        }
-
-        auto module = new SpvReflectShaderModule();
-        const auto codeSize = (size_t)(result.cend() - result.cbegin()) * sizeof(uint32_t);
-        const auto codeStatus = spvReflectCreateShaderModule(codeSize, result.cbegin(), module);
-
-        if (codeStatus != SPV_REFLECT_RESULT_SUCCESS)
-        {
-            printf("Failed to extract reflection data from shader variant source! \n");
-            delete module;
-            return nullptr;
-        }
-
-        return module;
     }
 
-    static void ReleaseReflectionData(ReflectionData& reflection)
+    static void MergeStageReflection(ReflectionData& reflection, PKShaderStage stage, const SourcePushConstants& sourceConstants)
     {
-        for (auto i = 0u; i < (int)PKShaderStage::EnumCount; ++i)
+        reflection.stageMask |= 1u << (uint32_t)stage;
+        const auto& stageReflection = reflection.stages[(uint32_t)stage];
+
+        if (stage == PKShaderStage::Vertex && !stageReflection.vertexAttributes.empty())
         {
-            if (reflection.modules[i])
+            if (reflection.logVerbose)
             {
-                spvReflectDestroyShaderModule(reflection.modules[i]);
-                delete reflection.modules[i];
+                printf("    Interface:");
+            }
+
+            for (const auto& attr : stageReflection.vertexAttributes)
+            {
+                if (reflection.vertexAttributes.size() >= PK_ASSET_MAX_VERTEX_ATTRIBUTES)
+                {
+                    printf("Warning! Shader has more vertex attributes than supported (%i / %i) \n", (int)reflection.vertexAttributes.size(), PK_ASSET_MAX_VERTEX_ATTRIBUTES);
+                    continue;
+                }
+
+                reflection.vertexAttributes.push_back(attr);
+
+                if (reflection.logVerbose)
+                {
+                    printf(" %s ", attr.name);
+                }
+            }
+
+            if (reflection.logVerbose)
+            {
+                printf("\n");
+            }
+        }
+
+        for (const auto& constant : stageReflection.pushConstantMembers)
+        {
+            if (constant.isAccessed)
+            {
+                auto& info = reflection.uniqueConstants[constant.name];
+                info.name = constant.name;
+                info.offset = constant.offset;
+                info.accessStageMask |= 1u << (uint32_t)stage;
+
+                bool isReadOnly = true;
+
+                for (const auto& source : sourceConstants)
+                {
+                    if (source.name == constant.name)
+                    {
+                        info.type = source.type;
+                        info.arraySize = source.arraySize;
+                        isReadOnly = source.isReadOnly;
+                        break;
+                    }
+                }
+
+                if (constant.isWritten && !isReadOnly && (info.type == PKElementType::Image || info.type == PKElementType::StorageBuffer))
+                {
+                    info.writeStageMask |= 1u << (uint32_t)stage;
+                }
+            }
+        }
+
+        if (stageReflection.groupSize[0] || 
+            stageReflection.groupSize[1] || 
+            stageReflection.groupSize[2])
+        {
+            reflection.groupSize[0] = stageReflection.groupSize[0];
+            reflection.groupSize[1] = stageReflection.groupSize[1];
+            reflection.groupSize[2] = stageReflection.groupSize[2];
+
+            if (reflection.logVerbose)
+            {
+                printf("    GroupSize: %i,%i,%i\n", reflection.groupSize[0], reflection.groupSize[1], reflection.groupSize[2]);
             }
         }
     }
 
-    static void GetVertexAttributes(ReflectionData& reflection, PKShaderStage stage)
+static void CompactPushConstants(ReflectionData& reflection, const SourcePushConstants& sourceConstants)
     {
-        if (stage != PKShaderStage::Vertex)
+        reflection.sortedConstants.clear();
+        reflection.constantRangeSize = 0u;
+
+        if (reflection.uniqueConstants.empty())
         {
             return;
         }
 
-        auto* module = reflection.modules[(uint32_t)stage];
-
-        auto count = 0u;
-        spvReflectEnumerateEntryPointInputVariables(module, module->entry_point_name, &count, nullptr);
-
-        std::vector<SpvReflectInterfaceVariable*> variables(count);
-        spvReflectEnumerateEntryPointInputVariables(module, module->entry_point_name, &count, variables.data());
-
-        if (count > 0 && reflection.logVerbose)
+        for (const auto& kv : reflection.uniqueConstants)
         {
-            printf("    Interface:");
+            reflection.sortedConstants.push_back(kv.second);
         }
 
-        for (auto* variable : variables)
+        std::sort(reflection.sortedConstants.begin(), reflection.sortedConstants.end(), [](const ReflectConstantInfo& a, const ReflectConstantInfo& b)
         {
-            if (variable->built_in != -1)
-            {
-                continue;
-            }
-
-            if (reflection.vertexAttributes.size() >= PK_ASSET_MAX_VERTEX_ATTRIBUTES)
-            {
-                printf("Warning! Shader has more vertex attributes than supported (%i / %i) \n", (int)reflection.vertexAttributes.size(), PK_ASSET_MAX_VERTEX_ATTRIBUTES);
-                continue;
-            }
-
-            PKVertexInputAttribute attribute{};
-            WriteName(attribute.name, variable->name);
-            attribute.location = variable->location;
-            attribute.type = GetElementType(variable->format);
-            reflection.vertexAttributes.push_back(attribute);
-
-            if (reflection.logVerbose)
-            {
-                printf(" %s ", variable->name);
-            }
-        }
-
-        if (count > 0 && reflection.logVerbose)
-        {
-            printf("\n");
-        }
-    }
-
-    static void GetPushConstants(ReflectionData& reflection, PKShaderStage stage)
-    {
-        auto stageFlag = (1u << (uint32_t)stage);
-        const auto* module = reflection.modules[(uint32_t)stage];
-        const auto* block = spvReflectGetEntryPointPushConstantBlock(module, "main", nullptr);
-
-        if (block == nullptr)
-        {
-            return;
-        }
-
-        if (reflection.logVerbose)
-        {
-            printf("    Constants:");
-        }
-
-        reflection.constantRangeSize = max(reflection.constantRangeSize, block->size);
-
-        for (auto i = 0u; i < block->member_count; ++i)
-        {
-            const auto* member = block->members + i;
-
-            if (member->flags & SPV_REFLECT_VARIABLE_FLAGS_UNUSED)
-            {
-                continue;
-            }
-
-            const auto name = std::string(member->name);
-            reflection.uniqueConstants[name] = { (uint16_t)member->absolute_offset, (uint16_t)member->size };
-
-            if (reflection.logVerbose)
-            {
-                printf(" %s", name.c_str());
-            }
-        }
-
-        if (reflection.logVerbose)
-        {
-            printf("\n");
-        }
-    }
-
-    static void GetComputeGroupSize(ReflectionData& reflection, PKShaderStage stage, uint16_t* outSize, bool logVerbose)
-    {
-        auto* module = reflection.modules[(uint32_t)stage];
-        auto* entryPoint = module->entry_points;
-
-        uint32_t size[3];
-
-        if (ReflectLocalSize(module->_internal->spirv_code, module->_internal->spirv_word_count, size))
-        {
-            outSize[0] = (uint16_t)size[0];
-            outSize[1] = (uint16_t)size[1];
-            outSize[2] = (uint16_t)size[2];
-        }
-        else
-        {
-            outSize[0] = (uint16_t)entryPoint->local_size.x;
-            outSize[1] = (uint16_t)entryPoint->local_size.y;
-            outSize[2] = (uint16_t)entryPoint->local_size.z;
-        }
-
-        if (logVerbose && (outSize[0] > 0u || outSize[1] > 0u || outSize[2] > 0u))
-        {
-            printf("    GroupSize: %i,%i,%i\n", outSize[0], outSize[1], outSize[2]);
-        }
-    }
-
-    static void GetUniqueBindings(ReflectionData& reflection, PKShaderStage stage)
-    {
-        const auto stageIdx = (uint32_t)stage;
-        auto* module = reflection.modules[stageIdx];
-
-        uint32_t bindingCount = 0u;
-        spvReflectEnumerateDescriptorBindings(module, &bindingCount, nullptr);
-
-        std::vector<SpvReflectDescriptorBinding*> activeBindings(bindingCount);
-        spvReflectEnumerateDescriptorBindings(module, &bindingCount, activeBindings.data());
-
-        for (auto i = 0u; i < bindingCount; ++i)
-        {
-            auto* desc = activeBindings.at(i);
-
-            if (!desc->accessed)
-            {
-                reflection.deadVariableIds[stageIdx].push_back(desc->spirv_id);
-                continue;
-            }
-
-            auto name = ReflectBindingName(desc);
-            auto& binding = reflection.uniqueBindings[name];
-            binding.name = name;
-            binding.accessStageMask |= 1u << stageIdx;
-            binding.type = GetResourceType(desc->descriptor_type);
-            binding.bindingIndex = max(binding.bindingIndex, desc->binding);
-            binding.setIndex = 0u;
-            binding.count = desc->type_description->op == SpvOpTypeRuntimeArray ? PKAssets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
-
-            const auto isWritten = ReflectResourceWrite(module->_internal->spirv_code, module->_internal->spirv_word_count, desc->spirv_id, binding.type);
-            
-            if (isWritten)
-            {
-                binding.writeStageMask |= 1u << stageIdx;
-            }
-
-            binding.wordOffsetBinding[stageIdx] = desc->word_offset.binding;
-            binding.wordOffsetSet[stageIdx] = desc->word_offset.set;
-
-            if (reflection.logVerbose)
-            {
-                printf("    Resource %s: %s \n", isWritten ? "Write" : "Read", name.c_str());
-            }
-        }
-    }
-
-    static void CompressBindIndices(ReflectionData& reflection)
-    {
-        reflection.sortedBindings.clear();
-        reflection.sortedBindings.reserve(reflection.uniqueBindings.size());
-
-        for (auto& kv : reflection.uniqueBindings)
-        {
-            kv.second.setIndex = 0u;
-            reflection.sortedBindings.push_back(kv.second);
-        }
-
-        std::sort(reflection.sortedBindings.begin(), reflection.sortedBindings.end(), [](const ReflectBinding& a, const ReflectBinding& b)
-        {
-            const bool aUnbounded = a.count >= PK_ASSET_MAX_UNBOUNDED_SIZE;
-            const bool bUnbounded = b.count >= PK_ASSET_MAX_UNBOUNDED_SIZE;
-
-            if (aUnbounded != bUnbounded)
-            {
-                return aUnbounded < bUnbounded;
-            }
-
-            return a.name < b.name;
+            return a.offset < b.offset;
         });
 
-        uint32_t bindingCounter = 0u;
+        std::unordered_map<std::string, uint16_t> compactedOffsets;
+        auto nextOffset = 0u;
 
-        for (auto& binding : reflection.sortedBindings)
+        if (reflection.logVerbose)
         {
-            const uint32_t bindId = bindingCounter++;
+            printf("    Constants:\n");
+        }
 
-            for (auto i = 0u; i < (int)PKShaderStage::EnumCount; ++i)
+        for (auto& constant : reflection.sortedConstants)
+        {
+            const auto align = PKElementTypeToScalarSize(constant.type);
+            const auto size = PKElementTypeToSize(constant.type) * constant.arraySize;
+            nextOffset = (nextOffset + align - 1u) & ~(align - 1u);
+            constant.offset = (uint16_t)nextOffset;
+            compactedOffsets[constant.name] = constant.offset;
+            nextOffset += size;
+
+            if (reflection.logVerbose)
             {
-                if (binding.wordOffsetBinding[i] != 0u)
+                printf("        %s : size: %uB : offset: %u, arraySize: %u \n", constant.name.c_str(), size, constant.offset, constant.arraySize);
+            }
+        }
+
+        auto unusedOffset = (nextOffset + 3u) & ~3u;
+
+        if (reflection.logVerbose)
+        {
+            printf("    Unused:\n");
+        }
+
+        for (const auto& src : sourceConstants)
+        {
+            if (compactedOffsets.find(src.name) == compactedOffsets.end())
+            {
+                const auto align = PKElementTypeToScalarSize(src.type);
+                const auto size = PKElementTypeToSize(src.type) * src.arraySize;
+                unusedOffset = (unusedOffset + align - 1u) & ~(align - 1u);
+                compactedOffsets[src.name] = (uint16_t)unusedOffset;
+
+                if (reflection.logVerbose)
                 {
-                    reflection.modules[i]->_internal->spirv_code[binding.wordOffsetBinding[i]] = bindId;
+                    printf("        %s: size: %uB, offset: %u, arraySize: %u \n", src.name.c_str(), size, unusedOffset, src.arraySize);
                 }
 
-                if (binding.wordOffsetSet[i] != 0u)
+                unusedOffset += size;
+            }
+        }
+
+        reflection.constantRangeSize = (unusedOffset + 3u) & ~3u;
+
+        for (auto stage = 0u; stage < (uint32_t)PKShaderStage::EnumCount; ++stage)
+        {
+            if (reflection.stageMask & (1u << stage))
+            {
+                auto& stageReflection = reflection.stages[stage];
+
+                for (const auto& member : stageReflection.pushConstantMembers)
                 {
-                    reflection.modules[i]->_internal->spirv_code[binding.wordOffsetSet[i]] = 0u;
+                    if (member.wordOffset)
+                    {
+                        auto offset = compactedOffsets.find(member.name);
+
+                        if (offset != compactedOffsets.end())
+                        {
+                            stageReflection.spirv[member.wordOffset] = (uint32_t)offset->second;
+                        }
+                    }
                 }
             }
         }
     }
+    static bool CompileVariantToSPIRV(
+        const std::string& name,
+        const std::string& variantSource,
+        const std::string& userSource,
+        EntryPointInfo** stageEntries,
+        const SourcePushConstants& sourceConstants,
+        bool generateDebugInfo,
+        ReflectionData& reflectionData)
+    {
+        slang::IGlobalSession* globalSession = GetSlangGlobalSession();
 
+        if (!globalSession)
+        {
+            return false;
+        }
+
+        slang::TargetDesc targetDesc{};
+        targetDesc.format = SLANG_SPIRV;
+        targetDesc.profile = globalSession->findProfile("spirv_1_6");
+        targetDesc.flags = SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
+
+        const auto debugLevel = generateDebugInfo ? SLANG_DEBUG_INFO_LEVEL_STANDARD : SLANG_DEBUG_INFO_LEVEL_NONE;
+
+        std::vector<slang::CompilerOptionEntry> options =
+        {
+            MakeIntOption(slang::CompilerOptionName::AllowGLSL, 1),
+            MakeIntOption(slang::CompilerOptionName::MatrixLayoutColumn, 1),
+            MakeIntOption(slang::CompilerOptionName::GLSLForceScalarLayout, 1),
+            MakeIntOption(slang::CompilerOptionName::DefaultImageFormatUnknown, 1),
+            MakeIntOption(slang::CompilerOptionName::VulkanUseEntryPointName, 0),
+            MakeIntOption(slang::CompilerOptionName::Optimization, SLANG_OPTIMIZATION_LEVEL_MAXIMAL),
+            MakeIntOption(slang::CompilerOptionName::SPIRVUnifiedDescriptorHeapStride, 1),
+            MakeIntOption(slang::CompilerOptionName::DebugInformation, debugLevel),
+        };
+
+        AddCapabilityOption(globalSession, options, "vk_mem_model");
+        AddCapabilityOption(globalSession, options, "spvDescriptorHeapEXT");
+        AddCapabilityOption(globalSession, options, "spvImageGatherExtended");
+        AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_basic");
+        AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_vote");
+        AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_arithmetic");
+        AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_ballot");
+        AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_shuffle");
+        AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_quad");
+        AddCapabilityOption(globalSession, options, "GL_EXT_shader_quad_control");
+        AddCapabilityOption(globalSession, options, "GL_EXT_samplerless_texture_functions");
+        AddCapabilityOption(globalSession, options, "GL_EXT_shader_16bit_storage");
+        AddCapabilityOption(globalSession, options, "GL_EXT_shader_image_load_formatted");
+        AddCapabilityOption(globalSession, options, "GL_EXT_ray_tracing");
+        AddCapabilityOption(globalSession, options, "GL_EXT_ray_tracing_position_fetch");
+        AddCapabilityOption(globalSession, options, "GL_EXT_mesh_shader");
+        AddCapabilityOption(globalSession, options, "GL_EXT_debug_printf");
+
+        targetDesc.compilerOptionEntries = options.data();
+        targetDesc.compilerOptionEntryCount = (uint32_t)options.size();
+
+        slang::SessionDesc sessionDesc{};
+        sessionDesc.targets = &targetDesc;
+        sessionDesc.targetCount = 1;
+        sessionDesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR;
+
+        slang::ISession* sessionPtr = nullptr;
+        globalSession->createSession(sessionDesc, &sessionPtr);
+        
+        Slang::ComPtr<slang::ISession> session(sessionPtr);
+        Slang::ComPtr<slang::IBlob> diagnostics;
+        Slang::ComPtr<slang::IModule> module(session->loadModuleFromSourceString(name.c_str(), name.c_str(), variantSource.c_str(), diagnostics.writeRef()));
+        std::vector<Slang::ComPtr<slang::IEntryPoint>> entryPoints;
+        std::vector<slang::IComponentType*> components = { module };
+        Slang::ComPtr<slang::IComponentType> composedProgram;
+        Slang::ComPtr<slang::IComponentType> linkedProgram;
+        std::vector<uint32_t> activeStages;
+
+        if (!module)
+        {
+            PrintError(diagnostics, name, userSource, "Source load failed:", true);
+            return false;
+        }
+
+        for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
+        {
+            if (stageEntries[stageIndex])
+            {
+                const auto& entry = *stageEntries[stageIndex];
+
+                if (reflectionData.logVerbose)
+                {
+                    printf("Compiling %s %s \n", entry.name.c_str(), PKShaderStage_NAMES[stageIndex]);
+                }
+
+                Slang::ComPtr<slang::IEntryPoint> entryPoint;
+                module->findAndCheckEntryPoint(entry.name.c_str(), PKShaderStageToSlangStage(entry.stage), entryPoint.writeRef(), diagnostics.writeRef());
+
+                if (!entryPoint)
+                {
+                    PrintError(diagnostics, name, userSource, "Compilation failed:", false);
+                    return false;
+                }
+
+                components.push_back(entryPoint);
+                entryPoints.push_back(entryPoint);
+                activeStages.push_back(stageIndex);
+            }
+        }
+
+        session->createCompositeComponentType(components.data(), (SlangInt)components.size(), composedProgram.writeRef(), diagnostics.writeRef());
+        composedProgram->link(linkedProgram.writeRef(), diagnostics.writeRef());
+
+        if (!linkedProgram)
+        {
+            PrintError(diagnostics, name, userSource, "Linking failed:", false);
+            return false;
+        }
+
+        for (auto i = 0u; i < activeStages.size(); ++i)
+        {
+            Slang::ComPtr<slang::IBlob> spirvBlob;
+            linkedProgram->getEntryPointCode((SlangInt)i, 0, spirvBlob.writeRef(), diagnostics.writeRef());
+
+            if (!spirvBlob || !spirvBlob->getBufferSize())
+            {
+                PrintError(diagnostics, name, userSource, "SPIRV emission failed:", false);
+                return false;
+            }
+
+            const auto stage = activeStages[i];
+            const auto* spriv = static_cast<const uint32_t*>(spirvBlob->getBufferPointer());
+            const auto wordCount = spirvBlob->getBufferSize() / sizeof(uint32_t);
+
+            if (!ReflectSPIRVStage(spriv, wordCount, (PKShaderStage)stage, &reflectionData.stages[stage]))
+            {
+                printf("Failed to extract reflection data from SPIR-V module!\n");
+                return false;
+            }
+
+            MergeStageReflection(reflectionData, (PKShaderStage)stage, sourceConstants);
+        }
+
+        CompactPushConstants(reflectionData, sourceConstants);
+        return true;
+    }
 
     int WriteShader(const char* pathSrc, const char* pathDst, const size_t pathStemOffset)
     {
         std::string source;
-        
+
         auto lastWriteTime = PKVersionUtilities::GetLastWriteTime(pathDst);
         auto isOutOfDate = PKVersionUtilities::IsFileOutOfDate(pathSrc, pathDst);
         isOutOfDate |= ReadFile(pathSrc, source, lastWriteTime);
@@ -508,28 +593,20 @@ namespace PKAssets::Shader
 
         auto shader = buffer.Allocate<PKShader>();
 
-        ShaderCompiler compiler;
         std::vector<std::string> variantDefines;
         std::vector<PKShaderKeyword> keywords;
         std::vector<PKMaterialProperty> materialProperties;
         std::vector<EntryPointInfo> entryPoints;
+        std::string instancingHeader;
         auto enableInstancing = false;
-        auto nofragInstancing = false;
         auto generateDebugInfo = false;
         auto logVerbose = false;
+
         StringUtilities::ConvertTabsToSpaces(source);
+        StringUtilities::RemoveCommentsAndPadScalarSwizzles(source);
         ExtractLogVerbose(source, &logVerbose);
         ExtractGenerateDebugInfo(source, &generateDebugInfo);
 
-        CompileOptions options;
-        options.SetAutoBindUniforms(true);
-        options.SetAutoMapLocations(true);
-        options.SetTargetEnvironment(shaderc_target_env_default, shaderc_env_version_vulkan_1_4);
-        options.SetTargetSpirv(shaderc_spirv_version_1_6);
-        options.SetOptimizationLevel(shaderc_optimization_level::shaderc_optimization_level_performance);
-        options.SetGenerateDebugInfo();
-
-        // Sadly this happens after includes :/
         if (logVerbose)
         {
             printf("Preprocessing shader: %s \n", filename.c_str());
@@ -537,24 +614,30 @@ namespace PKAssets::Shader
 
         ExtractMulticompiles(source, variantDefines, keywords);
         ExtractStateAttributes(source, &shader->attributes);
-        Instancing::InsertMaterialAssembly(source, materialProperties, &enableInstancing, &nofragInstancing);
+        Instancing::InsertMaterialAssembly(source, instancingHeader, materialProperties, &enableInstancing);
 
         if (ExtractEntryPoints(source, entryPoints) != 0)
         {
             return -1;
         }
 
+        SourcePushConstants sourceConstants;
+        ExtractPushConstants(instancingHeader, sourceConstants);
+        ExtractPushConstants(source, sourceConstants);
+        
+        const auto pushConstantBlock = CompilePushConstantBlock(sourceConstants);
+
         shader->variantcount = (uint32_t)variantDefines.size();
         shader->keywordCount = (uint32_t)keywords.size();
         shader->materialPropertyCount = (uint32_t)materialProperties.size();
 
-        if (keywords.size() > 0)
+        if (!keywords.empty())
         {
             auto pKeywords = buffer.Write<PKShaderKeyword>(keywords.data(), keywords.size());
             shader->keywords.Set(buffer.data(), pKeywords.get());
         }
 
-        if (materialProperties.size() > 0)
+        if (!materialProperties.empty())
         {
             auto pMaterialProperties = buffer.Write<PKMaterialProperty>(materialProperties.data(), materialProperties.size());
             shader->materialProperties.Set(buffer.data(), pMaterialProperties.get());
@@ -563,175 +646,89 @@ namespace PKAssets::Shader
         auto pVariants = buffer.Allocate<PKShaderVariant>(shader->variantcount);
         shader->variants.Set(buffer.data(), pVariants.get());
 
-        for (uint32_t variantIndex = 0; variantIndex < shader->variantcount; ++variantIndex)
+        for (auto variantIndex = 0u; variantIndex < shader->variantcount; ++variantIndex)
         {
             EntryPointInfo* stageEntries[(uint32_t)PKShaderStage::EnumCount]{};
-            std::string stageSources[(uint32_t)PKShaderStage::EnumCount]{};
-            SourcePushConstants sourceConstants;
 
-            // 1. Preprocess & convert HLSL constructs per stage
             for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
             {
                 auto entryIndex = FindActiveEntryPointIndexForStage(entryPoints, variantDefines[variantIndex], (PKShaderStage)stageIndex);
 
-                if (entryIndex == -1)
+                if (entryIndex != -1)
                 {
-                    continue;
-                }
-
-                auto& entry = entryPoints.at(entryIndex);
-                stageEntries[stageIndex] = &entryPoints.at(entryIndex);
-                stageSources[stageIndex] = std::string(source);
-
-                if (RemoveEntryPointLocals(stageSources[stageIndex], entry.name, entry.stage) != 0)
-                {
-                    printf("Failed to remove entry point locals! \n");
-                    return -1;
-                }
-
-                SetActiveEntryPoint(stageSources[stageIndex], entryPoints, entryIndex);
-                Instancing::InsertEntryPoint(stageSources[stageIndex], entry.stage, enableInstancing, nofragInstancing);
-                stageSources[stageIndex].insert(0, std::string("#define PK_ACTIVE_ENTRY_POINT_") + entry.name + "\n");
-                stageSources[stageIndex].insert(0, PK_SHADER_STAGE_DEFINES[(uint32_t)entry.stage]);
-                stageSources[stageIndex].insert(0, variantDefines[variantIndex]);
-                InsertRequiredExtensions(stageSources[stageIndex], entry.stage);
-                ConvertPrintf(stageSources[stageIndex]);
-                ProcessShaderVersion(stageSources[stageIndex]);
-
-                if (PreprocessGLSL(compiler, options, entry.stage, entry.name, stageSources[stageIndex]) != 0)
-                {
-                    return -1;
-                }
-
-                ConvertHLSLTypesToGLSL(stageSources[stageIndex]);
-                ConvertHLSLBuffers(stageSources[stageIndex]);
-                ConvertHLSLTextures(stageSources[stageIndex]);
-                ConvertHLSLCBuffers(stageSources[stageIndex]);
-                ConvertPKNumThreads(stageSources[stageIndex]);
-                RemoveDescriptorSets(stageSources[stageIndex]);
-                RemoveUnsupportedRayTracingFields(stageSources[stageIndex], entry.stage);
-                RemoveInactiveGroupSizeLayouts(stageSources[stageIndex], entry.stage);
-            }
-
-            // 2. Drop unused inter-stage outputs, then strip dead functions/resources and extract push constants
-            RemoveUnusedStageOutputs(stageSources);
-
-            for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
-            {
-                if (stageEntries[stageIndex] != nullptr)
-                {
-                    RemoveUnusedResourcesAndFunctions(stageSources[stageIndex]);
-                    ExtractPushConstants(stageSources[stageIndex], (PKShaderStage)stageIndex, sourceConstants);
+                    stageEntries[stageIndex] = &entryPoints.at(entryIndex);
                 }
             }
 
-            CompilePushConstantBlock(stageSources, sourceConstants);
-            AddLineCounter(stageSources);
+            std::string variantSource;
+            variantSource.reserve(strlen(PK_SLANG_PRELUDE) + instancingHeader.size() + pushConstantBlock.size() + source.size() + 128ull);
+            variantSource.append(PK_SLANG_PRELUDE);
+            variantSource.append("\n");
+            variantSource.append(variantDefines[variantIndex]);
+            variantSource.append("\n");
+            variantSource.append(pushConstantBlock);
+            variantSource.append("\n");
+            variantSource.append(instancingHeader);
+            variantSource.append("\n#line 1 \"");
+            variantSource.append(filename);
+            variantSource.append("\"\n");
+            variantSource.append(source);
 
             ReflectionData reflectionData{};
             reflectionData.logVerbose = logVerbose;
 
-            // 3. Single-pass SPIR-V compilation
-            for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
+            if (!CompileVariantToSPIRV(filename, variantSource, source, stageEntries, sourceConstants, generateDebugInfo, reflectionData))
             {
-                if (stageEntries[stageIndex] != nullptr)
-                {
-                    const auto& entry = *stageEntries[stageIndex];
-                    const auto& stageSource = stageSources[stageIndex];
-
-                    if (logVerbose)
-                    {
-                        printf("Compiling %s:%i %s \n", entry.name.c_str(), variantIndex, PK_SHADER_STAGE_NAMES[stageIndex]);
-                    }
-
-                    auto* module = CompileToSPIRV(compiler, options, entry.stage, entry.name, stageSource);
-                    if (module == nullptr)
-                    {
-                        ReleaseReflectionData(reflectionData);
-                        return -1;
-                    }
-
-                    reflectionData.modules[stageIndex] = module;
-                    GetUniqueBindings(reflectionData, entry.stage);
-                    GetVertexAttributes(reflectionData, entry.stage);
-                    GetPushConstants(reflectionData, entry.stage);
-                    GetComputeGroupSize(reflectionData, entry.stage, pVariants[variantIndex].groupSize, logVerbose);
-                }
+                return -1;
             }
 
-            CompressBindIndices(reflectionData);
+            pVariants[variantIndex].groupSize[0] = reflectionData.groupSize[0];
+            pVariants[variantIndex].groupSize[1] = reflectionData.groupSize[1];
+            pVariants[variantIndex].groupSize[2] = reflectionData.groupSize[2];
 
             for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
             {
-                if (reflectionData.modules[stageIndex])
+                if (reflectionData.stageMask & (1u << stageIndex))
                 {
-                    const auto* mod = reflectionData.modules[stageIndex];
-                    const auto cleanedSpirv = CleanSPIRV(
-                        spvReflectGetCode(mod),
-                        (uint32_t)(spvReflectGetCodeSize(mod) / sizeof(uint32_t)),
-                        reflectionData.deadVariableIds[stageIndex],
-                        !generateDebugInfo);
-
-                    auto pSpirv = buffer.Write(cleanedSpirv.data(), cleanedSpirv.size());
-                    pVariants[variantIndex].sprivSizes[stageIndex] = (uint32_t)(cleanedSpirv.size() * sizeof(uint32_t));
+                    const auto& stageRefl = reflectionData.stages[stageIndex];
+                    auto pSpirv = buffer.Write(stageRefl.spirv.data(), stageRefl.spirv.size());
+                    pVariants[variantIndex].sprivSizes[stageIndex] = (uint32_t)(stageRefl.spirv.size() * sizeof(uint32_t));
                     pVariants[variantIndex].sprivBuffers[stageIndex].Set(buffer.data(), pSpirv.get());
                 }
             }
 
-            if (reflectionData.vertexAttributes.size() > 0)
+            if (!reflectionData.vertexAttributes.empty())
             {
                 pVariants[variantIndex].vertexAttributeCount = (uint16_t)reflectionData.vertexAttributes.size();
                 auto pVertexAttributes = buffer.Write<PKVertexInputAttribute>(reflectionData.vertexAttributes.data(), reflectionData.vertexAttributes.size());
                 pVariants[variantIndex].vertexAttributes.Set(buffer.data(), pVertexAttributes.get());
             }
 
-            if (reflectionData.uniqueConstants.size() > 0)
+            if (!reflectionData.sortedConstants.empty())
             {
-                pVariants[variantIndex].constantCount = (uint16_t)reflectionData.uniqueConstants.size();
+                pVariants[variantIndex].constantCount = (uint16_t)reflectionData.sortedConstants.size();
                 pVariants[variantIndex].constantRange = (uint16_t)reflectionData.constantRangeSize;
-                auto pConstantVariables = buffer.Allocate<PKConstantVariable>(reflectionData.uniqueConstants.size());
+
+                auto pConstantVariables = buffer.Allocate<PKConstantVariable>(reflectionData.sortedConstants.size());
                 pVariants[variantIndex].constants.Set(buffer.data(), pConstantVariables.get());
 
-                auto j = 0u;
-                for (auto& kv : reflectionData.uniqueConstants)
+                for (auto j = 0u; j < reflectionData.sortedConstants.size(); ++j)
                 {
                     if (j >= PK_ASSET_MAX_PUSH_CONSTANTS)
                     {
                         printf("Warning! Shader has more push constants than supported (%i / %i) \n", j, PK_ASSET_MAX_PUSH_CONSTANTS);
-                        continue;
+                        break;
                     }
 
-                    WriteName(pConstantVariables[j].name, kv.first.c_str());
-                    pConstantVariables[j].offset = kv.second.offset;
-                    pConstantVariables[j++].size = kv.second.size;
+                    const auto& c = reflectionData.sortedConstants[j];
+                    WriteName(pConstantVariables[j].name, c.name.c_str());
+                    pConstantVariables[j].writeMask = (PKShaderStageFlags)c.writeStageMask;
+                    pConstantVariables[j].accessMask = (PKShaderStageFlags)c.accessStageMask;
+                    pConstantVariables[j].type = c.type;
+                    pConstantVariables[j].offset = (uint8_t)c.offset;
+                    pConstantVariables[j].arraySize = c.arraySize;
                 }
             }
-
-            pVariants[variantIndex].descriptorCount = (uint16_t)reflectionData.sortedBindings.size();
-
-            if (pVariants[variantIndex].descriptorCount > 0)
-            {
-                auto pDescriptors = buffer.Allocate<PKDescriptor>(pVariants[variantIndex].descriptorCount);
-                pVariants[variantIndex].descriptors.Set(buffer.data(), pDescriptors.get());
-
-                if (pVariants[variantIndex].descriptorCount > PK_ASSET_MAX_DESCRIPTORS_PER_SET)
-                {
-                    printf("Warning! Shader has a descriptors outside of supported range (%i / %i) \n", pVariants[variantIndex].descriptorCount, PK_ASSET_MAX_DESCRIPTORS_PER_SET);
-                }
-
-                for (auto j = 0u; j < reflectionData.sortedBindings.size(); ++j)
-                {
-                    auto& binding = reflectionData.sortedBindings.at(j);
-                    pDescriptors[j].type = binding.type;
-                    pDescriptors[j].__padding = 0u;
-                    pDescriptors[j].count = binding.count;
-                    pDescriptors[j].writeMask = (PKShaderStageFlags)binding.writeStageMask;
-                    pDescriptors[j].accessMask = (PKShaderStageFlags)binding.accessStageMask;
-                    WriteName(pDescriptors[j].name, binding.name.c_str());
-                }
-            }
-
-            ReleaseReflectionData(reflectionData);
         }
 
         return WriteAsset(pathDst, pathStemOffset, buffer, false);
