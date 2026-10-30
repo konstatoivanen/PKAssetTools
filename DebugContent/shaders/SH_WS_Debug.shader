@@ -1,5 +1,7 @@
 #version 450
 
+#pragma pk_log_verbose
+
 #pragma pk_cull Back
 #pragma pk_ztest LessEqual
 #pragma pk_zwrite True
@@ -68,7 +70,7 @@ struct TestStruct
 
 void MainVs()
 {
-    gl_Position = mul(mul(viewproj, model), float4(in_POSITION + offset_x.xyz, 1.0f));
+    gl_Position = mul(mul(named.viewproj, named.model), float4(in_POSITION + offset_x.xyz, 1.0f));
     vs_COLOR = in_COLOR;
     vs_TEXCOORD0 = in_TEXCOORD0;
     vs_TEXCOORD0.x += gl_VertexIndex;
