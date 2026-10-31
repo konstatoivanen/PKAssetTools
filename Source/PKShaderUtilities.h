@@ -49,22 +49,25 @@ namespace PKAssets::Shader
         "#extension GL_KHR_shader_subgroup_shuffle : require\n"
         "#extension GL_KHR_shader_subgroup_basic : require\n"
         "#extension GL_KHR_shader_subgroup_ballot : require\n"
+        "#extension GL_KHR_shader_subgroup_quad : require\n"
         "#extension GL_KHR_shader_subgroup_vote : require\n"
-        "#extension GL_EXT_samplerless_texture_functions : require \n"
+        "#extension GL_EXT_shader_quad_control : require\n"
+        "#extension GL_EXT_samplerless_texture_functions : require\n"
         "#extension GL_EXT_shader_16bit_storage : require \n"
-        "#extension GL_EXT_control_flow_attributes : require \n"
-        "#extension GL_EXT_shader_explicit_arithmetic_types : require \n"
-        "#extension GL_EXT_nonuniform_qualifier : require \n"
-        "#extension GL_ARB_shader_viewport_layer_array : require \n"
-        "#extension GL_EXT_shader_image_load_formatted : require \n";
+        "#extension GL_EXT_shader_8bit_storage : require \n"
+        "#extension GL_EXT_scalar_block_layout : require \n"
+        "#extension GL_EXT_shader_explicit_arithmetic_types : require\n"
+        "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
+        "#extension GL_EXT_control_flow_attributes : require\n"
+        "#extension GL_EXT_nonuniform_qualifier : require\n"
+        "#extension GL_ARB_shader_viewport_layer_array : require\n"
+        "#extension GL_EXT_shader_image_load_formatted : require\n";
 
     constexpr const static char* PK_GL_EXTENSIONS_RAYTRACING = 
         "#extension GL_EXT_ray_tracing : require \n"
         "#extension GL_EXT_ray_tracing_position_fetch : require \n";
     
-    constexpr const static char* PK_GL_EXTENSIONS_MESHSHADING = 
-        "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-        "#extension GL_EXT_mesh_shader : require \n";
+    constexpr const static char* PK_GL_EXTENSIONS_MESHSHADING = "#extension GL_EXT_mesh_shader : require \n";
 
     constexpr const static char* PK_GL_EXTENSION_PRINTF = "#extension GL_EXT_debug_printf : require\n";
 

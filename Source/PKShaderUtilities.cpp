@@ -235,7 +235,6 @@ namespace PKAssets::Shader
         "keyword",
     };
 
-
     const static char* PKComparison_NAMES[] =
     {
         "Off",
@@ -791,7 +790,7 @@ namespace PKAssets::Shader
             if (keywords.size() == 3)
             {
                 attributes->blendOpAlpha = StringToPKBlendOp(keywords.at(0).c_str());
-                attributes->blendSrcFactorAlpha = StringToPKBlendFactor(keywords.at(0).c_str());
+                attributes->blendSrcFactorAlpha = StringToPKBlendFactor(keywords.at(1).c_str());
                 attributes->blendDstFactorAlpha = StringToPKBlendFactor(keywords.at(2).c_str());
             }
         }
@@ -1211,7 +1210,7 @@ namespace PKAssets::Shader
                 open = uniformTagPos;
             }
 
-            source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[];}");
+            source.replace(open, nameEnd - open, "layout(scalar)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[];}");
         }
     }
 
@@ -1317,7 +1316,7 @@ namespace PKAssets::Shader
                 continue;
             }
 
-            source.replace(uniformPos, cbufferPos + 7u - uniformPos, "layout(std140) uniform ");
+            source.replace(uniformPos, cbufferPos + 7u - uniformPos, "layout(scalar) uniform ");
             currentpos = uniformPos + 23u;
         }
     }
@@ -1543,7 +1542,7 @@ namespace PKAssets::Shader
         });
 
         std::string layout;
-        layout.append("layout(push_constant) uniform pk_global_push_constant_block\n{\n");
+        layout.append("layout(scalar, push_constant) uniform pk_global_push_constant_block\n{\n");
         for (auto& member : sorted)
         {
             layout.append(member.field);
@@ -1554,8 +1553,23 @@ namespace PKAssets::Shader
         {
             if (!stageSources[i].empty())
             {
-                // Skip version pragma
-                stageSources[i].insert(stageSources[i].find_first_of("\n") + 1ull, layout);
+                auto insertPos = 0ull;
+
+                while (insertPos < stageSources[i].size())
+                {
+                    const auto lineStart = stageSources[i].find_first_not_of(" \t\r\n", insertPos);
+
+                    if (lineStart == std::string::npos || stageSources[i][lineStart] != '#')
+                    {
+                        insertPos = lineStart != std::string::npos ? lineStart : stageSources[i].size();
+                        break;
+                    }
+
+                    const auto lineEnd = stageSources[i].find_first_of("\r\n", lineStart);
+                    insertPos = lineEnd != std::string::npos ? lineEnd + 1ull : stageSources[i].size();
+                }
+
+                stageSources[i].insert(insertPos, layout);
             }
         }
     }

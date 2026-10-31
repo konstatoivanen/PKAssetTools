@@ -40,12 +40,12 @@ float pow5(float x) { return x * x * x * x * x; }
 #define PK_DECLARE_SET_SHADER layout(set = 2)
 #define PK_DECLARE_SET_DRAW layout(set = 3)
 
-#define PK_DECLARE_LOCAL_CBUFFER(BufferName) layout(push_constant) uniform BufferName
-#define PK_DECLARE_CBUFFER(BufferName, Set) layout(std140, set = Set) uniform BufferName
+#define PK_DECLARE_LOCAL_CBUFFER(BufferName) layout(scalar, push_constant) uniform BufferName
+#define PK_DECLARE_CBUFFER(BufferName, Set) layout(scalar, set = Set) uniform BufferName
 
-#define PK_DECLARE_BUFFER(ValueType, BufferName, Set) layout(std430, set = Set) buffer BufferName##_pkalias { ValueType BufferName[]; }
-#define PK_DECLARE_READONLY_BUFFER(ValueType, BufferName, Set) readonly layout(std430, set = Set) buffer BufferName##_pkalias { ValueType BufferName[]; }
-#define PK_DECLARE_WRITEONLY_BUFFER(ValueType, BufferName, Set) writeonly layout(std430, set = Set) buffer BufferName##_pkalias { ValueType BufferName[]; }
+#define PK_DECLARE_BUFFER(ValueType, BufferName, Set) layout(scalar, set = Set) buffer BufferName##_pkalias { ValueType BufferName[]; }
+#define PK_DECLARE_READONLY_BUFFER(ValueType, BufferName, Set) readonly layout(scalar, set = Set) buffer BufferName##_pkalias { ValueType BufferName[]; }
+#define PK_DECLARE_WRITEONLY_BUFFER(ValueType, BufferName, Set) writeonly layout(scalar, set = Set) buffer BufferName##_pkalias { ValueType BufferName[]; }
 
 // Ray tracing utilities
 #define PK_GET_RAY_HIT_POINT (gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT)

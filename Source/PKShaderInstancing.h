@@ -8,8 +8,8 @@ namespace PKAssets::Shader::Instancing
     // NOTE that for optimization purposes PKDrawInfo uses uint4(material, uniform scale, transform, global meshlet submesh, userdata) internally (this saves a redundant struct descriptor)
     constexpr const static char* Instancing_Standalone_GLSL =
         "#define PK_INSTANCING_ENABLED                                                                                                          \n"
-        "layout(std430, set = 0, binding = 100) readonly restrict buffer pk_Instancing_Transforms { mat3x4 pk_Instancing_Transforms_Data[]; };  \n"
-        "layout(std430, set = 3, binding = 101) readonly restrict buffer pk_Instancing_Indices { uint4 pk_Instancing_Indices_Data[]; };         \n"
+        "layout(scalar, set = 0, binding = 100) readonly restrict buffer pk_Instancing_Transforms { mat3x4 pk_Instancing_Transforms_Data[]; };  \n"
+        "layout(scalar, set = 3, binding = 101) readonly restrict buffer pk_Instancing_Indices { uint4 pk_Instancing_Indices_Data[]; };         \n"
         "mat3x4 pk_ObjectToWorld;                                                                                                               \n"
         "float pk_Instancing_UniformScale;                                                                                                      \n"
         "uint pk_Instancing_Material;                                                                                                           \n"
@@ -40,9 +40,9 @@ namespace PKAssets::Shader::Instancing
 
     constexpr const static char* Instancing_Base_GLSL =
         "#define PK_INSTANCING_ENABLED                                                                                                                              \n"
-        "layout(std430, set = 0, binding = 100) readonly restrict buffer pk_Instancing_Transforms { mat3x4 pk_Instancing_Transforms_Data[]; };                      \n"
-        "layout(std430, set = 3, binding = 101) readonly restrict buffer pk_Instancing_Indices { uint4 pk_Instancing_Indices_Data[]; };                             \n"
-        "layout(std430, set = 3, binding = 102) readonly restrict buffer pk_Instancing_Properties { PK_MaterialPropertyBlock pk_Instancing_Properties_Data[]; };    \n"
+        "layout(scalar, set = 0, binding = 100) readonly restrict buffer pk_Instancing_Transforms { mat3x4 pk_Instancing_Transforms_Data[]; };                      \n"
+        "layout(scalar, set = 3, binding = 101) readonly restrict buffer pk_Instancing_Indices { uint4 pk_Instancing_Indices_Data[]; };                             \n"
+        "layout(scalar, set = 3, binding = 102) readonly restrict buffer pk_Instancing_Properties { PK_MaterialPropertyBlock pk_Instancing_Properties_Data[]; };    \n"
         "layout(set = 3, binding = 103) uniform texture2D pk_Instancing_Textures2D[];                                                                               \n"
         "layout(set = 3, binding = 104) uniform texture3D pk_Instancing_Textures3D[];                                                                               \n"
         "layout(set = 3, binding = 105) uniform textureCube pk_Instancing_TexturesCube[];                                                                           \n"
