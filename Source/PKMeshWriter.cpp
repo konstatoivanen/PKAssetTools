@@ -445,13 +445,13 @@ namespace PKAssets::Mesh
 
         PKVertexAttribute attribute;
         WriteName(attribute.name, PK_MESH_VS_POSITION);
-        attribute.format = (uint8_t)PKElementType::Float3;
+        attribute.format = PKUniform::Float3;
         attribute.offset = 0;
         attribute.stream = splitPositionStream ? 1 : 0;
         attributes.push_back(attribute);
 
-        auto attributeOffset = splitPositionStream ? 0 : PKElementTypeToSize((PKElementType)attribute.format);
-        auto stride = PKElementTypeToSize((PKElementType)attribute.format);
+        auto attributeOffset = splitPositionStream ? 0 : PKUniformToSize(attribute.format);
+        auto stride = PKUniformToSize(attribute.format);
         auto offsetNormals = 0u;
         auto offsetTangents = 0u;
         auto offsetUVs = 0u;
@@ -459,39 +459,39 @@ namespace PKAssets::Mesh
         if (hasNormals)
         {
             WriteName(attribute.name, PK_MESH_VS_NORMAL);
-            attribute.format = useHalfPrecisionNormals ? (uint8_t)PKElementType::Half4 : (uint8_t)PKElementType::Float3;
+            attribute.format = useHalfPrecisionNormals ? PKUniform::Half4 : PKUniform::Float3;
             attribute.offset = attributeOffset;
             attribute.stream = 0;
             attributes.push_back(attribute);
 
             offsetNormals = stride;
-            attributeOffset += PKElementTypeToSize((PKElementType)attribute.format);
+            attributeOffset += PKUniformToSize(attribute.format);
             stride += sizeof(float) * 3;
         }
 
         if (hasTangents)
         {
             WriteName(attribute.name, PK_MESH_VS_TANGENT);
-            attribute.format = useHalfPrecisionTangents ? (uint8_t)PKElementType::Half4 : (uint8_t)PKElementType::Float4;
+            attribute.format = useHalfPrecisionTangents ? PKUniform::Half4 : PKUniform::Float4;
             attribute.offset = attributeOffset;
             attribute.stream = 0;
             attributes.push_back(attribute);
 
             offsetTangents = stride;
-            attributeOffset += PKElementTypeToSize((PKElementType)attribute.format);
+            attributeOffset += PKUniformToSize(attribute.format);
             stride += sizeof(float) * 4;
         }
 
         if (hasUvs)
         {
             WriteName(attribute.name, PK_MESH_VS_TEXCOORD0);
-            attribute.format = useHalfPrecisionUVs ? (uint8_t)PKElementType::Half2 : (uint8_t)PKElementType::Float2;
+            attribute.format = useHalfPrecisionUVs ? PKUniform::Half2 : PKUniform::Float2;
             attribute.offset = attributeOffset;
             attribute.stream = 0;
             attributes.push_back(attribute);
 
             offsetUVs = stride;
-            attributeOffset += PKElementTypeToSize((PKElementType)attribute.format);
+            attributeOffset += PKUniformToSize(attribute.format);
             stride += sizeof(float) * 2;
         }
 

@@ -312,7 +312,7 @@ namespace PKAssets::Shader
             PKVertexInputAttribute attribute{};
             WriteName(attribute.name, variable->name);
             attribute.location = variable->location;
-            attribute.type = GetElementType(variable->format);
+            attribute.type = SpvFormatToPKUniform(variable->format);
             reflection.vertexAttributes.push_back(attribute);
 
             if (reflection.logVerbose)

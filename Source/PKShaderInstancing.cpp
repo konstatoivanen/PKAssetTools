@@ -77,9 +77,9 @@ namespace PKAssets::Shader::Instancing
                 continue;
             }
 
-            auto type = StringToPKElementType(parts.at(0).c_str());
+            auto type = StringToPKUniform(parts.at(0).c_str());
 
-            if (type == PKElementType::Invalid)
+            if (type == PKUniform::Invalid)
             {
                 continue;
             }
@@ -107,7 +107,7 @@ namespace PKAssets::Shader::Instancing
 
         for (auto& prop : materialProperties)
         {
-            block += "    " + GetGLSLType(prop.type) + " " + std::string(prop.name) + ";\n";
+            block += "    " + PKUniformToGLSLString(prop.type) + " " + std::string(prop.name) + ";\n";
         }
 
         block += "};\n";
@@ -118,10 +118,10 @@ namespace PKAssets::Shader::Instancing
 
             switch (prop.type)
             {
-                case PKElementType::Texture2D: block += "uint " + name + "_Handle;\n"; break;
-                case PKElementType::Texture3D: block += "uint " + name + "_Handle;\n"; break;
-                case PKElementType::TextureCube: block += "uint " + name + "_Handle;\n"; break;
-                default: block += GetGLSLType(prop.type) + " " + name + ";\n"; break;
+                case PKUniform::Texture2D: block += "uint " + name + "_Handle;\n"; break;
+                case PKUniform::Texture3D: block += "uint " + name + "_Handle;\n"; break;
+                case PKUniform::TextureCube: block += "uint " + name + "_Handle;\n"; break;
+                default: block += PKUniformToGLSLString(prop.type) + " " + name + ";\n"; break;
             }
         }
 
@@ -133,9 +133,9 @@ namespace PKAssets::Shader::Instancing
 
             switch (prop.type)
             {
-                case PKElementType::Texture2D:
-                case PKElementType::Texture3D:
-                case PKElementType::TextureCube:
+                case PKUniform::Texture2D:
+                case PKUniform::Texture3D:
+                case PKUniform::TextureCube:
                     block += "    " + name + "_Handle = prop." + name + ";\n";
                     break;
 
@@ -153,9 +153,9 @@ namespace PKAssets::Shader::Instancing
 
             switch (prop.type)
             {
-                case PKElementType::Texture2D: block += "#define " + name + " pk_Instancing_Textures2D[" + name + "_Handle]\n"; break;
-                case PKElementType::Texture3D: block += "#define " + name + " pk_Instancing_Textures3D[" + name + "_Handle]\n"; break;
-                case PKElementType::TextureCube: block += "#define " + name + " pk_Instancing_TexturesCube[" + name + "_Handle]\n"; break;
+                case PKUniform::Texture2D: block += "#define " + name + " pk_Instancing_Textures2D[" + name + "_Handle]\n"; break;
+                case PKUniform::Texture3D: block += "#define " + name + " pk_Instancing_Textures3D[" + name + "_Handle]\n"; break;
+                case PKUniform::TextureCube: block += "#define " + name + " pk_Instancing_TexturesCube[" + name + "_Handle]\n"; break;
                 default: break;
             }
         }

@@ -121,7 +121,7 @@ namespace PKAssets::Shader
     typedef shaderc::Compiler ShaderCompiler;
     typedef shaderc::CompileOptions CompileOptions;
 
-    PKElementType StringToPKElementType(const char* str);
+    PKUniform StringToPKUniform(const char* str);
     PKShaderStage StringToPKShaderStage(const char* str);
     PKComparison StringToPKComparison(const char* str);
     PKCullMode StringToPKCullMode(const char* str);
@@ -130,8 +130,9 @@ namespace PKAssets::Shader
     PKColorMask StringToPKColorMask(const char* str);
     PKRasterMode StringToPKRasterMode(const char* str);
 
-    PKElementType GetElementType(SpvReflectFormat format);
-    std::string GetGLSLType(PKElementType type);
+    PKUniform SpvFormatToPKUniform(SpvReflectFormat format);
+    std::string PKUniformToGLSLString(PKUniform type);
+
     PKDescriptorType GetResourceType(SpvReflectDescriptorType type);
     shaderc_shader_kind ConvertToShadercKind(PKShaderStage stage);
     std::string ReflectBindingName(SpvReflectDescriptorBinding* binding);

@@ -180,55 +180,26 @@ namespace PKAssets::Shader
     constexpr static uint32_t PK_SHADER_PRIMITIVE_TYPE_COUNT = std::size(PK_HLSL_PRIMITIVE_TYPES);
     constexpr static uint32_t PK_HLSL_TEXTURE_POSTFIX_COUNT = std::size(PK_HLSL_TEXTURE_POSTFIXES);
 
-    const static char* PKElementType_NAMES[] =
+    const static char* PKUniform_NAMES[] =
     {
         "Invalid",
-        "float",
-        "float2",
-        "float3",
-        "float4",
-        "double",
-        "double2",
-        "double3",
-        "double4",
-        "half",
-        "half2",
-        "half3",
-        "half4",
-        "int",
-        "int2",
-        "int3",
-        "int4",
-        "uint",
-        "uint2",
-        "uint3",
-        "uint4",
-        "short",
-        "short2",
-        "short3",
-        "short4",
-        "ushort",
-        "ushort2",
-        "ushort3",
-        "ushort4",
-        "long",
-        "long2",
-        "long3",
-        "long4",
-        "ulong",
-        "ulong2",
-        "ulong3",
-        "ulong4",
-        "float2x2",
-        "float3x3",
-        "float4x4",
-        "float3x4",
-        "double2x2",
-        "double3x3",
-        "double4x4",
-        "half2x2",
-        "half3x3",
-        "half4x4",
+        "bool",   "bool2",   "bool3",   "bool4",
+        "byte",   "byte2",   "byte3",   "byte4",
+        "sbyte",  "sbyte2",  "sbyte3",  "sbyte4",
+        "short",  "short2",  "short3",  "short4",
+        "ushort", "ushort2", "ushort3", "ushort4",
+        "half",   "half2",   "half3",   "half4",
+        "float",  "float2",  "float3",  "float4",
+        "int",    "int2",    "int3",    "int4",
+        "uint",   "uint2",   "uint3",   "uint4",
+        "long",   "long2",   "long3",   "long4",
+        "ulong",  "ulong2",  "ulong3",  "ulong4",
+        "double", "double2", "double3", "double4",
+        "float2x2", "float2x3", "float2x4",
+        "float3x2", "float3x3", "float3x4",
+        "float4x2", "float4x3", "float4x4",
+        "double2x2", "double3x3", "double4x4",
+        "half2x2",   "half3x3",   "half4x4",
         "texture2D",
         "texture3D",
         "textureCube",
@@ -309,7 +280,7 @@ namespace PKAssets::Shader
 
     #define DECLARE_STRING_TO_ENUM(TType, TFallback) TType StringTo##TType(const char* str) { return (TType)FindEnumIndexFromString(TType##_NAMES, str, (uint32_t)TFallback); }
 
-    DECLARE_STRING_TO_ENUM(PKElementType, PKElementType::Invalid)
+    DECLARE_STRING_TO_ENUM(PKUniform, PKUniform::Invalid)
     DECLARE_STRING_TO_ENUM(PKShaderStage, PKShaderStage::EnumCount)
     DECLARE_STRING_TO_ENUM(PKComparison, PKComparison::Off)
     DECLARE_STRING_TO_ENUM(PKCullMode, PKCullMode::Off)
@@ -515,107 +486,124 @@ namespace PKAssets::Shader
         return (PKColorMask)mask;
     }
 
-    PKElementType GetElementType(SpvReflectFormat format)
+    PKUniform SpvFormatToPKUniform(SpvReflectFormat format)
     {
         switch (format)
         {
-            case SPV_REFLECT_FORMAT_UNDEFINED: return PKElementType::Invalid;
-            case SPV_REFLECT_FORMAT_R16_UINT: return PKElementType::Ushort;
-            case SPV_REFLECT_FORMAT_R16_SINT: return PKElementType::Short;
-            case SPV_REFLECT_FORMAT_R16_SFLOAT: return PKElementType::Half;
-            case SPV_REFLECT_FORMAT_R16G16_UINT: return PKElementType::Ushort2;
-            case SPV_REFLECT_FORMAT_R16G16_SINT: return PKElementType::Short2;
-            case SPV_REFLECT_FORMAT_R16G16_SFLOAT: return PKElementType::Half2;
-            case SPV_REFLECT_FORMAT_R16G16B16_UINT: return PKElementType::Ushort3;
-            case SPV_REFLECT_FORMAT_R16G16B16_SINT: return PKElementType::Short3;
-            case SPV_REFLECT_FORMAT_R16G16B16_SFLOAT: return PKElementType::Half3;
-            case SPV_REFLECT_FORMAT_R16G16B16A16_UINT: return PKElementType::Ushort4;
-            case SPV_REFLECT_FORMAT_R16G16B16A16_SINT: return PKElementType::Short4;
-            case SPV_REFLECT_FORMAT_R16G16B16A16_SFLOAT: return PKElementType::Half4;
-            case SPV_REFLECT_FORMAT_R32_UINT: return PKElementType::Uint;
-            case SPV_REFLECT_FORMAT_R32_SINT: return PKElementType::Int;
-            case SPV_REFLECT_FORMAT_R32_SFLOAT: return PKElementType::Float;
-            case SPV_REFLECT_FORMAT_R32G32_UINT: return PKElementType::Uint2;
-            case SPV_REFLECT_FORMAT_R32G32_SINT: return PKElementType::Int2;
-            case SPV_REFLECT_FORMAT_R32G32_SFLOAT: return PKElementType::Float2;
-            case SPV_REFLECT_FORMAT_R32G32B32_UINT: return PKElementType::Uint3;
-            case SPV_REFLECT_FORMAT_R32G32B32_SINT: return PKElementType::Int3;
-            case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT: return PKElementType::Float3;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_UINT: return PKElementType::Uint4;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_SINT: return PKElementType::Int4;
-            case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT: return PKElementType::Float4;
-            case SPV_REFLECT_FORMAT_R64_UINT: return PKElementType::Ulong;
-            case SPV_REFLECT_FORMAT_R64_SINT: return PKElementType::Long;
-            case SPV_REFLECT_FORMAT_R64_SFLOAT: return PKElementType::Double;
-            case SPV_REFLECT_FORMAT_R64G64_UINT: return PKElementType::Ulong2;
-            case SPV_REFLECT_FORMAT_R64G64_SINT: return PKElementType::Long2;
-            case SPV_REFLECT_FORMAT_R64G64_SFLOAT: return PKElementType::Double2;
-            case SPV_REFLECT_FORMAT_R64G64B64_UINT: return PKElementType::Ulong3;
-            case SPV_REFLECT_FORMAT_R64G64B64_SINT: return PKElementType::Long3;
-            case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT: return PKElementType::Double3;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_UINT: return PKElementType::Ulong4;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_SINT: return PKElementType::Long4;
-            case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT: return PKElementType::Double4;
+            case SPV_REFLECT_FORMAT_UNDEFINED:           return PKUniform::Invalid;
+            case SPV_REFLECT_FORMAT_R16_SINT:            return PKUniform::Short;
+            case SPV_REFLECT_FORMAT_R16G16_SINT:         return PKUniform::Short2;
+            case SPV_REFLECT_FORMAT_R16G16B16_SINT:      return PKUniform::Short3;
+            case SPV_REFLECT_FORMAT_R16G16B16A16_SINT:   return PKUniform::Short4;
+            case SPV_REFLECT_FORMAT_R16_UINT:            return PKUniform::Ushort;
+            case SPV_REFLECT_FORMAT_R16G16_UINT:         return PKUniform::Ushort2;
+            case SPV_REFLECT_FORMAT_R16G16B16_UINT:      return PKUniform::Ushort3;
+            case SPV_REFLECT_FORMAT_R16G16B16A16_UINT:   return PKUniform::Ushort4;
+            case SPV_REFLECT_FORMAT_R16_SFLOAT:          return PKUniform::Half;
+            case SPV_REFLECT_FORMAT_R16G16_SFLOAT:       return PKUniform::Half2;
+            case SPV_REFLECT_FORMAT_R16G16B16_SFLOAT:    return PKUniform::Half3;
+            case SPV_REFLECT_FORMAT_R16G16B16A16_SFLOAT: return PKUniform::Half4;
+            case SPV_REFLECT_FORMAT_R32_SFLOAT:          return PKUniform::Float;
+            case SPV_REFLECT_FORMAT_R32G32_SFLOAT:       return PKUniform::Float2;
+            case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT:    return PKUniform::Float3;
+            case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT: return PKUniform::Float4;
+            case SPV_REFLECT_FORMAT_R32_SINT:            return PKUniform::Int;
+            case SPV_REFLECT_FORMAT_R32G32_SINT:         return PKUniform::Int2;
+            case SPV_REFLECT_FORMAT_R32G32B32_SINT:      return PKUniform::Int3;
+            case SPV_REFLECT_FORMAT_R32G32B32A32_SINT:   return PKUniform::Int4;
+            case SPV_REFLECT_FORMAT_R32_UINT:            return PKUniform::Uint;
+            case SPV_REFLECT_FORMAT_R32G32_UINT:         return PKUniform::Uint2;
+            case SPV_REFLECT_FORMAT_R32G32B32_UINT:      return PKUniform::Uint3;
+            case SPV_REFLECT_FORMAT_R32G32B32A32_UINT:   return PKUniform::Uint4;
+            case SPV_REFLECT_FORMAT_R64_SINT:            return PKUniform::Long;
+            case SPV_REFLECT_FORMAT_R64G64_SINT:         return PKUniform::Long2;
+            case SPV_REFLECT_FORMAT_R64G64B64_SINT:      return PKUniform::Long3;
+            case SPV_REFLECT_FORMAT_R64G64B64A64_SINT:   return PKUniform::Long4;
+            case SPV_REFLECT_FORMAT_R64_UINT:            return PKUniform::Ulong;
+            case SPV_REFLECT_FORMAT_R64G64_UINT:         return PKUniform::Ulong2;
+            case SPV_REFLECT_FORMAT_R64G64B64_UINT:      return PKUniform::Ulong3;
+            case SPV_REFLECT_FORMAT_R64G64B64A64_UINT:   return PKUniform::Ulong4;
+            case SPV_REFLECT_FORMAT_R64_SFLOAT:          return PKUniform::Double;
+            case SPV_REFLECT_FORMAT_R64G64_SFLOAT:       return PKUniform::Double2;
+            case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT:    return PKUniform::Double3;
+            case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT: return PKUniform::Double4;
         }
 
-        return PKElementType::Invalid;
+        return PKUniform::Invalid;
     }
 
-    std::string GetGLSLType(PKElementType type)
+    std::string PKUniformToGLSLString(PKUniform type)
     {
         switch (type)
         {
-            case PKElementType::Float: return "float";
-            case PKElementType::Float2: return "vec2";
-            case PKElementType::Float3: return "vec3";
-            case PKElementType::Float4: return "vec4";
-            case PKElementType::Double: return "float64_t";
-            case PKElementType::Double2: return "f64vec2";
-            case PKElementType::Double3: return "f64vec3";
-            case PKElementType::Double4: return "f64vec4";
-            case PKElementType::Half: return "float16_t";
-            case PKElementType::Half2: return "f16vec2";
-            case PKElementType::Half3: return "f16vec3";
-            case PKElementType::Half4: return "f16vec4";
-            case PKElementType::Int: return "int";
-            case PKElementType::Int2: return "ivec2";
-            case PKElementType::Int3: return "ivec3";
-            case PKElementType::Int4: return "ivec4";
-            case PKElementType::Uint: return "uint";
-            case PKElementType::Uint2: return "uvec2";
-            case PKElementType::Uint3: return "uvec3";
-            case PKElementType::Uint4: return "uvec4";
-            case PKElementType::Short: return "int16_t";
-            case PKElementType::Short2: return "i16vec2";
-            case PKElementType::Short3: return "i16vec3";
-            case PKElementType::Short4: return "i16vec4";
-            case PKElementType::Ushort: return "uint16_t";
-            case PKElementType::Ushort2: return "u16vec2";
-            case PKElementType::Ushort3: return "u16vec3";
-            case PKElementType::Ushort4: return "u16vec4";
-            case PKElementType::Long: return "int64_t";
-            case PKElementType::Long2: return "i64vec2";
-            case PKElementType::Long3: return "i64vec3";
-            case PKElementType::Long4: return "i64vec4";
-            case PKElementType::Ulong: return "uint64_t";
-            case PKElementType::Ulong2: return "u64vec2";
-            case PKElementType::Ulong3: return "u64vec3";
-            case PKElementType::Ulong4: return "u64vec4";
-            case PKElementType::Float2x2: return "mat2";
-            case PKElementType::Float3x3: return "mat3";
-            case PKElementType::Float4x4: return "mat4";
-            case PKElementType::Float3x4: return "mat3x4";
-            case PKElementType::Double2x2: return "f64mat2";
-            case PKElementType::Double3x3: return "f64mat3";
-            case PKElementType::Double4x4: return "f64mat4";
-            case PKElementType::Half2x2: return "f16mat2";
-            case PKElementType::Half3x3: return "f16mat3";
-            case PKElementType::Half4x4: return "f16mat4";
-            case PKElementType::Texture2D: return "uint";
-            case PKElementType::Texture3D: return "uint";
-            case PKElementType::TextureCube: return "uint";
-            case PKElementType::Keyword: return "INVALID";
-            case PKElementType::Invalid: return "INVALID";
+            case PKUniform::Invalid: return "INVALID";
+            case PKUniform::Bool: return "bool";
+            case PKUniform::Bool2: return "bool2";
+            case PKUniform::Bool3: return "bool3";
+            case PKUniform::Bool4: return "bool4";
+            case PKUniform::Byte: return "uint8_t";
+            case PKUniform::Byte2: return "u8vec2";
+            case PKUniform::Byte3: return "u8vec3";
+            case PKUniform::Byte4: return "u8vec4";
+            case PKUniform::Sbyte: return "int8_t";
+            case PKUniform::Sbyte2: return "i8vec2";
+            case PKUniform::Sbyte3: return "i8vec3";
+            case PKUniform::Sbyte4: return "i8vec4";
+            case PKUniform::Short: return "int16_t";
+            case PKUniform::Short2: return "i16vec2";
+            case PKUniform::Short3: return "i16vec3";
+            case PKUniform::Short4: return "i16vec4";
+            case PKUniform::Ushort: return "uint16_t";
+            case PKUniform::Ushort2: return "u16vec2";
+            case PKUniform::Ushort3: return "u16vec3";
+            case PKUniform::Ushort4: return "u16vec4";
+            case PKUniform::Half: return "float16_t";
+            case PKUniform::Half2: return "f16vec2";
+            case PKUniform::Half3: return "f16vec3";
+            case PKUniform::Half4: return "f16vec4";
+            case PKUniform::Float: return "float";
+            case PKUniform::Float2: return "vec2";
+            case PKUniform::Float3: return "vec3";
+            case PKUniform::Float4: return "vec4";
+            case PKUniform::Int: return "int";
+            case PKUniform::Int2: return "ivec2";
+            case PKUniform::Int3: return "ivec3";
+            case PKUniform::Int4: return "ivec4";
+            case PKUniform::Uint: return "uint";
+            case PKUniform::Uint2: return "uvec2";
+            case PKUniform::Uint3: return "uvec3";
+            case PKUniform::Uint4: return "uvec4";
+            case PKUniform::Long: return "int64_t";
+            case PKUniform::Long2: return "i64vec2";
+            case PKUniform::Long3: return "i64vec3";
+            case PKUniform::Long4: return "i64vec4";
+            case PKUniform::Ulong: return "uint64_t";
+            case PKUniform::Ulong2: return "u64vec2";
+            case PKUniform::Ulong3: return "u64vec3";
+            case PKUniform::Ulong4: return "u64vec4";
+            case PKUniform::Double: return "float64_t";
+            case PKUniform::Double2: return "f64vec2";
+            case PKUniform::Double3: return "f64vec3";
+            case PKUniform::Double4: return "f64vec4";
+            case PKUniform::Float2x2: return "mat2";
+            case PKUniform::Float2x3: return "mat2x3";
+            case PKUniform::Float2x4: return "mat2x4";
+            case PKUniform::Float3x2: return "mat3x2";
+            case PKUniform::Float3x3: return "mat3";
+            case PKUniform::Float4x2: return "mat4x2";
+            case PKUniform::Float4x3: return "mat4x3";
+            case PKUniform::Float4x4: return "mat4";
+            case PKUniform::Float3x4: return "mat3x4";
+            case PKUniform::Double2x2: return "f64mat2";
+            case PKUniform::Double3x3: return "f64mat3";
+            case PKUniform::Double4x4: return "f64mat4";
+            case PKUniform::Half2x2: return "f16mat2";
+            case PKUniform::Half3x3: return "f16mat3";
+            case PKUniform::Half4x4: return "f16mat4";
+            case PKUniform::Texture2D: return "uint";
+            case PKUniform::Texture3D: return "uint";
+            case PKUniform::TextureCube: return "uint";
+            case PKUniform::Keyword: return "INVALID";
         }
     }
 
