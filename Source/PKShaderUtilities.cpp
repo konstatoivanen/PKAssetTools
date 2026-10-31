@@ -1178,20 +1178,12 @@ namespace PKAssets::Shader
 
             constexpr auto lengthopen = 18u;
             constexpr auto lengthclose = 1u;
-            auto tokens = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ", ");
-            
-            if (tokens.size() == 0)
+            auto type = StringUtilities::Trim(source.substr(open + lengthopen, close - (open + lengthopen)));
+
+            if (type.empty())
             {
                 currentpos = close;
                 continue;
-            }
-
-            auto type = tokens[0];
-            auto size = 0;
-
-            if (tokens.size() > 1 && isdigit(tokens.at(1)[0]))
-            {
-                size = std::stoi(tokens.at(1));
             }
 
             auto nameStart = source.find_first_not_of(' ', close + lengthclose);
@@ -1204,8 +1196,7 @@ namespace PKAssets::Shader
             }
 
             auto name = source.substr(nameStart, nameEnd - nameStart);
-
-            auto hasWritableTag = strncmp("RW", source.data() + open - 2ull, 2ull) == 0;
+            auto hasWritableTag = open >= 2ull && strncmp("RW", source.data() + open - 2ull, 2ull) == 0;
             auto accessToken = hasWritableTag ? std::string() : " readonly";
 
             if (hasWritableTag)
@@ -1215,20 +1206,12 @@ namespace PKAssets::Shader
 
             auto uniformTagPos = source.rfind("uniform", open);
 
-            // Remove uniform tag as it is erroneus to use with a buffer.
             if (uniformTagPos != std::string::npos && source.find_first_not_of(" ", uniformTagPos + 7u) == open)
             {
                 open = uniformTagPos;
             }
 
-            // This has been deprecated and should not be used.
-            // Only array dynamic array types are supported.
-            switch (size)
-            {
-                case 0: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[];}"); break;
-                case 1: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + ";}"); break;
-                default: source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[" + std::to_string(size) + "]; }"); break;
-            }
+            source.replace(open, nameEnd - open, "layout(std430)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[];}");
         }
     }
 
@@ -1347,6 +1330,12 @@ namespace PKAssets::Shader
         StringUtilities::ReplaceAll(source, surroundMask, "rsqrt", "inversesqrt");
         StringUtilities::ReplaceAll(source, surroundMask, "asuint", "floatBitsToUint");
         StringUtilities::ReplaceAll(source, surroundMask, "asfloat", "uintBitsToFloat");
+        StringUtilities::ReplaceAll(source, surroundMask, "atan2", "atan");
+        StringUtilities::ReplaceAll(source, surroundMask, "ddx_fine", "dFdxFine");
+        StringUtilities::ReplaceAll(source, surroundMask, "ddy_fine", "dFdyFine");
+        StringUtilities::ReplaceAll(source, surroundMask, "ddx_coarse", "dFdxCoarse");
+        StringUtilities::ReplaceAll(source, surroundMask, "ddy_coarse", "dFdyCoarse");
+
         StringUtilities::ReplaceAll(source, surroundMask, "GroupMemoryBarrierWithGroupSync", "barrier");
         StringUtilities::ReplaceAll(source, surroundMask, "WaveIsFirstLane", "subgroupElect");
         StringUtilities::ReplaceAll(source, surroundMask, "WaveActiveAllTrue", "subgroupAll");
@@ -1356,6 +1345,11 @@ namespace PKAssets::Shader
         StringUtilities::ReplaceAll(source, surroundMask, "WaveActiveSum", "subgroupAdd");
         StringUtilities::ReplaceAll(source, surroundMask, "WaveActiveMax", "subgroupMax");
         StringUtilities::ReplaceAll(source, surroundMask, "WaveActiveBallot", "subgroupBallot");
+        StringUtilities::ReplaceAll(source, surroundMask, "QuadReadAcrossX", "subgroupQuadSwapHorizontal");
+        StringUtilities::ReplaceAll(source, surroundMask, "QuadReadAcrossY", "subgroupQuadSwapVertical");
+        StringUtilities::ReplaceAll(source, surroundMask, "QuadReadAcrossDiagonal", "subgroupQuadSwapDiagonal");
+        StringUtilities::ReplaceAll(source, surroundMask, "QuadAll", "subgroupQuadAll");
+        StringUtilities::ReplaceAll(source, surroundMask, "QuadAny", "subgroupQuadAny");
         StringUtilities::ReplaceAll(source, surroundMask, "countbits", "bitCount");
 
         for (auto i = 0u; i < PK_SHADER_PRIMITIVE_TYPE_COUNT; ++i)

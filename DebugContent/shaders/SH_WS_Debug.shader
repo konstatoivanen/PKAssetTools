@@ -45,7 +45,7 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
 
 [pk_local(MainVs, MainFs)] uniform image2D pk_DebugImage;
 [pk_local(MainFs)] uniform RWStructuredBuffer<float4> _WriteBuffer;
-[pk_local(MainFs)] uniform StructuredBuffer<float4,1u> _ReadVariable;
+[pk_local(MainFs)] uniform StructuredBuffer<float4> _ReadVariable;
 [pk_local(MainFs)] uniform sampler2D tex1;
 [pk_local(MainFs)] uniform sampler smp;
 [pk_local(Fragment)] in float3 vs_COLOR;
@@ -79,7 +79,7 @@ void MainVs()
 void MainFs()
 {
     float3 albedo = texture(sampler2D(_AlbedoTex, smp), vs_TEXCOORD0).xyz;
-    float3 texcolor = texture(tex1, vs_TEXCOORD0).xyz + _ReadVariable.xyz;
+    float3 texcolor = texture(tex1, vs_TEXCOORD0).xyz + _ReadVariable[0].xyz;
     outColor = float4(albedo * texcolor * vs_COLOR * _Color.rgb, 1.0);
     imageStore(pk_DebugImage, int2(outColor.xy * 1024), float4(outColor.x, 0, 0, 0));
     _WriteBuffer[uint(outColor.x * 1024)] = outColor;
