@@ -7,40 +7,41 @@
 
 namespace PKAssets::Shader
 {
-    constexpr const static char* PK_SHADER_STAGE_NAMES[(uint32_t)PKShaderStage::EnumCount] =
-    {
-        "STAGE_VERTEX",
-        "STAGE_TESSELATION_CONTROL",
-        "STAGE_TESSELATION_EVALUATE",
-        "STAGE_GEOMETRY",
-        "STAGE_MESH_TASK",
-        "STAGE_MESH_ASSEMBLY",
-        "STAGE_FRAGMENT",
-        "STAGE_COMPUTE",
 
-        "STAGE_RAY_GENERATION",
-        "STAGE_RAY_MISS",
-        "STAGE_RAY_CLOSEST_HIT",
-        "STAGE_RAY_ANY_HIT",
-        "STAGE_RAY_INTERSECTION"
+    constexpr const static char* PKShaderStage_NAMES[] =
+    {
+        "Vertex",
+        "TesselationControl",
+        "TesselationEvaluation",
+        "Geometry",
+        "MeshTask",
+        "MeshAssembly",
+        "Fragment",
+        "Compute",
+        "RayGeneration",
+        "RayMiss",
+        "RayClosestHit",
+        "RayAnyHit",
+        "RayIntersection",
+        "EnumCount"
     };
 
     constexpr const static char* PK_SHADER_STAGE_DEFINES[(uint32_t)PKShaderStage::EnumCount] =
     {
-        "#define SHADER_STAGE_VERTEX\n",
-        "#define SHADER_STAGE_TESSELATION_CONTROL\n",
-        "#define SHADER_STAGE_TESSELATION_EVALUATE\n",
-        "#define SHADER_STAGE_GEOMETRY\n",
-        "#define SHADER_STAGE_MESH_TASK\n",
-        "#define SHADER_STAGE_MESH_ASSEMBLY\n",
-        "#define SHADER_STAGE_FRAGMENT\n",
-        "#define SHADER_STAGE_COMPUTE\n",
+        "#define SHADER_VERTEX\n",
+        "#define SHADER_TESSELATION_CONTROL\n",
+        "#define SHADER_TESSELATION_EVALUATE\n",
+        "#define SHADER_GEOMETRY\n",
+        "#define SHADER_MESH_TASK\n",
+        "#define SHADER_MESH_ASSEMBLY\n",
+        "#define SHADER_FRAGMENT\n",
+        "#define SHADER_COMPUTE\n",
 
-        "#define SHADER_STAGE_RAY_GENERATION\n",
-        "#define SHADER_STAGE_RAY_MISS\n",
-        "#define SHADER_STAGE_RAY_CLOSEST_HIT\n",
-        "#define SHADER_STAGE_RAY_ANY_HIT\n",
-        "#define SHADER_STAGE_RAY_INTERSECTION\n"
+        "#define SHADER_RAY_GENERATION\n",
+        "#define SHADER_RAY_MISS\n",
+        "#define SHADER_RAY_CLOSEST_HIT\n",
+        "#define SHADER_RAY_ANY_HIT\n",
+        "#define SHADER_RAY_INTERSECTION\n"
     };
 
     constexpr const static char* PK_GL_EXTENSIONS_COMMON =

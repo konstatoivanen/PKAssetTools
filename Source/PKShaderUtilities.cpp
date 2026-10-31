@@ -235,24 +235,6 @@ namespace PKAssets::Shader
         "keyword",
     };
 
-    // Special names for these. Follow defines
-    const static char* PKShaderStage_NAMES[] =
-    {
-        "SHADER_STAGE_VERTEX",
-        "SHADER_STAGE_TESSELATION_CONTROL",
-        "SHADER_STAGE_TESSELATION_EVALUATE",
-        "SHADER_STAGE_GEOMETRY",
-        "SHADER_STAGE_MESH_TASK",
-        "SHADER_STAGE_MESH_ASSEMBLY",
-        "SHADER_STAGE_FRAGMENT",
-        "SHADER_STAGE_COMPUTE",
-        "SHADER_STAGE_RAY_GENERATION",
-        "SHADER_STAGE_RAY_MISS",
-        "SHADER_STAGE_RAY_CLOSEST_HIT",
-        "SHADER_STAGE_RAY_ANY_HIT",
-        "SHADER_STAGE_RAY_INTERSECTION",
-        "SHADER_STAGE_INVALID"
-    };
 
     const static char* PKComparison_NAMES[] =
     {
@@ -311,7 +293,7 @@ namespace PKAssets::Shader
     };
 
     template<size_t size>
-    static uint32_t FindEnumIndexFromString(const char* (&arr)[size], const char* str, uint32_t fallback)
+    static uint32_t FindEnumIndexFromString(const char* const (&arr)[size], const char* str, uint32_t fallback)
     {
         auto length = str ? strnlen(str, 64) : 0u;
 
@@ -894,7 +876,7 @@ namespace PKAssets::Shader
 
             for (auto& arg : arguments)
             {
-                if (arg.compare(entryPointName) == 0 || arg.compare(PK_SHADER_STAGE_NAMES[(uint32_t)stage]) == 0)
+                if (arg.compare(entryPointName) == 0 || arg.compare(PKShaderStage_NAMES[(uint32_t)stage]) == 0)
                 {
                     foundEntry = true;
                     break;

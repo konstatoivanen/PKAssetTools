@@ -13,9 +13,9 @@
 #pragma pk_material_property texture3D _LutTex
 
 #pragma pk_multi_compile _ PASS_COLOR
-#pragma pk_program SHADER_STAGE_VERTEX MainVs 
-#pragma pk_program SHADER_STAGE_FRAGMENT MainFs
-#pragma pk_program SHADER_STAGE_FRAGMENT ColorFs PASS_COLOR
+#pragma pk_program Vertex MainVs 
+#pragma pk_program Fragment MainFs
+#pragma pk_program Fragment ColorFs PASS_COLOR
 
 #include "includes/DebugUtilities.glsl"
 
@@ -48,11 +48,11 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
 [pk_local(MainFs)] uniform StructuredBuffer<float4,1u> _ReadVariable;
 [pk_local(MainFs)] uniform sampler2D tex1;
 [pk_local(MainFs)] uniform sampler smp;
-[pk_local(STAGE_FRAGMENT)] in float3 vs_COLOR;
-[pk_local(STAGE_FRAGMENT)] in float2 vs_TEXCOORD0;
-[pk_local(STAGE_FRAGMENT)] out float4 outColor;
+[pk_local(Fragment)] in float3 vs_COLOR;
+[pk_local(Fragment)] in float2 vs_TEXCOORD0;
+[pk_local(Fragment)] out float4 outColor;
 
-#if defined(SHADER_STAGE_FRAGMENT)
+#if defined(SHADER_FRAGMENT)
 uniform float MyUnusedStagePushConstant;
 #endif
 

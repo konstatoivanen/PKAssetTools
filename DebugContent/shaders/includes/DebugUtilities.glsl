@@ -54,7 +54,7 @@ float pow5(float x) { return x * x * x * x * x; }
 #define PK_DECLARE_RT_PAYLOAD_IN(type, name, index) layout(location = index) rayPayloadInEXT type name
 #define PK_DECLARE_RT_PAYLOAD_OUT(type, name, index) layout(location = index) rayPayloadEXT type name
 
-#if defined(SHADER_STAGE_RAY_GENERATION) || defined(SHADER_STAGE_RAY_MISS) || defined(SHADER_STAGE_RAY_CLOSEST_HIT) || defined(SHADER_STAGE_RAY_ANY_HIT) || defined(SHADER_STAGE_RAY_INTERSECTION)
+#if defined(SHADER_RAY_GENERATION) || defined(SHADER_RAY_MISS) || defined(SHADER_RAY_CLOSEST_HIT) || defined(SHADER_RAY_ANY_HIT) || defined(SHADER_RAY_INTERSECTION)
     #define PK_DECLARE_ACCELERATION_STRUCTURE(Set, Name) layout(set = Set) uniform accelerationStructureEXT Name;
 #else
     #define PK_DECLARE_ACCELERATION_STRUCTURE(Set, Name)

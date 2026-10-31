@@ -213,7 +213,7 @@ namespace PKAssets::Shader
         if (result.GetCompilationStatus() != shaderc_compilation_status_success)
         {
             printf("\n ----------BEGIN ERROR---------- \n");
-            printf("\n Stage: %s\n\n", PK_SHADER_STAGE_NAMES[(uint32_t)stage]);
+            printf("\n Stage: %s\n\n", PKShaderStage_NAMES[(uint32_t)stage]);
             printf("%s", result.GetErrorMessage().c_str());
             printf("\n ----------END ERROR---------- \n\n");
             return -1;
@@ -235,7 +235,7 @@ namespace PKAssets::Shader
             #endif
 
             printf("\n ----------BEGIN ERROR---------- \n");
-            printf("\n Stage: %s\n\n", PK_SHADER_STAGE_NAMES[(uint32_t)stage]);
+            printf("\n Stage: %s\n\n", PKShaderStage_NAMES[(uint32_t)stage]);
             printf("%s", FormatErrorMessage(name, source, result.GetErrorMessage()).c_str());
             printf("\n ----------END ERROR---------- \n\n");
 
@@ -640,7 +640,7 @@ namespace PKAssets::Shader
 
                     if (logVerbose)
                     {
-                        printf("Compiling %s:%i %s \n", entry.name.c_str(), variantIndex, PK_SHADER_STAGE_NAMES[stageIndex]);
+                        printf("Compiling %s:%i %s \n", entry.name.c_str(), variantIndex, PKShaderStage_NAMES[stageIndex]);
                     }
 
                     auto* module = CompileToSPIRV(compiler, options, entry.stage, entry.name, stageSource);

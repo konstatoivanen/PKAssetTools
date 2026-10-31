@@ -1,5 +1,5 @@
 #version 450
-#pragma pk_program SHADER_STAGE_COMPUTE main
+#pragma pk_program Compute main
 
 #include "includes/DebugUtilities.glsl"
 
