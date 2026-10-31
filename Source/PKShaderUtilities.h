@@ -61,7 +61,11 @@ namespace PKAssets::Shader
         "#extension GL_EXT_control_flow_attributes : require\n"
         "#extension GL_EXT_nonuniform_qualifier : require\n"
         "#extension GL_ARB_shader_viewport_layer_array : require\n"
-        "#extension GL_EXT_shader_image_load_formatted : require\n";
+        "#extension GL_EXT_shader_image_load_formatted : require\n"
+        "uniform sampler pk_Heap_Samplers[];\n"
+        "uniform texture2D pk_Heap_Textures2D[];\n"
+        "uniform texture3D pk_Heap_Textures3D[];\n"
+        "uniform textureCube pk_Heap_TexturesCube[];\n";
 
     constexpr const static char* PK_GL_EXTENSIONS_RAYTRACING = 
         "#extension GL_EXT_ray_tracing : require \n"

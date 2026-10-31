@@ -153,9 +153,9 @@ namespace PKAssets::Shader::Instancing
 
             switch (prop.type)
             {
-                case PKUniform::Texture2D: block += "#define " + name + " pk_Instancing_Textures2D[" + name + "_Handle]\n"; break;
-                case PKUniform::Texture3D: block += "#define " + name + " pk_Instancing_Textures3D[" + name + "_Handle]\n"; break;
-                case PKUniform::TextureCube: block += "#define " + name + " pk_Instancing_TexturesCube[" + name + "_Handle]\n"; break;
+                case PKUniform::Texture2D: block += "#define " + name + " pk_Heap_Textures2D[" + name + "_Handle]\n"; break;
+                case PKUniform::Texture3D: block += "#define " + name + " pk_Heap_Textures3D[" + name + "_Handle]\n"; break;
+                case PKUniform::TextureCube: block += "#define " + name + " pk_Heap_TexturesCube[" + name + "_Handle]\n"; break;
                 default: break;
             }
         }
