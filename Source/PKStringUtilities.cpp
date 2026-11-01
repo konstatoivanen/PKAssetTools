@@ -441,4 +441,26 @@ namespace PKAssets::StringUtilities
             pos += tl;
         }
     }
+
+    bool ExtractDiagnosticLineIndex(const std::string& line, const std::string& moduleName, size_t* outLineIndex)
+    {
+        for (char sep : { '(', ':' })
+        {
+            const auto token = moduleName + sep;
+            const auto pos = line.find(token);
+
+            if (pos != std::string::npos)
+            {
+                const auto indexBeg = pos + token.size();
+
+                if (indexBeg < line.size() && isdigit((uint8_t)line[indexBeg]))
+                {
+                    *outLineIndex = (size_t)std::stoull(line.c_str() + indexBeg);
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }

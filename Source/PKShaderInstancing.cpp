@@ -5,61 +5,19 @@
 
 namespace PKAssets::Shader::Instancing
 {
-    using namespace PKAssets::StringUtilities;
-
-    void InsertEntryPoint(std::string& source, PKShaderStage stage, bool enableInstancing, bool noFragmentInstancing)
+    void InsertMaterialAssembly(std::string& source, std::vector<PKMaterialProperty>& outProperties, bool* outEnabled, bool* outNoFragInstancing)
     {
-        if (!enableInstancing)
+        *outEnabled = false;
+        outProperties.clear();
+
+        const auto noFragment = !StringUtilities::ExtractToken(PK_SHADER_ATTRIB_INSTANCING_NOFRAG_PROP, source, true).empty();
+        if (outNoFragInstancing)
         {
-            return;
+            *outNoFragInstancing = noFragment;
         }
 
-        switch (stage)
-        {
-            case PKShaderStage::Vertex:
-                source.insert(0, Instancing_Vertex_GLSL);
-                break;
-            case PKShaderStage::MeshTask: 
-                source.insert(0, Instancing_MeshTask_GLSL); 
-                break;
-            case PKShaderStage::MeshAssembly: 
-                source.insert(0, noFragmentInstancing ? Instancing_MeshAssembly_NoFrag_GLSL : Instancing_MeshAssembly_GLSL);
-                break;
-            case PKShaderStage::Fragment: 
-                source.insert(0, noFragmentInstancing ? Instancing_Fragment_NoFrag_GLSL : Instancing_Fragment_GLSL);
-                break;
-            default: return;
-        }
-
-        auto pos = source.find("main()");
-
-        if (pos == std::string::npos)
-        {
-            printf("Warning: No main() found for instancing instert.\n");
-            return;
-        }
-
-        pos = source.find('{', pos);
-
-        if (pos == std::string::npos)
-        {
-            printf("Warning: No { found after main() for instancing instert.\n");
-            return;
-        }
-
-        source.insert(pos + 1u, Instancing_Stage_GLSL);
-    }
-    
-    void InsertMaterialAssembly(std::string& source, std::vector<PKMaterialProperty>& materialProperties, bool* outUseInstancing, bool* outNoFragInstancing)
-    {
-        *outUseInstancing = false;
         std::string output;
-        size_t pos = 0;
-
-        auto nofragToken = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_INSTANCING_NOFRAG_PROP, source, true);
-        *outNoFragInstancing = !nofragToken.empty();
-
-        materialProperties.clear();
+        auto pos = 0ull;
 
         while (true)
         {
@@ -77,90 +35,59 @@ namespace PKAssets::Shader::Instancing
                 continue;
             }
 
-            auto type = StringToPKUniform(parts.at(0).c_str());
+            auto type = StringToPKUniform(parts[0].c_str());
 
-            if (type == PKUniform::Invalid)
+            if (type != PKUniform::Invalid)
             {
-                continue;
+                PKMaterialProperty prop{};
+                prop.type = type;
+                WriteName(prop.name, parts[1].c_str());
+                outProperties.push_back(prop);
             }
-
-            PKMaterialProperty prop{};
-            prop.type = type;
-            WriteName(prop.name, parts.at(1).c_str());
-            materialProperties.push_back(prop);
         }
 
-        if (materialProperties.size() == 0)
+        if (outProperties.empty())
         {
-            auto standaloneToken = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_INSTANCING_PROP, source, true);
-
-            if (!standaloneToken.empty())
+            if (!StringUtilities::ExtractToken(PK_SHADER_ATTRIB_INSTANCING_PROP, source, true).empty())
             {
-                source.insert(0, Instancing_Standalone_GLSL);
-                *outUseInstancing = true;
+                auto header = (noFragment ? Instancing_NoFrag_SLANG : Instancing_Default_SLANG) + std::string(Instancing_Common_Resources_SLANG) + "}\n";
+                source.insert(0, header);
+                *outEnabled = true;
+            }
+            else
+            {
+                source.insert(0, Instancing_Disabled_SLANG);
             }
 
             return;
         }
 
-        std::string block = "struct PK_MaterialPropertyBlock\n{\n";
+        std::string structFields;
+        std::string propertyAccessors;
 
-        for (auto& prop : materialProperties)
+        for (const auto& prop : outProperties)
         {
-            block += "    " + PKUniformToGLSLString(prop.type) + " " + std::string(prop.name) + ";\n";
-        }
-
-        block += "};\n";
-
-        for (auto& prop : materialProperties)
-        {
-            auto name = std::string(prop.name);
+            const std::string name(prop.name);
+            const std::string fieldType = PKUniformToSlangString(prop.type);
+            structFields += fieldType + " " + name + ";\n";
 
             switch (prop.type)
             {
-                case PKUniform::Texture2D: block += "uint " + name + "_Handle;\n"; break;
-                case PKUniform::Texture3D: block += "uint " + name + "_Handle;\n"; break;
-                case PKUniform::TextureCube: block += "uint " + name + "_Handle;\n"; break;
-                default: block += PKUniformToGLSLString(prop.type) + " " + name + ";\n"; break;
+                case PKUniform::Texture2D: propertyAccessors += "property Texture2D " + name + " {get{return pk_Heap_Textures2D[pk_Instancing_PropertyBlock." + name + "];}}\n"; break;
+                case PKUniform::Texture3D: propertyAccessors += "property Texture3D " + name + " {get{return pk_Heap_Textures3D[pk_Instancing_PropertyBlock." + name + "];}}\n"; break;
+                case PKUniform::TextureCube: propertyAccessors += "property TextureCube " + name + " {get{return pk_Heap_TexturesCube[pk_Instancing_PropertyBlock." + name + "];}}\n"; break;
+                default: propertyAccessors += "property " + fieldType + " " + name + " {get{return pk_Instancing_PropertyBlock." + name + ";}}\n"; break;
             }
         }
 
-        block += Instancing_Base_GLSL;
+        auto header = "struct PK_MaterialPropertyBlock\n{\n" + structFields + "};\n" +
+            (noFragment ? Instancing_NoFrag_SLANG : Instancing_Default_SLANG) +
+            Instancing_Material_Resources_SLANG +
+            Instancing_Common_Resources_SLANG +
+            Instancing_Material_Assign_SLANG +
+            propertyAccessors;
 
-        for (auto& prop : materialProperties)
-        {
-            auto name = std::string(prop.name);
-
-            switch (prop.type)
-            {
-                case PKUniform::Texture2D:
-                case PKUniform::Texture3D:
-                case PKUniform::TextureCube:
-                    block += "    " + name + "_Handle = prop." + name + ";\n";
-                    break;
-
-                default:
-                    block += "    " + name + " = prop." + name + ";\n";
-                    break;
-            }
-        }
-
-        block += "}\n";
-
-        for (auto& prop : materialProperties)
-        {
-            auto name = std::string(prop.name);
-
-            switch (prop.type)
-            {
-                case PKUniform::Texture2D: block += "#define " + name + " pk_Heap_Textures2D[" + name + "_Handle]\n"; break;
-                case PKUniform::Texture3D: block += "#define " + name + " pk_Heap_Textures3D[" + name + "_Handle]\n"; break;
-                case PKUniform::TextureCube: block += "#define " + name + " pk_Heap_TexturesCube[" + name + "_Handle]\n"; break;
-                default: break;
-            }
-        }
-
-        source.insert(0, block);
-        *outUseInstancing = true;
+        source.insert(0, header);
+        *outEnabled = true;
     }
 }

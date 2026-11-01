@@ -21,4 +21,5 @@ namespace PKAssets::StringUtilities
     size_t LastIndexOf(const char* str, char c);
     void ConvertTabsToSpaces(std::string& value);
     void ReplaceAll(std::string& str, const std::string& surroundMask, const std::string& from, const std::string& to);
+    bool ExtractDiagnosticLineIndex(const std::string& line, const std::string& moduleName, size_t* outLineIndex);
 };

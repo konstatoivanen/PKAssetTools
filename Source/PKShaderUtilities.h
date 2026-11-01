@@ -1,13 +1,15 @@
 #pragma once
-#include <shaderc/shaderc.hpp>
+#include <slang/slang.h>
+#include <slang/slang-com-ptr.h>
 #include <SPIRV-Reflect/spirv_reflect.h>
 #include <map>
 #include <unordered_map>
+#include <vector>
+#include <string>
 #include <PKAsset.h>
 
 namespace PKAssets::Shader
 {
-
     constexpr const static char* PKShaderStage_NAMES[] =
     {
         "Vertex",
@@ -44,36 +46,148 @@ namespace PKAssets::Shader
         "#define SHADER_RAY_INTERSECTION\n"
     };
 
-    constexpr const static char* PK_GL_EXTENSIONS_COMMON =
-        "#extension GL_KHR_shader_subgroup_arithmetic : require\n"
-        "#extension GL_KHR_shader_subgroup_shuffle : require\n"
-        "#extension GL_KHR_shader_subgroup_basic : require\n"
-        "#extension GL_KHR_shader_subgroup_ballot : require\n"
-        "#extension GL_KHR_shader_subgroup_quad : require\n"
-        "#extension GL_KHR_shader_subgroup_vote : require\n"
-        "#extension GL_EXT_shader_quad_control : require\n"
-        "#extension GL_EXT_samplerless_texture_functions : require\n"
-        "#extension GL_EXT_shader_16bit_storage : require \n"
-        "#extension GL_EXT_shader_8bit_storage : require \n"
-        "#extension GL_EXT_scalar_block_layout : require \n"
-        "#extension GL_EXT_shader_explicit_arithmetic_types : require\n"
-        "#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require\n"
-        "#extension GL_EXT_control_flow_attributes : require\n"
-        "#extension GL_EXT_nonuniform_qualifier : require\n"
-        "#extension GL_ARB_shader_viewport_layer_array : require\n"
-        "#extension GL_EXT_shader_image_load_formatted : require\n"
-        "uniform sampler pk_Heap_Samplers[];\n"
-        "uniform texture2D pk_Heap_Textures2D[];\n"
-        "uniform texture3D pk_Heap_Textures3D[];\n"
-        "uniform textureCube pk_Heap_TexturesCube[];\n";
+    constexpr const static char* PK_SLANG_PRELUDE = R"(
+        typedef uint8_t   byte;
+        typedef uint8_t2  byte2;
+        typedef uint8_t3  byte3;
+        typedef uint8_t4  byte4;
+        typedef int8_t    sbyte;
+        typedef int8_t2   sbyte2;
+        typedef int8_t3   sbyte3;
+        typedef int8_t4   sbyte4;
+        typedef int16_t   short;
+        typedef int16_t2  short2;
+        typedef int16_t3  short3;
+        typedef int16_t4  short4;
+        typedef uint16_t  ushort;
+        typedef uint16_t2 ushort2;
+        typedef uint16_t3 ushort3;
+        typedef uint16_t4 ushort4;
+        typedef int64_t   long;
+        typedef int64_t2  long2;
+        typedef int64_t3  long3;
+        typedef int64_t4  long4;
+        typedef uint64_t  ulong;
+        typedef uint64_t2 ulong2;
+        typedef uint64_t3 ulong3;
+        typedef uint64_t4 ulong4;
+        
+        #define float3x4 row_major matrix<float, 3, 4>
 
-    constexpr const static char* PK_GL_EXTENSIONS_RAYTRACING = 
-        "#extension GL_EXT_ray_tracing : require \n"
-        "#extension GL_EXT_ray_tracing_position_fetch : require \n";
-    
-    constexpr const static char* PK_GL_EXTENSIONS_MESHSHADING = "#extension GL_EXT_mesh_shader : require \n";
+        property float4 gl_FragCoord{ get { return spirv_asm { result:$$float4 = OpLoad builtin(FragCoord : float4); }; } }
+        property uint3  gl_GlobalInvocationID{ get { return spirv_asm { result:$$uint3 = OpLoad builtin(GlobalInvocationId : uint3); }; } }
+        property uint3  gl_LocalInvocationID{ get { return spirv_asm { result:$$uint3 = OpLoad builtin(LocalInvocationId : uint3); }; } }
+        property uint3  gl_WorkGroupID{ get { return spirv_asm { result:$$uint3 = OpLoad builtin(WorkgroupId : uint3); }; } }
+        property uint   gl_LocalInvocationIndex{ get { return spirv_asm { result:$$uint = OpLoad builtin(LocalInvocationIndex : uint); }; } }
+        property uint3  gl_NumWorkGroups{ get { return spirv_asm { result:$$uint3 = OpLoad builtin(NumWorkgroups : uint3); }; } }
+        property uint3  gl_WorkGroupSize{ get { return WorkgroupSize(); } }
+        property uint   gl_SubgroupID{ get { return spirv_asm { OpCapability GroupNonUniform; result:$$uint = OpLoad builtin(SubgroupId : uint); }; } }
+        property uint   gl_NumSubgroups{ get { return spirv_asm { OpCapability GroupNonUniform; result:$$uint = OpLoad builtin(NumSubgroups : uint); }; } }
+        property uint   gl_SubgroupSize{ get { return WaveGetLaneCount(); } }
+        property uint   gl_SubgroupInvocationID{ get { return WaveGetLaneIndex(); } }
+        property uint3  gl_LaunchIDEXT{ get { return spirv_asm { OpCapability RayTracingKHR; result:$$uint3 = OpLoad builtin(LaunchIdKHR : uint3); }; } }
+        property uint   gl_PrimitiveID{ get { return spirv_asm { result:$$uint = OpLoad builtin(PrimitiveId : uint); }; } }
+        property uint   gl_VertexIndex{ get { return spirv_asm { result:$$uint = OpLoad builtin(VertexIndex : uint); }; } }
+        property uint   gl_InstanceIndex{ get { return spirv_asm { result:$$uint = OpLoad builtin(InstanceIndex : uint); }; } }
 
-    constexpr const static char* PK_GL_EXTENSION_PRINTF = "#extension GL_EXT_debug_printf : require\n";
+        enum PKShaderStage : uint
+        {
+            Vertex = 0,
+            TesselationControl = 1,
+            TesselationEvaluation = 2,
+            Geometry = 3,
+            MeshTask = 4,
+            MeshAssembly = 5,
+            Fragment = 6,
+            Compute = 7,
+            RayGeneration = 8,
+            RayMiss = 9,
+            RayClosestHit = 10,
+            RayAnyHit = 11,
+            RayIntersection = 12,
+            Invalid = 13
+        };
+        
+        PKShaderStage PK_GetShaderStage()
+        {
+            __stage_switch
+            {
+                case vertex:        return PKShaderStage::Vertex;
+                case hull:          return PKShaderStage::TesselationControl;
+                case domain:        return PKShaderStage::TesselationEvaluation;
+                case geometry:      return PKShaderStage::Geometry;
+                case amplification: return PKShaderStage::MeshTask;
+                case mesh:          return PKShaderStage::MeshAssembly;
+                case fragment:      return PKShaderStage::Fragment;
+                case compute:       return PKShaderStage::Compute;
+                case raygen:        return PKShaderStage::RayGeneration;
+                case miss:          return PKShaderStage::RayMiss;
+                case closesthit:    return PKShaderStage::RayClosestHit;
+                case anyhit:        return PKShaderStage::RayAnyHit;
+                case intersection:  return PKShaderStage::RayIntersection;
+                default:            return PKShaderStage::Invalid;
+            }
+        }
+
+        float4 PK_GetProgramCoord()
+        {
+            __stage_switch
+            {
+                case fragment:
+                    return gl_FragCoord;
+                case compute:
+                case amplification:
+                case mesh:
+                    return float4(gl_GlobalInvocationID, 0u);
+                case raygen:
+                case miss:
+                case closesthit:
+                case anyhit:
+                case intersection:
+                    return float4(gl_LaunchIDEXT, 0u);
+                default:
+                    return 0.0f.xxxx;
+            }
+        }
+
+        float4 operator*(float4x4 m, float4 v) { return mul(m, v); }
+        float4 operator*(float4 v, float4x4 m) { return mul(v, m); }
+        float4x4 operator*(float4x4 a, float4x4 b) { return mul(a, b); }
+
+        __generic<T : __BuiltinFloatingPointType, let R : int, let C : int>
+        vector<T, C> operator*(matrix<T, R, C> m, vector<T, R> v) { return mul(v, m); }
+
+        __generic<T : __BuiltinFloatingPointType, let R : int, let C : int>
+        vector<T, R> operator*(vector<T, C> v, matrix<T, R, C> m) { return mul(m, v); }
+
+        __generic<T : __BuiltinFloatingPointType, let R : int, let N : int, let C : int>
+        matrix<T, R, C> operator*(matrix<T, N, C> a, matrix<T, R, N> b) { return mul(b, a); }
+
+        __generic<T : ITexelElement> T texelFetch(Texture2D<T> tex, int2 coord, int lod) { return tex.Load(int3(coord, lod)); }
+        __generic<T : ITexelElement> T texelFetch(Texture2DArray<T> tex, int3 coord, int lod) { return tex.Load(int4(coord, lod)); }
+        __generic<T : ITexelElement> T texelFetch(Texture3D<T> tex, int3 coord, int lod) { return tex.Load(int4(coord, lod)); }
+
+        float4 texelFetch(Texture2DMS<float4> tex, int2 coord, int sampleIndex) { return tex.Load(coord, sampleIndex); }
+        int textureSamples(Texture2DMS<float4> tex) { uint w, h, s; tex.GetDimensions(w, h, s); return int(s); }
+
+        extension<T : ITexelElement> RWTexture2D<T> { uint2 GetSize() { uint w, h; this.GetDimensions(w, h); return uint2(w, h);}};
+        extension<T : ITexelElement> RWTexture2DArray<T> { uint3 GetSize() { uint w, h, e; this.GetDimensions(w, h, e); return uint3(w, h, e);}};
+        extension<T : ITexelElement> RWTexture3D<T> { uint3 GetSize() { uint w, h, d; this.GetDimensions(w, h, d); return uint3(w, h, d);}};
+        extension<T : ITexelElement> Texture2D<T> { uint2 GetSize(uint mip = 0) { uint w, h, l; this.GetDimensions(mip, w, h, l); return uint2(w, h);}};
+        extension<T : ITexelElement> Texture3D<T> { uint3 GetSize(uint mip = 0) { uint w, h, d, l; this.GetDimensions(mip, w, h, d, l); return uint3(w, h, d);}};
+        extension<T : ITexelElement> Texture2DArray<T> { uint3 GetSize(uint mip = 0) { uint w, h, e, l; this.GetDimensions(mip, w, h, e, l); return uint3(w, h, e);}};
+        
+        extension<T : ITexelElement> Texture2DMS<T>
+        {
+            uint2 GetSize() { uint w, h, s; this.GetDimensions(w, h, s); return uint2(w, h); }
+            uint GetSampleCount() { uint w, h, s; this.GetDimensions(w, h, s); return s; }
+        };
+
+        uniform SamplerState pk_Heap_Samplers[];
+        uniform Texture2D<float4> pk_Heap_Textures2D[];
+        uniform Texture3D<float4> pk_Heap_Textures3D[];
+        uniform TextureCube<float4> pk_Heap_TexturesCube[];
+        )";
 
     struct SourcePushConstant
     {
@@ -86,7 +200,6 @@ namespace PKAssets::Shader
     {
         PKShaderStage stage;
         std::string name;
-        std::string functionName;
         std::string keyword;
     };
 
@@ -122,8 +235,6 @@ namespace PKAssets::Shader
     };
 
     typedef std::vector<SourcePushConstant> SourcePushConstants;
-    typedef shaderc::Compiler ShaderCompiler;
-    typedef shaderc::CompileOptions CompileOptions;
 
     PKUniform StringToPKUniform(const char* str);
     PKShaderStage StringToPKShaderStage(const char* str);
@@ -135,31 +246,18 @@ namespace PKAssets::Shader
     PKRasterMode StringToPKRasterMode(const char* str);
 
     PKUniform SpvFormatToPKUniform(SpvReflectFormat format);
-    std::string PKUniformToGLSLString(PKUniform type);
+    std::string PKUniformToSlangString(PKUniform type);
 
     PKDescriptorType GetResourceType(SpvReflectDescriptorType type);
-    shaderc_shader_kind ConvertToShadercKind(PKShaderStage stage);
+    SlangStage PKShaderStageToSlangStage(PKShaderStage stage);
+    const char* GetSlangStageAttribute(PKShaderStage stage);
     std::string ReflectBindingName(SpvReflectDescriptorBinding* binding);
     std::string FormatErrorMessage(const std::string& name, const std::string& source, const std::string& error);
-    uint32_t CountBits(uint32_t value);
     void ExtractLogVerbose(std::string& source, bool* outValue);
     void ExtractGenerateDebugInfo(std::string& source, bool* outValue);
     void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes);
-    void InsertRequiredExtensions(std::string& source, PKShaderStage stage);
-    void RemoveInactiveGroupSizeLayouts(std::string& source, PKShaderStage stage);
-    void ProcessShaderVersion(std::string& source);
-    void RemoveDescriptorSets(std::string& source);
-    void RemoveUnsupportedRayTracingFields(std::string& source, PKShaderStage stage);
-    void ConvertPrintf(std::string& source);
-    void ConvertPKNumThreads(std::string& source);
-    void ConvertHLSLBuffers(std::string& source);
-    void ConvertHLSLTextures(std::string& source);
-    void ConvertHLSLCBuffers(std::string& source);
-    void ConvertHLSLTypesToGLSL(std::string& source);
-    void ExtractPushConstants(std::string& source, PKShaderStage stage, SourcePushConstants& outConstants);
-    void CompilePushConstantBlock(std::string* stageSources, const SourcePushConstants& constants);
-    void AddLineCounter(std::string* stageSources);
-
-    void RemoveUnusedResourcesAndFunctions(std::string& source);
-    void RemoveUnusedStageOutputs(std::string* stageSources);
+    void SetActiveEntryPoints(std::string& source, const std::vector<EntryPointInfo>& entries, EntryPointInfo* const* activeEntries);
+    void ExtractPushConstants(std::string& source, uint32_t stageMask, SourcePushConstants& outConstants);
+    void CompilePushConstantBlock(std::string& source, const SourcePushConstants& constants);
+    void RemoveUnusedResourcesAndFunctions(std::string& source, EntryPointInfo* const* activeEntries);
 }

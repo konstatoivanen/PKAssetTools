@@ -3,41 +3,15 @@
 
 namespace PKAssets::Shader
 {
-    // Debug types
-    struct OpStore
-    {
-        uint32_t pointer;
-        uint32_t object;
-    };
-
-    struct OpImageWrite
-    {
-        uint32_t image;
-    };
-
-    struct OpLoad
-    {
-        uint32_t resultType;
-        uint32_t result;
-        uint32_t pointer;
-    };
-
-    struct OpAccessChain
-    {
-        uint32_t resultType;
-        uint32_t result;
-        uint32_t base;
-    };
-
     static bool FindOpConstUint(const uint32_t* code, const uint32_t wordCount, uint32_t constId, uint32_t* outValue)
     {
-        uint32_t i = 5u; // Bytecode starts at word index 5, after the header.
+        auto i = 5u;
 
         while (i < wordCount)
         {
-            SpvOp opcode = (SpvOp)(code[i] & 0xFFFFu);
-            uint16_t wcount = (code[i] >> 16) & 0xFFFFu;
-            const uint32_t* params = code + i + 1;
+            auto opcode = (SpvOp)(code[i] & 0xFFFFu);
+            auto wcount = (uint16_t)((code[i] >> 16) & 0xFFFFu);
+            const auto* params = code + i + 1u;
 
             if (opcode == SpvOp::SpvOpConstant && params[1] == constId)
             {
@@ -53,63 +27,72 @@ namespace PKAssets::Shader
 
     bool ReflectResourceWrite(const uint32_t* code, const uint32_t wordCount, uint32_t variable, PKDescriptorType type)
     {
-        if (type != PKDescriptorType::Image && 
-            type != PKDescriptorType::StorageBuffer)
+        if (type != PKDescriptorType::Image && type != PKDescriptorType::StorageBuffer)
         {
             return false;
         }
 
-        uint32_t i = 5u; // Bytecode starts at word index 5, after the header.
+        std::vector<uint32_t> derivedIds;
+        derivedIds.reserve(16u);
+        derivedIds.push_back(variable);
 
-        uint32_t accessChainId = ~0u;
-        uint32_t opLoadId = ~0u;
+        auto isDerived = [&](uint32_t id)
+        {
+            for (auto d : derivedIds)
+            {
+                if (d == id)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        auto addDerived = [&](uint32_t id)
+        {
+            if (!isDerived(id))
+            {
+                derivedIds.push_back(id);
+            }
+        };
+
+        auto i = 5u;
 
         while (i < wordCount)
         {
-            SpvOp opcode = (SpvOp)(code[i] & 0xFFFFu);
-            uint16_t wcount = (code[i] >> 16) & 0xFFFFu;
-            const uint32_t* params = code + i + 1u;
+            const auto opcode = (SpvOp)(code[i] & 0xFFFFu);
+            const auto wcount = (uint16_t)((code[i] >> 16) & 0xFFFFu);
+            const auto params = code + i + 1u;
 
-            // Reset access chain if the variable was reused.
-            if (opcode == SpvOp::SpvOpAccessChain && params[1] == accessChainId)
+            if (wcount == 0u)
             {
-                accessChainId = ~0u;
-            }
-
-            // Reset opload if the variable was reused.
-            if (opcode == SpvOp::SpvOpLoad && params[1] == opLoadId)
-            {
-                opLoadId = ~0u;
-            }
-
-            // found access chain. potentially aliased resource
-            if (opcode == SpvOp::SpvOpAccessChain && params[2] == variable)
-            {
-                accessChainId = params[1];
-            }
-
-            if (opcode == SpvOp::SpvOpLoad && (params[2] == variable || params[2] == accessChainId))
-            {
-                opLoadId = params[1];
+                break;
             }
 
             // We have a valid access chain from resource to a load op. look for write op.
             // Buffer access always references resoruces through access chains so we can ignore the op load.
             switch (opcode)
             {
-                case SpvOp::SpvOpStore:
-                case SpvOp::SpvOpAtomicStore:
+                case SpvOp::SpvOpAccessChain:
+                case SpvOp::SpvOpInBoundsAccessChain:
+                case SpvOp::SpvOpPtrAccessChain:
+                case SpvOp::SpvOpInBoundsPtrAccessChain:
+                case SpvOp::SpvOpCopyObject:
+                case SpvOp::SpvOpLoad:
+                case SpvOp::SpvOpImageTexelPointer:
                 {
-                    if (params[0] == accessChainId)
+                    if (wcount >= 4u && isDerived(params[2]))
                     {
-                        return true;
+                        addDerived(params[1]);
                     }
                 }
                 break;
 
+                case SpvOp::SpvOpStore:
+                case SpvOp::SpvOpAtomicStore:
                 case SpvOp::SpvOpImageWrite:
                 {
-                    if (params[0] == opLoadId)
+                    if (wcount >= 3u && isDerived(params[0]))
                     {
                         return true;
                     }
@@ -132,11 +115,13 @@ namespace PKAssets::Shader
                 case SpvOp::SpvOpAtomicXor:
                 case SpvOp::SpvOpAtomicFAddEXT:
                 {
-                    if (params[2] == accessChainId)
+                    if (wcount >= 4u && isDerived(params[2]))
                     {
                         return true;
                     }
                 }
+                break;
+
                 default: break;
             }
 
@@ -148,14 +133,14 @@ namespace PKAssets::Shader
 
     bool ReflectLocalSize(const uint32_t* code, const uint32_t wordCount, uint32_t* localSize)
     {
-        uint32_t i = 5u; // Bytecode starts at word index 5, after the header.
+        auto i = 5u;
 
         while (i < wordCount)
         {
-            SpvOp opcode = (SpvOp)(code[i] & 0xFFFFu);
-            uint16_t wcount = (code[i] >> 16) & 0xFFFFu;
-            const uint32_t* params = code + i + 1;
-            
+            const auto opcode = (SpvOp)(code[i] & 0xFFFFu);
+            const auto wcount = (uint16_t)((code[i] >> 16) & 0xFFFFu);
+            const auto* params = code + i + 1u;
+
             if (opcode == SpvOp::SpvOpExecutionModeId && params[1] == SpvExecutionMode::SpvExecutionModeLocalSizeId)
             {
                 const bool foundX = FindOpConstUint(code, wordCount, params[2], &localSize[0]);
@@ -173,17 +158,52 @@ namespace PKAssets::Shader
     std::vector<uint32_t> CleanSPIRV(const uint32_t* code, uint32_t wordCount, const std::vector<uint32_t>& deadVariableIds, bool stripDebugInfo)
     {
         std::vector<uint32_t> out;
-        out.reserve(wordCount);
+        out.reserve(wordCount + 2u);
 
         // Copy 5-word SPIR-V header
-        for (uint32_t i = 0u; i < 5u && i < wordCount; ++i)
+        for (auto i = 0u; i < 5u && i < wordCount; ++i)
         {
             out.push_back(code[i]);
         }
 
+        // Workaround for Slang omitting OpCapability SampleRateShading when emitting SpvDecorationSample
+        auto hasSampleRateCapability = false;
+        auto usesSampleDecoration = false;
+
+        for (auto i = 5u; i < wordCount;)
+        {
+            const auto opcode = (SpvOp)(code[i] & 0xFFFFu);
+            const auto wcount = (uint16_t)((code[i] >> 16) & 0xFFFFu);
+            const auto* params = code + i + 1u;
+            
+            if (wcount == 0u)
+            {
+                break;
+            }
+
+            if (opcode == SpvOpCapability && wcount >= 2u && params[0] == SpvCapabilitySampleRateShading)
+            {
+                hasSampleRateCapability = true;
+            }
+            else if (
+                (opcode == SpvOpDecorate && wcount >= 3u && params[1] == SpvDecorationSample) ||
+                (opcode == SpvOpMemberDecorate && wcount >= 4u && params[2] == SpvDecorationSample))
+            {
+                usesSampleDecoration = true;
+            }
+
+            i += wcount;
+        }
+
+        if (usesSampleDecoration && !hasSampleRateCapability)
+        {
+            out.push_back((2u << 16u) | (uint32_t)SpvOpCapability);
+            out.push_back((uint32_t)SpvCapabilitySampleRateShading);
+        }
+
         auto isDeadId = [&](uint32_t id)
         {
-            for (uint32_t deadId : deadVariableIds)
+            for (auto deadId : deadVariableIds)
             {
                 if (deadId == id)
                 {
@@ -193,13 +213,13 @@ namespace PKAssets::Shader
             return false;
         };
 
-        uint32_t i = 5u;
+        auto i = 5u;
 
         while (i < wordCount)
         {
-            const SpvOp opcode = (SpvOp)(code[i] & 0xFFFFu);
-            const uint16_t wcount = (code[i] >> 16) & 0xFFFFu;
-            const uint32_t* params = code + i + 1u;
+            const auto opcode = (SpvOp)(code[i] & 0xFFFFu);
+            const auto wcount = (uint16_t)((code[i] >> 16) & 0xFFFFu);
+            const auto* params = code + i + 1u;
 
             if (wcount == 0u)
             {
@@ -224,33 +244,30 @@ namespace PKAssets::Shader
 
             if (!deadVariableIds.empty())
             {
-                // Strip decorations and debug names targeting dead descriptor variables
                 if ((opcode == SpvOpDecorate || opcode == SpvOpMemberDecorate || opcode == SpvOpName) && wcount >= 2u && isDeadId(params[0]))
                 {
                     i += wcount;
                     continue;
                 }
 
-                // Strip the dead OpVariable declaration itself
                 if (opcode == SpvOpVariable && wcount >= 4u && isDeadId(params[1]))
                 {
                     i += wcount;
                     continue;
                 }
 
-                // Strip dead global variable IDs from OpEntryPoint's trailing interface list (SPIR-V 1.4+)
                 if (opcode == SpvOpEntryPoint)
                 {
-                    const size_t headerIdx = out.size();
-                    out.push_back(code[i]);     // opcode + word count placeholder
-                    out.push_back(params[0]);   // ExecutionModel
-                    out.push_back(params[1]);   // EntryPoint <id>
+                    const auto headerIdx = out.size();
+                    out.push_back(code[i]);
+                    out.push_back(params[0]);
+                    out.push_back(params[1]);
 
-                    // Copy null-terminated entry point name string words
                     uint16_t w = 3u;
+                    
                     while (w < wcount)
                     {
-                        const uint32_t word = code[i + w];
+                        const auto word = code[i + w];
                         out.push_back(word);
                         w++;
 
@@ -263,11 +280,11 @@ namespace PKAssets::Shader
                         }
                     }
 
-                    uint16_t newWCount = w;
+                    auto newWCount = w;
 
                     for (; w < wcount; ++w)
                     {
-                        const uint32_t interfaceId = code[i + w];
+                        const auto interfaceId = code[i + w];
 
                         if (!isDeadId(interfaceId))
                         {
