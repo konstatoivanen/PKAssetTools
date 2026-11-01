@@ -37,32 +37,35 @@ PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
     float4x4 viewproj;
 } named;
 
-[pk_local(MainVs)] in float3 in_POSITION;
-[pk_local(MainVs)] in float2 in_TEXCOORD0;
-[pk_local(MainVs)] in float3 in_COLOR;
-[pk_local(MainVs)] out float3 vs_COLOR;
-[pk_local(MainVs)] out float2 vs_TEXCOORD0;
+#if defined(SHADER_VERTEX)
+in float3 in_POSITION;
+in float2 in_TEXCOORD0;
+in float3 in_COLOR;
+out float3 vs_COLOR;
+out float2 vs_TEXCOORD0;
+#endif
 
-[pk_local(MainVs, MainFs)] uniform image2D pk_DebugImage;
-[pk_local(MainFs)] uniform RWStructuredBuffer<float4> _WriteBuffer;
-[pk_local(MainFs)] uniform StructuredBuffer<float4> _ReadVariable;
-[pk_local(MainFs)] uniform sampler2D tex1;
-[pk_local(MainFs)] uniform sampler smp;
-[pk_local(Fragment)] in float3 vs_COLOR;
-[pk_local(Fragment)] in float2 vs_TEXCOORD0;
-[pk_local(Fragment)] out float4 outColor;
+uniform image2D pk_DebugImage;
+uniform RWStructuredBuffer<float4> _WriteBuffer;
+uniform StructuredBuffer<float4> _ReadVariable;
+uniform sampler2D tex1;
+uniform sampler smp;
+
+#if defined(SHADER_FRAGMENT)
+in float3 vs_COLOR;
+in float2 vs_TEXCOORD0;
+out float4 outColor;
+#endif
 
 #if defined(SHADER_FRAGMENT)
 uniform float MyUnusedStagePushConstant;
 #endif
 
-[pk_local(MainVs)]
 void TestFunc()
 {
     vs_COLOR = in_COLOR;
 }
 
-[pk_local(MainVs)]
 struct TestStruct
 {
     float3 testfield;
@@ -76,6 +79,7 @@ void MainVs()
     vs_TEXCOORD0.x += gl_VertexIndex;
 }
 
+layout(early_fragment_tests) in;
 void MainFs()
 {
     float3 albedo = texture(sampler2D(_AlbedoTex, smp), vs_TEXCOORD0).xyz;
@@ -85,5 +89,6 @@ void MainFs()
     _WriteBuffer[uint(outColor.x * 1024)] = outColor;
 }
 
+layout(early_fragment_tests) in;
 void ColorFs() { outColor = float4(vs_COLOR, 1.0f); }
 

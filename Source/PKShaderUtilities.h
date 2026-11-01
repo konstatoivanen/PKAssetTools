@@ -146,7 +146,6 @@ namespace PKAssets::Shader
     void ExtractGenerateDebugInfo(std::string& source, bool* outValue);
     void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes);
     void InsertRequiredExtensions(std::string& source, PKShaderStage stage);
-    int RemoveEntryPointLocals(std::string& source, const std::string& entryPointName, PKShaderStage stage);
     void RemoveInactiveGroupSizeLayouts(std::string& source, PKShaderStage stage);
     void ProcessShaderVersion(std::string& source);
     void RemoveDescriptorSets(std::string& source);

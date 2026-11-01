@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <shaderc/shaderc.hpp>
+#include <simplecpp/simplecpp.h>
 #include "PKStringUtilities.h"
 #include "PKSPVUtilities.h"
 #include "PKShaderUtilities.h"
@@ -206,20 +207,35 @@ namespace PKAssets::Shader
         return maxIndex;
     }
 
-    static int32_t PreprocessGLSL(const ShaderCompiler& compiler, const CompileOptions& options, PKShaderStage stage, const std::string& name, std::string& source)
+    static int32_t PreprocessSource(PKShaderStage stage, const std::string& name, std::string& source)
     {
-        auto result = compiler.PreprocessGlsl(source, ConvertToShadercKind(stage), name.c_str(), options);
+        std::istringstream istr(source);
+        std::vector<std::string> filenames;
+        simplecpp::OutputList outputList;
 
-        if (result.GetCompilationStatus() != shaderc_compilation_status_success)
+        // Pass filenames vector and outputList directly into TokenList stream constructor
+        simplecpp::TokenList rawtokens(istr, filenames, name, {}, &outputList);
+        rawtokens.removeComments();
+
+        simplecpp::FileDataCache filedata;
+        simplecpp::TokenList outputTokens(filenames);
+        simplecpp::preprocess(outputTokens, rawtokens, filenames, filedata, {}, &outputList);
+
+        if (!outputList.empty())
         {
-            printf("\n ----------BEGIN ERROR---------- \n");
+            printf("\n ----------BEGIN PREPROCESS ERROR---------- \n");
             printf("\n Stage: %s\n\n", PKShaderStage_NAMES[(uint32_t)stage]);
-            printf("%s", result.GetErrorMessage().c_str());
-            printf("\n ----------END ERROR---------- \n\n");
+            for (const simplecpp::Output& output : outputList)
+            {
+                // Resolve filename index from the shared filenames vector
+                std::string filename = (output.location.fileIndex < filenames.size()) ? filenames[output.location.fileIndex] : name;
+                printf("%s:%u: %s\n", filename.c_str(), output.location.line, output.msg.c_str());
+            }
+            printf("\n ----------END PREPROCESS ERROR---------- \n\n");
             return -1;
         }
 
-        source = std::string(result.cbegin(), result.cend());
+        source = outputTokens.stringify();
         return 0;
     }
 
@@ -568,7 +584,6 @@ namespace PKAssets::Shader
             std::string stageSources[(uint32_t)PKShaderStage::EnumCount]{};
             SourcePushConstants sourceConstants;
 
-            // 1. Preprocess & convert HLSL constructs per stage
             for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
             {
                 auto entryIndex = FindActiveEntryPointIndexForStage(entryPoints, variantDefines[variantIndex], (PKShaderStage)stageIndex);
@@ -582,25 +597,20 @@ namespace PKAssets::Shader
                 stageEntries[stageIndex] = &entryPoints.at(entryIndex);
                 stageSources[stageIndex] = std::string(source);
 
-                if (RemoveEntryPointLocals(stageSources[stageIndex], entry.name, entry.stage) != 0)
-                {
-                    printf("Failed to remove entry point locals! \n");
-                    return -1;
-                }
-
                 SetActiveEntryPoint(stageSources[stageIndex], entryPoints, entryIndex);
                 Instancing::InsertEntryPoint(stageSources[stageIndex], entry.stage, enableInstancing, nofragInstancing);
                 stageSources[stageIndex].insert(0, std::string("#define PK_ACTIVE_ENTRY_POINT_") + entry.name + "\n");
                 stageSources[stageIndex].insert(0, PK_SHADER_STAGE_DEFINES[(uint32_t)entry.stage]);
                 stageSources[stageIndex].insert(0, variantDefines[variantIndex]);
-                InsertRequiredExtensions(stageSources[stageIndex], entry.stage);
-                ConvertPrintf(stageSources[stageIndex]);
-                ProcessShaderVersion(stageSources[stageIndex]);
 
-                if (PreprocessGLSL(compiler, options, entry.stage, entry.name, stageSources[stageIndex]) != 0)
+                if (PreprocessSource(entry.stage, entry.name, stageSources[stageIndex]) != 0)
                 {
                     return -1;
                 }
+
+                InsertRequiredExtensions(stageSources[stageIndex], entry.stage);
+                ConvertPrintf(stageSources[stageIndex]);
+                ProcessShaderVersion(stageSources[stageIndex]);
 
                 ConvertHLSLTypesToGLSL(stageSources[stageIndex]);
                 ConvertHLSLBuffers(stageSources[stageIndex]);
@@ -610,9 +620,9 @@ namespace PKAssets::Shader
                 RemoveDescriptorSets(stageSources[stageIndex]);
                 RemoveUnsupportedRayTracingFields(stageSources[stageIndex], entry.stage);
                 RemoveInactiveGroupSizeLayouts(stageSources[stageIndex], entry.stage);
+                RemoveUnusedResourcesAndFunctions(stageSources[stageIndex]);
             }
 
-            // 2. Drop unused inter-stage outputs, then strip dead functions/resources and extract push constants
             RemoveUnusedStageOutputs(stageSources);
 
             for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
@@ -630,7 +640,6 @@ namespace PKAssets::Shader
             ReflectionData reflectionData{};
             reflectionData.logVerbose = logVerbose;
 
-            // 3. Single-pass SPIR-V compilation
             for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
             {
                 if (stageEntries[stageIndex] != nullptr)

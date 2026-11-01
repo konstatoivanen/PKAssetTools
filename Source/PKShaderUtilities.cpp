@@ -423,7 +423,7 @@ namespace PKAssets::Shader
         while (true)
         {
             size_t open, close;
-            if (!StringUtilities::FindScope(str, pos, "layout(", ")", &open, &close))
+            if (!StringUtilities::FindScope(str, pos, "layout (", ")", &open, &close))
             {
                 break;
             }
@@ -840,84 +840,53 @@ namespace PKAssets::Shader
         }
     }
 
-    int RemoveEntryPointLocals(std::string& source, const std::string& entryPointName, PKShaderStage stage)
-    {
-        auto currentpos = 0ull;
-
-        const auto lengthOpen = strlen(PK_SHADER_ATTRIB_LOCAL_OPEN);
-        const auto lengthClose = strlen(PK_SHADER_ATTRIB_LOCAL_CLOSE);
-
-        while (true)
-        {
-            size_t posopen, posclose;
-
-            if (!StringUtilities::FindScope(source, currentpos, PK_SHADER_ATTRIB_LOCAL_OPEN, PK_SHADER_ATTRIB_LOCAL_CLOSE, &posopen, &posclose))
-            {
-                return 0;
-            }
-
-            currentpos = posopen;
-            auto content = source.substr(posopen + lengthOpen, posclose - (posopen + lengthOpen));
-            auto arguments = StringUtilities::Split(content, ", ");
-            auto foundEntry = false;
-
-            for (auto& arg : arguments)
-            {
-                if (arg.compare(entryPointName) == 0 || arg.compare(PKShaderStage_NAMES[(uint32_t)stage]) == 0)
-                {
-                    foundEntry = true;
-                    break;
-                }
-            }
-
-            if (foundEntry)
-            {
-                source.erase(posopen, (posclose + lengthClose) - posopen);
-                continue;
-            }
-
-            posclose = source.find(';', posclose);
-            size_t controlopen = 0ull;
-            size_t controlclose = 0ull;
-
-            if (StringUtilities::FindScope(source, currentpos, '{', '}', &controlopen, &controlclose) && controlopen < posclose)
-            {
-                posclose = controlclose;
-
-                if (source[posclose + 1u] == ';')
-                {
-                    posclose++;
-                }
-            }
-
-            if (posclose == std::string::npos)
-            {
-                printf("Couldnt find a valid control flow scope after [pk_local] attribute.\n");
-                return -1;
-            }
-
-            source.erase(posopen, (posclose + 1u) - posopen);
-        }
-    }
-
     void RemoveInactiveGroupSizeLayouts(std::string& source, PKShaderStage stage)
     {
+        if (stage != PKShaderStage::Fragment)
+        {
+            auto currentpos = 0ull;
+
+            while (true)
+            {
+                size_t posopen, posclose;
+                if (!StringUtilities::FindScope(source, currentpos, "layout (", ")", &posopen, &posclose))
+                {
+                    break;
+                }
+
+                auto earlyTestPos = source.find("early_fragment_tests", posopen);
+
+                if (posopen < earlyTestPos && earlyTestPos < posclose)
+                {
+                    auto semicolonPos = source.find(';', posclose);
+                    if (semicolonPos != std::string::npos)
+                    {
+                        source.erase(posopen, (semicolonPos + 1ull) - posopen);
+                        currentpos = posopen;
+                        continue;
+                    }
+                }
+
+                currentpos = posclose;
+            }
+        }
+
         if (stage == PKShaderStage::Compute)
         {
             std::vector<size_t> positions;
-
             auto currentpos = 0ull;
 
             while (true)
             {
                 size_t posopen, posclose;
 
-                if (!StringUtilities::FindScope(source, currentpos, "layout(", ")", &posopen, &posclose))
+                if (!StringUtilities::FindScope(source, currentpos, "layout (", ")", &posopen, &posclose))
                 {
                     break;
                 }
 
                 auto localsizepos = source.find("local_size_x", posopen);
+
                 if (posopen < localsizepos && localsizepos < posclose)
                 {
                     positions.push_back(posopen);
@@ -926,10 +895,10 @@ namespace PKAssets::Shader
                 currentpos = posclose;
             }
 
-            auto mainpos = source.find("void main()");
+            auto mainpos = source.find("void main ( )");
             auto selected = false;
 
-            for (int32_t i = positions.size() - 1; i >= 0; --i)
+            for (int32_t i = (int32_t)positions.size() - 1; i >= 0; --i)
             {
                 if (positions.at(i) < mainpos && !selected)
                 {
@@ -965,12 +934,12 @@ namespace PKAssets::Shader
         while (true)
         {
             size_t open, close;
-            if (!StringUtilities::FindScope(source, currentpos, "layout(", ")", &open, &close))
+            if (!StringUtilities::FindScope(source, currentpos, "layout (", ")", &open, &close))
             {
                 break;
             }
 
-            constexpr auto lengthopen = 7u;
+            constexpr auto lengthopen = 8u;
             constexpr auto lengthclose = 1u;
             auto tokens = StringUtilities::SplitNoWhiteSpace(source.substr(open + lengthopen, close - (open + lengthopen)), ",");
 
@@ -1095,12 +1064,12 @@ namespace PKAssets::Shader
 
         while (currentpos != std::string::npos)
         {
-            currentpos = source.find("printf(", currentpos);
+            currentpos = source.find("printf (", currentpos);
 
             if (currentpos != std::string::npos)
             {
                 insertExtension = true;
-                source.replace(currentpos, 7ull, "debugPrintfEXT(");
+                source.replace(currentpos, 8ull, "debugPrintfEXT(");
                 currentpos += 15ull;
             }
         }
@@ -1115,6 +1084,9 @@ namespace PKAssets::Shader
     {
         auto currentpos = 0ull;
 
+        constexpr const static char* PK_SHADER_ATTRIB_NUMTHREADS_OPEN = "[ numthreads (";
+        constexpr const static char* PK_SHADER_ATTRIB_NUMTHREADS_CLOSE = ") ]";
+
         const auto lengthopen = strlen(PK_SHADER_ATTRIB_NUMTHREADS_OPEN);
         const auto lengthclose = strlen(PK_SHADER_ATTRIB_NUMTHREADS_CLOSE);
 
@@ -1127,7 +1099,7 @@ namespace PKAssets::Shader
                 break;
             }
 
-            std::string layout = "layout(";
+            std::string layout = "layout (";
             auto values = StringUtilities::Split(source.substr(open + lengthopen, close - (open + lengthopen)), ", ");
             const char* dimensionNames[3] = { "local_size_x=", "local_size_y=", "local_size_z=" };
 
@@ -1198,7 +1170,7 @@ namespace PKAssets::Shader
                 open = uniformTagPos;
             }
 
-            source.replace(open, nameEnd - open, "layout(scalar)" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[];}");
+            source.replace(open, nameEnd - open, "layout ( scalar )" + accessToken + " buffer " + name + "_pkalias{" + type + " " + name + "[];}");
         }
     }
 
@@ -1304,7 +1276,7 @@ namespace PKAssets::Shader
                 continue;
             }
 
-            source.replace(uniformPos, cbufferPos + 7u - uniformPos, "layout(scalar) uniform ");
+            source.replace(uniformPos, cbufferPos + 7u - uniformPos, "layout ( scalar ) uniform ");
             currentpos = uniformPos + 23u;
         }
     }
@@ -1370,8 +1342,9 @@ namespace PKAssets::Shader
         }
 
         auto nameEnd = source.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", nameStart);
+        auto semiPos = source.find_first_not_of(" \t\r\n", nameEnd);
 
-        if (nameEnd == std::string::npos || source[nameEnd] != ';')
+        if (semiPos == std::string::npos || source[semiPos] != ';')
         {
             offset = nameStart;
             return false;
@@ -1390,11 +1363,11 @@ namespace PKAssets::Shader
 
         if (!isValidType)
         {
-            offset = nameEnd + 1u;
+            offset = semiPos + 1u;
             return false;
         }
 
-        offset = nameEnd + 1u;
+        offset = semiPos + 1u;
         
         auto type = source.substr(typeStart, typeEnd - typeStart);
         auto name = source.substr(nameStart, nameEnd - nameStart);
@@ -1429,6 +1402,13 @@ namespace PKAssets::Shader
         size_t blockStart, blockEnd;
 
         if (!StringUtilities::FindScope(source, offset, "{", "}", &blockStart, &blockEnd))
+        {
+            return false;
+        }
+
+        blockEnd = source.find_first_not_of(" \t\r\n", blockEnd);
+        
+        if (blockEnd == std::string::npos)
         {
             return false;
         }
@@ -1471,7 +1451,7 @@ namespace PKAssets::Shader
         while (true)
         {
             auto startSingle = source.find("uniform ", currentpos);
-            auto startLayout = source.find("layout(push_constant) ", currentpos);
+            auto startLayout = source.find("layout ( push_constant )", currentpos);
 
             if (startSingle == std::string::npos && startLayout == std::string::npos)
             {
@@ -1491,7 +1471,7 @@ namespace PKAssets::Shader
             }
             else
             {
-                auto endLayout = startLayout + 22ull;
+                auto endLayout = startLayout + 25ull;
                 if (ExtractPushConstantBlock(endLayout, source, stage, members))
                 {
                     source.erase(startLayout, endLayout - startLayout);
@@ -1671,12 +1651,26 @@ namespace PKAssets::Shader
                     continue;
                 }
 
-                // Simple declaration: [layout(...)] uniform Type Name[...];
+                // Simple declaration: [layout(...)] uniform/shared/in/out/flat/sample Type Name[...];
                 const auto decl = StripLayoutQualifiers(source.substr(stmt.start, (stmt.end - 1ull) - stmt.start));
-                const auto tokens = StringUtilities::Split(decl, " \t\r\n");
-                if (tokens.size() >= 3ull && tokens[0] == "uniform")
+                const auto declNoArray = decl.substr(0ull, decl.find('['));
+
+                // Skip function prototypes and declarations with '=' initializers
+                if (declNoArray.find('(') != std::string::npos || decl.find('=') != std::string::npos)
                 {
-                    const auto varName = ExtractLastIdentifierBefore(decl);
+                    continue;
+                }
+
+                const auto tokens = StringUtilities::Split(declNoArray, " \t\r\n");
+                if (tokens.size() >= 2ull &&
+                    (tokens[0] == "uniform" ||
+                     tokens[0] == "shared" ||
+                     tokens[0] == "in" ||
+                     tokens[0] == "out" ||
+                     tokens[0] == "flat" ||
+                     tokens[0] == "sample"))
+                {
+                    const auto varName = ExtractLastIdentifierBefore(declNoArray);
                     if (!varName.empty() && CountIdentifierOccurrences(source, varName) <= 1ull)
                     {
                         source.erase(stmt.start, stmt.end - stmt.start);

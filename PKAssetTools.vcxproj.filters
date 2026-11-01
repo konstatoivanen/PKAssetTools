@@ -351,6 +351,9 @@
     <ClInclude Include="ThirdParty\msdf-atlas-gen\msdfgen\msdfgen-config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ThirdParty\simplecpp\simplecpp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Include\PKAssetLoader.cpp">
@@ -477,6 +480,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ThirdParty\bc7enc_rdo\rgbcx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\simplecpp\simplecpp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

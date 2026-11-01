@@ -305,6 +305,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClInclude Include="ThirdParty\shaderc\shaderc.hpp" />
     <ClInclude Include="ThirdParty\shaderc\status.h" />
     <ClInclude Include="ThirdParty\shaderc\visibility.h" />
+    <ClInclude Include="ThirdParty\simplecpp\simplecpp.h" />
     <ClInclude Include="ThirdParty\SPIRV-Reflect\spirv.h" />
     <ClInclude Include="ThirdParty\SPIRV-Reflect\spirv_reflect.h" />
     <ClInclude Include="ThirdParty\tinyobjloader\tiny_obj_loader.h" />
@@ -349,6 +350,7 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClCompile Include="ThirdParty\mikktspace\mikktspace.c" />
     <ClCompile Include="Include\PKAsset.cpp" />
     <ClCompile Include="Include\PKAssetLoader.cpp" />
+    <ClCompile Include="ThirdParty\simplecpp\simplecpp.cpp" />
     <ClCompile Include="ThirdParty\SPIRV-Reflect\spirv_reflect.cpp" />
     <ClCompile Include="ThirdParty\tinyobjloader\tiny_obj_loader.cpp" />
     <ClCompile Include="Source\main.cpp" />
