@@ -177,10 +177,18 @@ namespace PKAssets::Shader
             uint GetSampleCount() { uint w, h, s; this.GetDimensions(w, h, s); return s; }
         };
 
-        uniform SamplerState pk_Heap_Samplers[];
-        uniform Texture2D<float4> pk_Heap_Textures2D[];
-        uniform Texture3D<float4> pk_Heap_Textures3D[];
-        uniform TextureCube<float4> pk_Heap_TexturesCube[];
+        struct PKDescriptorHeap<T : IOpaqueDescriptor>
+        {
+            __subscript(uint index) -> DescriptorHandle<T>
+            {
+                get { return DescriptorHandle<T>(uint2(index, 0)); }
+            }
+        };
+
+        static const PKDescriptorHeap<SamplerState> pk_Heap_Samplers = {};
+        static const PKDescriptorHeap<Texture2D<float4>> pk_Heap_Textures2D = {};
+        static const PKDescriptorHeap<Texture3D<float4>> pk_Heap_Textures3D = {};
+        static const PKDescriptorHeap<TextureCube<float4>> pk_Heap_TexturesCube = {};
         )";
 
     struct SourcePushConstant
@@ -204,7 +212,6 @@ namespace PKAssets::Shader
         uint32_t accessStageMask = (uint32_t)PKShaderStageFlags::None;
         PKDescriptorType type = PKDescriptorType::Invalid;
         uint32_t bindingIndex = 0u;
-        uint32_t setIndex = 0u;
         uint32_t count = 0u;
         uint32_t wordOffsetBinding[(int)PKShaderStage::EnumCount]{};
         uint32_t wordOffsetSet[(int)PKShaderStage::EnumCount]{};

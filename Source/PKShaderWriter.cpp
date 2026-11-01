@@ -236,9 +236,21 @@ namespace PKAssets::Shader
         {
             auto* desc = activeBindings.at(i);
 
+            // Skip BuiltIn ResourceHeapEXT / SamplerHeapEXT variables (no Binding decoration)
+            if (desc->word_offset.binding == 0u)
+            {
+                continue;
+            }
+
             if (!desc->accessed)
             {
                 reflection.deadVariableIds[stageIdx].push_back(desc->spirv_id);
+                continue;
+            }
+            
+            if (desc->type_description->op == SpvOpTypeRuntimeArray || desc->count == 0u)
+            {
+                printf("Warning: trying to use an unbounded runtime array. this is no longer supported please use resource/sampler heaps instead");
                 continue;
             }
 
@@ -248,9 +260,7 @@ namespace PKAssets::Shader
             binding.accessStageMask |= 1u << stageIdx;
             binding.type = GetResourceType(desc->descriptor_type);
             binding.bindingIndex = max(binding.bindingIndex, desc->binding);
-            binding.setIndex = 0u;
-            const bool isRuntimeArray = desc->type_description->op == SpvOpTypeRuntimeArray || desc->count == 0u;
-            binding.count = isRuntimeArray ? PKAssets::PK_ASSET_MAX_UNBOUNDED_SIZE : desc->count;
+            binding.count = desc->count;
 
             const auto isWritten = ReflectResourceWrite(module->_internal->spirv_code, module->_internal->spirv_word_count, desc->spirv_id, binding.type);
 
@@ -276,22 +286,10 @@ namespace PKAssets::Shader
 
         for (auto& kv : reflection.uniqueBindings)
         {
-            kv.second.setIndex = 0u;
             reflection.sortedBindings.push_back(kv.second);
         }
 
-        std::sort(reflection.sortedBindings.begin(), reflection.sortedBindings.end(), [](const ReflectBinding& a, const ReflectBinding& b)
-            {
-                const bool aUnbounded = a.count >= PK_ASSET_MAX_UNBOUNDED_SIZE;
-                const bool bUnbounded = b.count >= PK_ASSET_MAX_UNBOUNDED_SIZE;
-
-                if (aUnbounded != bUnbounded)
-                {
-                    return aUnbounded < bUnbounded;
-                }
-
-                return a.name < b.name;
-            });
+        std::sort(reflection.sortedBindings.begin(), reflection.sortedBindings.end(), [](const ReflectBinding& a, const ReflectBinding& b) { return a.name < b.name; });
 
         auto bindingCounter = 0u;
 
@@ -350,7 +348,7 @@ namespace PKAssets::Shader
         };
 
         AddCapabilityOption(globalSession, options, "vk_mem_model");
-        // AddCapabilityOption(globalSession, options, "spvDescriptorHeapEXT");
+        AddCapabilityOption(globalSession, options, "spvDescriptorHeapEXT");
         AddCapabilityOption(globalSession, options, "spvImageGatherExtended");
         AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_basic");
         AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_vote");
