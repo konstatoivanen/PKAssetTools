@@ -1,15 +1,18 @@
 #include <algorithm>
+#include <sstream>
 #include "PKStringUtilities.h"
+#include "PKAssetWriter.h"
 #include "PKShaderUtilities.h"
 
 namespace PKAssets::Shader
 {
-    struct TopLevelStatement
+    struct TokenStatement
     {
-        size_t start = 0ull;
-        size_t end = 0ull;
-        size_t openBrace = std::string::npos;
-        size_t closeBrace = std::string::npos;
+        simplecpp::Token* start = nullptr;
+        simplecpp::Token* end = nullptr;
+        simplecpp::Token* openBrace = nullptr;
+        simplecpp::Token* closeBrace = nullptr;
+        simplecpp::Token* functionName = nullptr;
         bool isFunction = false;
     };
 
@@ -121,277 +124,264 @@ namespace PKAssets::Shader
     DECLARE_STRING_TO_ENUM(PKRasterMode, PKRasterMode::Default)
     #undef DECLARE_STRING_TO_ENUM
 
-    static bool IsAlphaNumeric(char c)
+    static void EraseTokenRange(simplecpp::TokenList& tokens, simplecpp::Token* first, simplecpp::Token* last)
     {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+        auto* token = first;
+
+        while (token != nullptr)
+        {
+            auto* next = token == last ? nullptr : token->next;
+            tokens.deleteToken(token);
+            token = next;
+        }
     }
 
-    static size_t CountIdentifierOccurrences(const std::string& source, std::string_view identifier)
+    static simplecpp::Token* FindTokenScope(simplecpp::Token* start, simplecpp::Token* end, char openOp, char closeOp)
     {
-        if (identifier.empty())
+        if (start == nullptr || start->op != openOp)
         {
-            return 0ull;
+            return nullptr;
         }
 
-        auto count = 0ull;
-        auto pos = 0ull;
+        auto depth = 0;
 
-        while ((pos = source.find(identifier.data(), pos, identifier.size())) != std::string::npos)
+        for (auto* token = start; token != nullptr && token != end; token = token->next)
         {
-            const auto validBefore = pos == 0ull || (!IsAlphaNumeric(source[pos - 1ull]) && source[pos - 1ull] != '.');
-            const auto  end = pos + identifier.size();
-            const auto validAfter = end >= source.size() || !IsAlphaNumeric(source[end]);
-
-            if (validBefore && validAfter)
+            if (token->op == openOp)
             {
-                count++;
+                depth++;
             }
-
-            pos = end;
+            else if (token->op == closeOp)
+            {
+                if (--depth == 0)
+                {
+                    return token;
+                }
+            }
         }
 
-        return count;
+        return nullptr;
     }
 
-    static std::vector<TopLevelStatement> ScanTopLevelStatements(const std::string& source)
+    static simplecpp::Token* SkipLeadingAttributes(simplecpp::Token* start, simplecpp::Token* end)
     {
-        std::vector<TopLevelStatement> statements;
-        size_t i = 0ull;
-        const auto len = source.size();
-        auto stmtStart = 0ull;
-        auto openBrace = std::string::npos;
-        auto closeBrace = std::string::npos;
-        auto braceDepth = 0;
-        auto parenDepth = 0;
-        auto isFunctionHeader = false;
+        auto* token = start;
 
-        auto skipWhitespace = [&]()
+        while (token != nullptr && token != end && token->op == '[')
         {
-            while (i < len && (source[i] == ' ' || source[i] == '\t' || source[i] == '\r' || source[i] == '\n'))
+            auto* closeBracket = FindTokenScope(token, end, '[', ']');
+
+            if (closeBracket == nullptr)
             {
-                ++i;
+                break;
             }
-        };
 
-        skipWhitespace();
-        stmtStart = i;
+            token = closeBracket->next;
+        }
 
-        while (i < len)
+        return token;
+    }
+
+    static std::unordered_map<std::string, uint32_t> BuildIdentifierUsageMap(const simplecpp::TokenList& tokens)
+    {
+        std::unordered_map<std::string, uint32_t> counts;
+
+        for (const auto* token = tokens.cfront(); token != nullptr; token = token->next)
         {
-            const auto c = source[i];
-
-            if (braceDepth == 0 && parenDepth == 0 && c == '#')
+            if (token->name && (token->previous == nullptr || token->previous->op != '.'))
             {
-                while (i < len && source[i] != '\n')
+                counts[token->str()]++;
+            }
+        }
+
+        return counts;
+    }
+
+    static uint32_t GetIdentifierUsageCount(const std::unordered_map<std::string, uint32_t>& usageMap, const std::string& name)
+    {
+        const auto iterator = usageMap.find(name);
+        return iterator != usageMap.end() ? iterator->second : 0u;
+    }
+
+    static const EntryPointInfo* FindActiveEntryPoint(const std::string& name, EntryPointInfo* const* activeEntries)
+    {
+        for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
+        {
+            if (activeEntries[stageIndex] && activeEntries[stageIndex]->name == name)
+            {
+                return activeEntries[stageIndex];
+            }
+        }
+
+        return nullptr;
+    }
+
+    static bool IsDeclaredEntryPoint(const std::string& name, const std::vector<EntryPointInfo>& entries)
+    {
+        for (const auto& entry : entries)
+        {
+            if (entry.name == name)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    static std::vector<TokenStatement> ScanTopLevelStatements(simplecpp::TokenList& tokens)
+    {
+        std::vector<TokenStatement> statements;
+        simplecpp::Token* statementStart = nullptr;
+        simplecpp::Token* openBrace = nullptr;
+        simplecpp::Token* closeBrace = nullptr;
+        simplecpp::Token* functionName = nullptr;
+        auto seenEquals = false;
+
+        for (auto* token = tokens.front(); token != nullptr; token = token->next)
+        {
+            if (statementStart == nullptr)
+            {
+                statementStart = token;
+            }
+
+            if (token->op == '[')
+            {
+                auto* closeBracket = FindTokenScope(token, nullptr, '[', ']');
+
+                if (closeBracket == nullptr)
                 {
-                    ++i;
+                    break;
                 }
 
-                skipWhitespace();
-                stmtStart = i;
-                continue;
+                token = closeBracket;
             }
-
-            if (c == '(')
+            else if (token->op == '(')
             {
-                parenDepth++;
-            }
-            else if (c == ')')
-            {
-                parenDepth = std::max(0, parenDepth - 1);
-            }
-            else if (c == '{')
-            {
-                if (braceDepth == 0)
+                if (openBrace == nullptr && !seenEquals && token->previous != nullptr && token->previous->name)
                 {
-                    openBrace = i;
-                    auto prev = i;
-                    
-                    while (prev > stmtStart && isspace((unsigned char)source[prev - 1ull]))
-                    {
-                        --prev;
-                    }
-                    
-                    auto headerScan = prev;
-                    
-                    if (headerScan > stmtStart && source[headerScan - 1ull] != ')')
-                    {
-                        const auto colonPos = source.rfind(':', headerScan - 1ull);
-                        
-                        if (colonPos != std::string::npos && colonPos > stmtStart)
-                        {
-                            auto beforeColon = colonPos;
-                            
-                            while (beforeColon > stmtStart && isspace((unsigned char)source[beforeColon - 1ull]))
-                            {
-                                --beforeColon;
-                            }
-                            
-                            headerScan = beforeColon;
-                        }
-                    }
-
-                    isFunctionHeader = (headerScan > stmtStart && source[headerScan - 1ull] == ')');
+                    functionName = token->previous;
                 }
 
-                braceDepth++;
-            }
-            else if (c == '}')
-            {
-                braceDepth = std::max(0, braceDepth - 1);
+                auto* closeParen = FindTokenScope(token, nullptr, '(', ')');
 
-                if (braceDepth == 0)
+                if (closeParen == nullptr)
                 {
-                    closeBrace = i;
+                    break;
+                }
 
-                    if (isFunctionHeader)
+                token = closeParen;
+            }
+            else if (token->op == '=')
+            {
+                seenEquals = true;
+                functionName = nullptr;
+            }
+            else if (token->op == '{')
+            {
+                openBrace = token;
+                closeBrace = FindTokenScope(token, nullptr, '{', '}');
+
+                if (closeBrace == nullptr)
+                {
+                    break;
+                }
+
+                token = closeBrace;
+                const auto isFunction = functionName != nullptr;
+                const auto isProperty = statementStart->name && statementStart->str() == "property";
+
+                if (isFunction || isProperty)
+                {
+                    if (token->next != nullptr && token->next->op == ';')
                     {
-                        statements.push_back({ stmtStart, i + 1ull, openBrace, closeBrace, true });
-                        openBrace = closeBrace = std::string::npos;
-                        isFunctionHeader = false;
-                        ++i;
-                        skipWhitespace();
-                        stmtStart = i;
-                        continue;
+                        token = token->next;
                     }
+
+                    statements.push_back({ statementStart, token, openBrace, closeBrace, isFunction ? functionName : nullptr, isFunction });
+                    statementStart = nullptr;
+                    openBrace = nullptr;
+                    closeBrace = nullptr;
+                    functionName = nullptr;
+                    seenEquals = false;
                 }
             }
-            else if (c == ';' && braceDepth == 0 && parenDepth == 0)
+            else if (token->op == ';')
             {
-                statements.push_back({ stmtStart, i + 1ull, openBrace, closeBrace, false });
-                openBrace = closeBrace = std::string::npos;
-                isFunctionHeader = false;
-                ++i;
-                skipWhitespace();
-                stmtStart = i;
-                continue;
+                statements.push_back({ statementStart, token, openBrace, closeBrace, nullptr, false });
+                statementStart = nullptr;
+                openBrace = nullptr;
+                closeBrace = nullptr;
+                functionName = nullptr;
+                seenEquals = false;
             }
-
-            ++i;
         }
 
         return statements;
     }
 
-    static std::string StripQualifiersAndAttributes(std::string str)
+    static simplecpp::Token* FindPropertyDeclarationName(const TokenStatement& statement)
     {
-        size_t pos = 0ull;
-
-        while (true)
+        if (statement.start != nullptr &&
+            statement.openBrace != nullptr &&
+            statement.start->name &&
+            statement.start->str() == "property" &&
+            statement.openBrace->previous != nullptr &&
+            statement.openBrace->previous->name)
         {
-            size_t open, close;
-            if (!StringUtilities::FindScope(str, pos, "layout (", ")", &open, &close) &&
-                !StringUtilities::FindScope(str, pos, "layout(", ")", &open, &close))
-            {
-                break;
-            }
-            str.erase(open, (close + 1ull) - open);
-            pos = open;
+            return statement.openBrace->previous;
         }
 
-        while (true)
-        {
-            const auto  firstNonSpace = str.find_first_not_of(" \t\r\n");
-            
-            if (firstNonSpace == std::string::npos || str[firstNonSpace] != '[')
-            {
-                break;
-            }
-
-            size_t open, close;
-
-            if (!StringUtilities::FindScope(str, firstNonSpace, '[', ']', &open, &close))
-            {
-                break;
-            }
-
-            str.erase(open, (close + 1ull) - open);
-        }
-
-        return str;
+        return nullptr;
     }
 
-    static std::string ExtractLastIdentifierBefore(std::string_view text)
+    static simplecpp::Token* FindVariableDeclarationName(const TokenStatement& statement)
     {
-        const size_t bracket = text.find('[');
-        if (bracket != std::string_view::npos)
+        if (statement.isFunction || statement.openBrace != nullptr || statement.end == nullptr)
         {
-            text = text.substr(0, bracket);
+            return nullptr;
         }
 
-        size_t end = text.size();
-        while (end > 0ull && !IsAlphaNumeric(text[end - 1ull]))
+        auto* firstToken = SkipLeadingAttributes(statement.start, statement.end);
+
+        if (firstToken == nullptr || !firstToken->name)
         {
-            --end;
+            return nullptr;
         }
 
-        size_t start = end;
+        const auto& qualifier = firstToken->str();
 
-        while (start > 0ull && IsAlphaNumeric(text[start - 1ull]))
+        if (qualifier != "uniform" && qualifier != "groupshared" && qualifier != "static")
         {
-            --start;
+            return nullptr;
         }
 
-        return std::string(text.substr(start, end - start));
-    }
-
-    static std::string ExtractFunctionName(const std::string& source, const TopLevelStatement& stmt)
-    {
-        if (!stmt.isFunction || stmt.openBrace == std::string::npos)
+        for (auto* token = firstToken->next; token != nullptr && token != statement.end->next; token = token->next)
         {
-            return {};
-        }
-
-        auto scanEnd = stmt.openBrace;
-        for (auto k = stmt.openBrace; k > stmt.start; --k)
-        {
-            const char c = source[k - 1ull];
-            if (c == ')')
+            if (token->op == '<')
             {
-                scanEnd = k;
-                break;
-            }
-        }
+                token = FindTokenScope(token, statement.end->next, '<', '>');
 
-        auto pDepth = 0;
-        auto paramOpen = std::string::npos;
-
-        for (auto k = scanEnd; k > stmt.start; --k)
-        {
-            if (source[k - 1ull] == ')')
-            {
-                pDepth++;
-            }
-            else if (source[k - 1ull] == '(')
-            {
-                if (--pDepth == 0)
+                if (token == nullptr)
                 {
-                    paramOpen = k - 1ull;
-                    break;
+                    return nullptr;
                 }
+
+                continue;
+            }
+
+            if (token->op == '(' || token->op == '=')
+            {
+                return nullptr;
+            }
+
+            if (token->op == '[' || token->op == ';')
+            {
+                return (token->previous != nullptr && token->previous->name) ? token->previous : nullptr;
             }
         }
 
-        if (paramOpen == std::string::npos)
-        {
-            return {};
-        }
-
-        auto nameEnd = paramOpen;
-        
-        while (nameEnd > stmt.start && !IsAlphaNumeric(source[nameEnd - 1ull]))
-        {
-            --nameEnd;
-        }
-
-        auto nameStart = nameEnd;
-
-        while (nameStart > stmt.start && IsAlphaNumeric(source[nameStart - 1ull]))
-        {
-            --nameStart;
-        }
-
-        return source.substr(nameStart, nameEnd - nameStart);
+        return nullptr;
     }
 
     PKColorMask StringToPKColorMask(const char* str)
@@ -607,28 +597,17 @@ namespace PKAssets::Shader
 
     std::string ReflectBindingName(SpvReflectDescriptorBinding* binding)
     {
-        auto name = std::string(binding->name ? binding->name : "");
-
-        if (name.empty() && binding->type_description && binding->type_description->type_name)
+        if (binding->name && binding->name[0] != '\0')
         {
-            name = std::string(binding->type_description->type_name);
+            return std::string(binding->name);
         }
 
-        const auto aliasLength = strlen(PK_SHADER_ATTRIB_ALIAS);
-
-        if (name.size() > aliasLength && strncmp(name.data() + name.size() - aliasLength, PK_SHADER_ATTRIB_ALIAS, aliasLength) == 0)
+        if (binding->type_description && binding->type_description->type_name)
         {
-            if (binding->type_description->member_count == 1)
-            {
-                return std::string(binding->type_description->members[0].struct_member_name);
-            }
-            else
-            {
-                return name.substr(0, name.size() - aliasLength);
-            }
+            return std::string(binding->type_description->type_name);
         }
 
-        return name;
+        return {};
     }
 
     std::string FormatErrorMessage(const std::string& name, const std::string& source, const std::string& error)
@@ -651,14 +630,12 @@ namespace PKAssets::Shader
 
     void ExtractLogVerbose(std::string& source, bool* outValue)
     {
-        auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_LOGVERBOSE, source, true);
-        *outValue = !value.empty();
+        *outValue = !StringUtilities::ExtractToken(PK_SHADER_ATTRIB_LOGVERBOSE, source, true).empty();
     }
 
     void ExtractGenerateDebugInfo(std::string& source, bool* outValue)
     {
-        auto value = StringUtilities::ExtractToken(PK_SHADER_ATTRIB_GENERATEDEBUGINFO, source, true);
-        *outValue = !value.empty();
+        *outValue = !StringUtilities::ExtractToken(PK_SHADER_ATTRIB_GENERATEDEBUGINFO, source, true).empty();
     }
 
     void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes)
@@ -752,76 +729,248 @@ namespace PKAssets::Shader
         attributes->cull = StringToPKCullMode(valueCull.c_str());
     }
 
-    void SetActiveEntryPoints(std::string& source, const std::vector<EntryPointInfo>& entries, EntryPointInfo* const* activeEntries)
+    void ExtractMulticompiles(std::string& source, std::vector<std::string>& outVariantDefines, std::vector<PKShaderKeyword>& outKeywords)
     {
-        const auto statements = ScanTopLevelStatements(source);
+        std::vector<std::vector<std::string>> keywords{};
+        std::string output;
+        auto pos = 0ull;
+        auto directiveCount = 0ull;
+        auto variantCount = 1ull;
 
-        for (auto s = (int32_t)statements.size() - 1; s >= 0; --s)
+        while (true)
         {
-            const auto& stmt = statements[s];
-            
-            if (!stmt.isFunction)
+            pos = StringUtilities::ExtractToken(pos, PK_SHADER_ATTRIB_MULTI_COMPILE, source, output, false);
+
+            if (pos == std::string::npos)
             {
+                break;
+            }
+
+            if (variantCount >= PK_ASSET_MAX_SHADER_KEYWORDS)
+            {
+                printf("Warning maximum number of shader variants exceeded!.\n");
                 continue;
             }
 
-            const auto funcName = ExtractFunctionName(source, stmt);
-            
-            if (funcName.empty())
+            if (directiveCount >= PK_ASSET_MAX_SHADER_DIRECTIVES)
             {
+                printf("Warning maximum number of shader multicompile directives reached!.\n");
                 continue;
             }
 
-            bool isDeclaredEntryPoint = false;
+            auto directive = StringUtilities::Split(output, " ");
 
-            for (const auto& entry : entries)
+            if (directive.size() >= PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE)
             {
-                if (entry.name == funcName)
+                printf("Warning multicompile directive keyword count exceeds supported limits!\n");
+                continue;
+            }
+
+            for (auto i = 0u; i < directive.size(); ++i)
+            {
+                auto& keyword = directive.at(i);
+
+                if (keyword != "_")
                 {
-                    isDeclaredEntryPoint = true;
-                    break;
+                    PKShaderKeyword shaderKeyword{};
+                    shaderKeyword.offset = (uint16_t)variantCount;
+                    shaderKeyword.directive = directiveCount;
+                    shaderKeyword.value = i;
+                    WriteName(shaderKeyword.name, keyword.c_str());
+                    outKeywords.push_back(shaderKeyword);
                 }
             }
 
-            if (!isDeclaredEntryPoint)
-            {
-                continue;
-            }
+            keywords.push_back(directive);
+            directiveCount++;
+            variantCount *= directive.size();
+        }
 
-            const EntryPointInfo* activeMatch = nullptr;
-            
-            for (auto stageIdx = 0u; stageIdx < (uint32_t)PKShaderStage::EnumCount; ++stageIdx)
+        outVariantDefines.reserve(variantCount);
+
+        for (auto i = 0u; i < variantCount; ++i)
+        {
+            std::string defines;
+            auto declareIndex = i;
+
+            for (auto j = 0u; j < keywords.size(); ++j)
             {
-                if (activeEntries[stageIdx] && activeEntries[stageIdx]->name == funcName)
+                auto& declares = keywords.at(j);
+                auto& keyword = declares.at(declareIndex % declares.size());
+
+                if (keyword != "_")
                 {
-                    activeMatch = activeEntries[stageIdx];
-                    break;
+                    defines.append("#define ");
+                    defines.append(keyword);
+                    defines.append("\n");
                 }
+
+                declareIndex /= (uint32_t)declares.size();
             }
 
-            if (activeMatch == nullptr)
+            outVariantDefines.push_back(defines);
+        }
+    }
+
+    int ExtractEntryPoints(std::string& source, std::vector<EntryPointInfo>& outEntryPoints)
+    {
+        std::string output;
+        auto pos = 0ull;
+
+        while (true)
+        {
+            pos = StringUtilities::ExtractToken(pos, PK_SHADER_ATTRIB_PROGRAM, source, output, false);
+
+            if (pos == std::string::npos)
             {
-                source.erase(stmt.start, stmt.end - stmt.start);
+                break;
+            }
+
+            auto directives = StringUtilities::Split(output, " ");
+
+            if (directives.size() != 2 && directives.size() != 3)
+            {
+                printf("Entry point declaration contains an invalid amount of arguments (should be stage, name)\n");
+                return -1;
+            }
+
+            auto stage = StringToPKShaderStage(directives[0].c_str());
+
+            if (stage == PKShaderStage::EnumCount)
+            {
+                printf("Unsupported shader stage specified!\n");
+                return -1;
+            }
+
+            EntryPointInfo info;
+            info.name = directives[1];
+            info.stage = stage;
+            info.keyword = directives.size() == 3 ? directives[2] : "";
+
+            if (source.find(info.name, 0u) == std::string::npos)
+            {
+                printf("Definition for declared entry point %s was not found!\n", info.name.c_str());
+                return -1;
+            }
+
+            outEntryPoints.push_back(info);
+        }
+
+        return 0;
+    }
+
+    static int32_t FindActiveEntryPointIndexForStage(const std::vector<EntryPointInfo>& entries, const std::string& defines, PKShaderStage stage)
+    {
+        auto maxIndex = -1;
+
+        for (auto i = 0u; i < entries.size(); ++i)
+        {
+            if (entries[i].stage == stage)
+            {
+                if (!entries[i].keyword.empty())
+                {
+                    auto keypos = defines.find(entries[i].keyword, 0u);
+
+                    if (keypos != std::string::npos && isspace((unsigned char)defines[keypos + entries[i].keyword.size()]))
+                    {
+                        return i;
+                    }
+
+                    continue;
+                }
+
+                maxIndex = i;
+            }
+        }
+
+        return maxIndex;
+    }
+
+    void FindActiveEntryPoints(std::vector<EntryPointInfo>& entries, const std::string& variantDefines, EntryPointInfo** outStageEntries, uint32_t* outActiveStageMask, std::string& outActiveDefines)
+    {
+        *outActiveStageMask = 0u;
+        outActiveDefines = variantDefines;
+
+        for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
+        {
+            const auto entryIndex = FindActiveEntryPointIndexForStage(entries, variantDefines, (PKShaderStage)stageIndex);
+
+            if (entryIndex != -1)
+            {
+                outStageEntries[stageIndex] = &entries.at(entryIndex);
+                *outActiveStageMask |= 1u << stageIndex;
+                outActiveDefines += PK_SHADER_STAGE_DEFINES[stageIndex];
+                outActiveDefines += "#define PK_ACTIVE_ENTRY_POINT_" + outStageEntries[stageIndex]->name + "\n";
             }
             else
             {
-                source.insert(stmt.start, GetSlangStageAttribute(activeMatch->stage));
+                outStageEntries[stageIndex] = nullptr;
             }
         }
     }
 
-    static bool IsPushConstantPrimitiveType(std::string_view typeStr)
+    int PreprocessSource(const std::string& name, const std::string& source, std::vector<std::string>& filenames, simplecpp::TokenList& outTokens)
     {
-        char buffer[64]{};
-        
-        if (typeStr.empty() || typeStr.size() >= sizeof(buffer))
-        {
-            return false;
-        }
-        
-        memcpy(buffer, typeStr.data(), typeStr.size());
+        std::istringstream stream(source);
+        simplecpp::OutputList outputList;
 
-        const auto uniformType = StringToPKUniform(buffer);
+        simplecpp::TokenList rawTokens(stream, filenames, name, {}, &outputList);
+        rawTokens.removeComments();
+
+        simplecpp::FileDataCache fileData;
+        simplecpp::preprocess(outTokens, rawTokens, filenames, fileData, {}, &outputList);
+
+        if (!outputList.empty())
+        {
+            printf("\n ----------BEGIN PREPROCESS ERROR---------- \n");
+            for (const auto& output : outputList)
+            {
+                auto filename = output.location.fileIndex < filenames.size() ? filenames[output.location.fileIndex] : name;
+                printf("%s:%u: %s\n", filename.c_str(), output.location.line, output.msg.c_str());
+            }
+            printf("\n ----------END PREPROCESS ERROR---------- \n\n");
+            return -1;
+        }
+
+        return 0;
+    }
+
+    void SetActiveEntryPoints(simplecpp::TokenList& tokens, const std::vector<EntryPointInfo>& entries, EntryPointInfo* const* activeEntries)
+    {
+        const auto statements = ScanTopLevelStatements(tokens);
+
+        for (auto index = (int32_t)statements.size() - 1; index >= 0; --index)
+        {
+            const auto& statement = statements[index];
+
+            if (!statement.isFunction || statement.functionName == nullptr)
+            {
+                continue;
+            }
+
+            const auto& functionName = statement.functionName->str();
+
+            if (!IsDeclaredEntryPoint(functionName, entries))
+            {
+                continue;
+            }
+
+            const auto* entry = FindActiveEntryPoint(functionName, activeEntries);
+
+            if (entry == nullptr)
+            {
+                EraseTokenRange(tokens, statement.start, statement.end);
+            }
+            else
+            {
+                statement.start->setstr(std::string(GetSlangStageAttribute(entry->stage)) + statement.start->str());
+            }
+        }
+    }
+
+    static bool IsPushConstantPrimitiveType(const std::string& typeStr)
+    {
+        const auto uniformType = StringToPKUniform(typeStr.c_str());
 
         return uniformType != PKUniform::Invalid &&
             uniformType != PKUniform::Texture2D &&
@@ -830,151 +979,68 @@ namespace PKAssets::Shader
             uniformType != PKUniform::Keyword;
     }
 
-    static bool ExtractPrimitiveVariable(size_t& offset, std::string& source, uint32_t stageMask, SourcePushConstants& members)
+    void ExtractPushConstants(simplecpp::TokenList& tokens, uint32_t stageMask, SourcePushConstants& outConstants)
     {
-        auto typeStart = source.find_first_not_of(' ', offset);
+        const auto usageMap = BuildIdentifierUsageMap(tokens);
+        const auto statements = ScanTopLevelStatements(tokens);
 
-        if (typeStart == std::string::npos)
+        for (const auto& statement : statements)
         {
-            return false;
-        }
-
-        auto typeEnd = source.find_first_of(' ', typeStart);
-
-        if (typeEnd == std::string::npos)
-        {
-            return false;
-        }
-
-        auto nameStart = source.find_first_not_of(' ', typeEnd);
-
-        if (nameStart == std::string::npos)
-        {
-            return false;
-        }
-
-        auto nameEnd = source.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", nameStart);
-        auto semiPos = source.find_first_not_of(" \t\r\n", nameEnd);
-
-        if (semiPos == std::string::npos || source[semiPos] != ';')
-        {
-            offset = nameStart;
-            return false;
-        }
-
-        const std::string_view typeView(source.data() + typeStart, typeEnd - typeStart);
-
-        if (!IsPushConstantPrimitiveType(typeView))
-        {
-            offset = semiPos + 1u;
-            return false;
-        }
-
-        offset = semiPos + 1u;
-
-        auto type = std::string(typeView);
-        auto name = source.substr(nameStart, nameEnd - nameStart);
-        auto field = "    " + type + " " + name + ";\n";
-
-        if (CountIdentifierOccurrences(source, name) <= 1ull)
-        {
-            return true;
-        }
-
-        for (auto& member : members)
-        {
-            if (member.name.compare(name) == 0)
+            if (statement.isFunction || statement.openBrace != nullptr || statement.end == nullptr)
             {
-                if (member.field.compare(field) != 0)
+                continue;
+            }
+
+            auto* token = SkipLeadingAttributes(statement.start, statement.end);
+
+            if (token == nullptr || !token->name || token->str() != "uniform")
+            {
+                continue;
+            }
+
+            auto* typeToken = token->next;
+
+            if (typeToken == nullptr || !typeToken->name || !IsPushConstantPrimitiveType(typeToken->str()))
+            {
+                continue;
+            }
+
+            auto* nameToken = typeToken->next;
+
+            if (nameToken == nullptr || !nameToken->name || nameToken->next != statement.end || statement.end->op != ';')
+            {
+                continue;
+            }
+
+            const auto& name = nameToken->str();
+            const auto field = typeToken->str() + " " + name + ";\n";
+
+            if (GetIdentifierUsageCount(usageMap, name) > 1u)
+            {
+                auto found = false;
+
+                for (auto& member : outConstants)
                 {
-                    printf("Warning constant parameter '%s' was declared again with a different format '%s'", member.field.c_str(), field.c_str());
+                    if (member.name == name)
+                    {
+                        if (member.field != field)
+                        {
+                            printf("Warning constant parameter '%s' was declared again with a different format '%s'", member.field.c_str(), field.c_str());
+                        }
+
+                        member.stageFlags |= stageMask;
+                        found = true;
+                        break;
+                    }
                 }
 
-                member.stageFlags |= stageMask;
-                return true;
-            }
-        }
-
-        members.push_back({ name, field, stageMask });
-        return true;
-    }
-
-    static bool ExtractPushConstantBlock(size_t& offset, std::string& source, uint32_t stageMask, SourcePushConstants& members)
-    {
-        size_t blockStart, blockEnd;
-
-        if (!StringUtilities::FindScope(source, offset, "{", "}", &blockStart, &blockEnd))
-        {
-            return false;
-        }
-
-        blockEnd = source.find_first_not_of(" \t\r\n", blockEnd + 1ull);
-
-        if (blockEnd == std::string::npos || source[blockEnd] != ';')
-        {
-            return false;
-        }
-
-        auto currentPos = blockStart + 1ull;
-
-        while (true)
-        {
-            currentPos = source.find_first_not_of(" \t\n\r", currentPos);
-
-            if (currentPos == std::string::npos || currentPos >= blockEnd)
-            {
-                break;
-            }
-
-            auto memberEnd = currentPos;
-            if (!ExtractPrimitiveVariable(memberEnd, source, stageMask, members))
-            {
-                break;
-            }
-
-            currentPos = memberEnd;
-        }
-
-        offset = blockEnd + 1ull;
-        return true;
-    }
-
-    void ExtractPushConstants(std::string& source, uint32_t stageMask, SourcePushConstants& members)
-    {
-        auto currentpos = 0ull;
-
-        while (true)
-        {
-            auto startSingle = source.find("uniform ", currentpos);
-            auto startLayout = source.find("layout ( push_constant )", currentpos);
-
-            if (startSingle == std::string::npos && startLayout == std::string::npos)
-            {
-                break;
-            }
-
-            if (startSingle < startLayout)
-            {
-                auto endSingle = startSingle + 8ull;
-                if (ExtractPrimitiveVariable(endSingle, source, stageMask, members))
+                if (!found)
                 {
-                    source.erase(startSingle, endSingle - startSingle);
-                    continue;
+                    outConstants.push_back({ name, field, stageMask });
                 }
-
-                currentpos = endSingle;
             }
-            else
-            {
-                auto endLayout = startLayout + 24ull;
-                if (ExtractPushConstantBlock(endLayout, source, stageMask, members))
-                {
-                    source.erase(startLayout, endLayout - startLayout);
-                    continue;
-                }
 
-                currentpos = endLayout;
-            }
+            EraseTokenRange(tokens, statement.start, statement.end);
         }
     }
 
@@ -986,125 +1052,59 @@ namespace PKAssets::Shader
         }
 
         std::string layout = "[[vk::push_constant]] cbuffer pk_global_push_constant_block\n{\n";
+
         for (const auto& member : constants)
         {
             layout.append(member.field);
         }
+
         layout.append("};\n");
 
         source.insert(0ull, layout);
     }
 
-    void RemoveUnusedResourcesAndFunctions(std::string& source, EntryPointInfo* const* activeEntries)
+    void RemoveUnusedResourcesAndFunctions(simplecpp::TokenList& tokens, EntryPointInfo* const* activeEntries)
     {
-        auto isActiveEntry = [&](const std::string& name)
-        {
-            for (auto i = 0u; i < (uint32_t)PKShaderStage::EnumCount; ++i)
-            {
-                if (activeEntries[i] && activeEntries[i]->name == name)
-                {
-                    return true;
-                }
-            }
-            return false;
-        };
+        auto changed = true;
 
-        bool changed = true;
         while (changed)
         {
             changed = false;
-            const auto statements = ScanTopLevelStatements(source);
+            const auto usageMap = BuildIdentifierUsageMap(tokens);
+            const auto statements = ScanTopLevelStatements(tokens);
 
-            for (auto s = (int32_t)statements.size() - 1; s >= 0; --s)
+            for (auto index = (int32_t)statements.size() - 1; index >= 0; --index)
             {
-                const auto& stmt = statements[s];
+                const auto& statement = statements[index];
 
-                if (stmt.isFunction)
+                if (statement.isFunction && statement.functionName != nullptr)
                 {
-                    const auto funcName = ExtractFunctionName(source, stmt);
-                    if (!funcName.empty() && !isActiveEntry(funcName) && CountIdentifierOccurrences(source, funcName) <= 1ull)
+                    const auto& functionName = statement.functionName->str();
+
+                    if (FindActiveEntryPoint(functionName, activeEntries) == nullptr &&
+                        GetIdentifierUsageCount(usageMap, functionName) <= 1u)
                     {
-                        source.erase(stmt.start, stmt.end - stmt.start);
+                        EraseTokenRange(tokens, statement.start, statement.end);
                         changed = true;
                     }
                     continue;
                 }
 
-                // Block declaration: uniform / buffer / cbuffer { ... } [instanceName];
-                if (stmt.openBrace != std::string::npos && stmt.closeBrace != std::string::npos)
+                if (auto* propertyNameToken = FindPropertyDeclarationName(statement))
                 {
-                    const auto header = StripQualifiersAndAttributes(source.substr(stmt.start, stmt.openBrace - stmt.start));
-                    const auto tokens = StringUtilities::Split(header, " \t\r\n");
-
-                    bool isResourceBlock = false;
-                    for (const auto& t : tokens)
+                    if (GetIdentifierUsageCount(usageMap, propertyNameToken->str()) <= 1u)
                     {
-                        if (t == "uniform" || t == "buffer" || t == "cbuffer")
-                        {
-                            isResourceBlock = true;
-                            break;
-                        }
-                    }
-
-                    if (!isResourceBlock)
-                    {
-                        continue;
-                    }
-
-                    const auto instanceName = ExtractLastIdentifierBefore(std::string_view(source.data() + stmt.closeBrace + 1ull, (stmt.end - 1ull) - (stmt.closeBrace + 1ull)));
-
-                    if (!instanceName.empty())
-                    {
-                        if (CountIdentifierOccurrences(source, instanceName) <= 1ull)
-                        {
-                            source.erase(stmt.start, stmt.end - stmt.start);
-                            changed = true;
-                        }
-                    }
-                    else
-                    {
-                        const auto body = source.substr(stmt.openBrace + 1ull, stmt.closeBrace - (stmt.openBrace + 1ull));
-                        const auto memberDecls = StringUtilities::Split(body, ";");
-                        bool anyMemberUsed = false;
-
-                        for (const auto& memberDecl : memberDecls)
-                        {
-                            const auto memberName = ExtractLastIdentifierBefore(memberDecl);
-                            if (!memberName.empty() && CountIdentifierOccurrences(source, memberName) > 1ull)
-                            {
-                                anyMemberUsed = true;
-                                break;
-                            }
-                        }
-
-                        if (!anyMemberUsed)
-                        {
-                            source.erase(stmt.start, stmt.end - stmt.start);
-                            changed = true;
-                        }
+                        EraseTokenRange(tokens, statement.start, statement.end);
+                        changed = true;
                     }
                     continue;
                 }
 
-                const auto decl = StripQualifiersAndAttributes(source.substr(stmt.start, (stmt.end - 1ull) - stmt.start));
-                const auto declNoArray = decl.substr(0ull, decl.find('['));
-
-                if (declNoArray.find('(') != std::string::npos || decl.find('=') != std::string::npos)
+                if (auto* variableNameToken = FindVariableDeclarationName(statement))
                 {
-                    continue;
-                }
-
-                const auto tokens = StringUtilities::Split(declNoArray, " \t\r\n");
-                if (tokens.size() >= 2ull &&
-                    (tokens[0] == "uniform" ||
-                        tokens[0] == "shared" ||
-                        tokens[0] == "groupshared" ||
-                        tokens[0] == "static"))
-                {
-                    const auto varName = ExtractLastIdentifierBefore(declNoArray);
-                    if (!varName.empty() && CountIdentifierOccurrences(source, varName) <= 1ull)
+                    if (GetIdentifierUsageCount(usageMap, variableNameToken->str()) <= 1u)
                     {
-                        source.erase(stmt.start, stmt.end - stmt.start);
+                        EraseTokenRange(tokens, statement.start, statement.end);
                         changed = true;
                     }
                 }

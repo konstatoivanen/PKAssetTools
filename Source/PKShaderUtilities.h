@@ -2,6 +2,7 @@
 #include <slang/slang.h>
 #include <slang/slang-com-ptr.h>
 #include <SPIRV-Reflect/spirv_reflect.h>
+#include <simplecpp/simplecpp.h>
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -163,13 +164,6 @@ namespace PKAssets::Shader
         __generic<T : __BuiltinFloatingPointType, let R : int, let N : int, let C : int>
         matrix<T, R, C> operator*(matrix<T, N, C> a, matrix<T, R, N> b) { return mul(b, a); }
 
-        __generic<T : ITexelElement> T texelFetch(Texture2D<T> tex, int2 coord, int lod) { return tex.Load(int3(coord, lod)); }
-        __generic<T : ITexelElement> T texelFetch(Texture2DArray<T> tex, int3 coord, int lod) { return tex.Load(int4(coord, lod)); }
-        __generic<T : ITexelElement> T texelFetch(Texture3D<T> tex, int3 coord, int lod) { return tex.Load(int4(coord, lod)); }
-
-        float4 texelFetch(Texture2DMS<float4> tex, int2 coord, int sampleIndex) { return tex.Load(coord, sampleIndex); }
-        int textureSamples(Texture2DMS<float4> tex) { uint w, h, s; tex.GetDimensions(w, h, s); return int(s); }
-
         extension<T : ITexelElement> RWTexture2D<T> { uint2 GetSize() { uint w, h; this.GetDimensions(w, h); return uint2(w, h);}};
         extension<T : ITexelElement> RWTexture2DArray<T> { uint3 GetSize() { uint w, h, e; this.GetDimensions(w, h, e); return uint3(w, h, e);}};
         extension<T : ITexelElement> RWTexture3D<T> { uint3 GetSize() { uint w, h, d; this.GetDimensions(w, h, d); return uint3(w, h, d);}};
@@ -256,8 +250,12 @@ namespace PKAssets::Shader
     void ExtractLogVerbose(std::string& source, bool* outValue);
     void ExtractGenerateDebugInfo(std::string& source, bool* outValue);
     void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes);
-    void SetActiveEntryPoints(std::string& source, const std::vector<EntryPointInfo>& entries, EntryPointInfo* const* activeEntries);
-    void ExtractPushConstants(std::string& source, uint32_t stageMask, SourcePushConstants& outConstants);
+    void ExtractMulticompiles(std::string& source, std::vector<std::string>& outVariantDefines, std::vector<PKShaderKeyword>& outKeywords);
+    int ExtractEntryPoints(std::string& source, std::vector<EntryPointInfo>& outEntryPoints);
+    void FindActiveEntryPoints(std::vector<EntryPointInfo>& entries, const std::string& variantDefines, EntryPointInfo** outStageEntries, uint32_t* outActiveStageMask, std::string& outActiveDefines);
+    int PreprocessSource(const std::string& name, const std::string& source, std::vector<std::string>& filenames, simplecpp::TokenList& outTokens);
+    void SetActiveEntryPoints(simplecpp::TokenList& tokens, const std::vector<EntryPointInfo>& entries, EntryPointInfo* const* activeEntries);
+    void RemoveUnusedResourcesAndFunctions(simplecpp::TokenList& tokens, EntryPointInfo* const* activeEntries);
+    void ExtractPushConstants(simplecpp::TokenList& tokens, uint32_t stageMask, SourcePushConstants& outConstants);
     void CompilePushConstantBlock(std::string& source, const SourcePushConstants& constants);
-    void RemoveUnusedResourcesAndFunctions(std::string& source, EntryPointInfo* const* activeEntries);
 }

@@ -1,8 +1,6 @@
 #include <unordered_map>
 #include <map>
 #include <stdexcept>
-#include <sstream>
-#include <simplecpp/simplecpp.h>
 #include "PKStringUtilities.h"
 #include "PKSPVUtilities.h"
 #include "PKShaderUtilities.h"
@@ -22,7 +20,7 @@ namespace PKAssets::Shader
     static slang::IGlobalSession* GetSlangGlobalSession()
     {
         static Slang::ComPtr<slang::IGlobalSession> s_globalSession;
-        
+
         if (!s_globalSession)
         {
             slang::createGlobalSession(s_globalSession.writeRef());
@@ -78,192 +76,6 @@ namespace PKAssets::Shader
         std::vector<std::string> includes;
         ouput = StringUtilities::ReadFileRecursiveInclude(filepath, includes);
         return PKVersionUtilities::IsFileAnyOutOfDate(includes, lastDestWriteTime);
-    }
-
-    static void ExtractMulticompiles(std::string& source, std::vector<std::string>& outVariantDefines, std::vector<PKShaderKeyword>& outKeywords)
-    {
-        std::vector<std::vector<std::string>> keywords{};
-        std::string output;
-        size_t pos = 0;
-        size_t dcount = 0;
-        size_t vcount = 1;
-
-        while (true)
-        {
-            pos = StringUtilities::ExtractToken(pos, PK_SHADER_ATTRIB_MULTI_COMPILE, source, output, false);
-
-            if (pos == std::string::npos)
-            {
-                break;
-            }
-
-            if (vcount >= PK_ASSET_MAX_SHADER_KEYWORDS)
-            {
-                printf("Warning maximum number of shader variants exceeded!.\n");
-                continue;
-            }
-
-            if (dcount >= PK_ASSET_MAX_SHADER_DIRECTIVES)
-            {
-                printf("Warning maximum number of shader multicompile directives reached!.\n");
-                continue;
-            }
-
-            auto directive = StringUtilities::Split(output, " ");
-
-            if (directive.size() >= PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE)
-            {
-                printf("Warning multicompile directive keyword count exceeds supported limits!\n");
-                continue;
-            }
-
-            for (auto i = 0u; i < directive.size(); ++i)
-            {
-                auto& keyword = directive.at(i);
-
-                if (keyword != "_")
-                {
-                    PKShaderKeyword pkkw{};
-                    pkkw.offset = (uint16_t)vcount;
-                    pkkw.directive = dcount;
-                    pkkw.value = i;
-                    WriteName(pkkw.name, keyword.c_str());
-                    outKeywords.push_back(pkkw);
-                }
-            }
-
-            keywords.push_back(directive);
-            dcount++;
-            vcount *= directive.size();
-        }
-
-        outVariantDefines.reserve(vcount);
-
-        for (auto i = 0u; i < vcount; ++i)
-        {
-            std::string defines;
-            auto declareIndex = i;
-
-            for (auto j = 0u; j < keywords.size(); ++j)
-            {
-                auto& declares = keywords.at(j);
-                auto& keyword = declares.at(declareIndex % declares.size());
-
-                if (keyword != "_")
-                {
-                    defines.append("#define ");
-                    defines.append(keyword);
-                    defines.append("\n");
-                }
-
-                declareIndex /= (uint32_t)declares.size();
-            }
-
-            outVariantDefines.push_back(defines);
-        }
-    }
-
-    static int ExtractEntryPoints(std::string& source, std::vector<EntryPointInfo>& entryPoints)
-    {
-        std::string output;
-        size_t pos = 0;
-
-        while (true)
-        {
-            pos = StringUtilities::ExtractToken(pos, PK_SHADER_ATTRIB_PROGRAM, source, output, false);
-
-            if (pos == std::string::npos)
-            {
-                break;
-            }
-
-            auto directives = StringUtilities::Split(output, " ");
-
-            if (directives.size() != 2 && directives.size() != 3)
-            {
-                printf("Entry point declaration contains an invalid amount of arguments (should be stage, name)\n");
-                return -1;
-            }
-
-            auto stage = StringToPKShaderStage(directives[0].c_str());
-
-            if (stage == PKShaderStage::EnumCount)
-            {
-                printf("Unsupported shader stage specified! \n");
-                return -1;
-            }
-
-            EntryPointInfo info;
-            info.name = directives[1];
-            info.stage = stage;
-            info.keyword = directives.size() == 3 ? directives[2] : "";
-
-            if (source.find(info.name, 0u) == std::string::npos)
-            {
-                printf("Definition for declared entry point %s was not found!", info.name.c_str());
-                return -1;
-            }
-
-            entryPoints.push_back(info);
-        }
-
-        return 0;
-    }
-
-    static int32_t FindActiveEntryPointIndexForStage(const std::vector<EntryPointInfo>& entries, const std::string& defines, PKShaderStage stage)
-    {
-        auto maxIndex = -1;
-
-        for (auto i = 0u; i < entries.size(); ++i)
-        {
-            if (entries[i].stage == stage)
-            {
-                if (!entries[i].keyword.empty())
-                {
-                    auto keypos = defines.find(entries[i].keyword, 0u);
-
-                    if (keypos != std::string::npos && isspace((unsigned char)defines[keypos + entries[i].keyword.size()]))
-                    {
-                        return i;
-                    }
-
-                    continue;
-                }
-
-                maxIndex = i;
-            }
-        }
-
-        return maxIndex;
-    }
-
-    static int32_t PreprocessSource(const std::string& name, std::string& source)
-    {
-        std::istringstream istr(source);
-        std::vector<std::string> filenames;
-        simplecpp::OutputList outputList;
-
-        simplecpp::TokenList rawtokens(istr, filenames, name, {}, &outputList);
-        rawtokens.removeComments();
-
-        simplecpp::FileDataCache filedata;
-        simplecpp::TokenList outputTokens(filenames);
-        simplecpp::preprocess(outputTokens, rawtokens, filenames, filedata, {}, &outputList);
-
-        if (!outputList.empty())
-        {
-            printf("\n ----------BEGIN PREPROCESS ERROR---------- \n");
-            for (const simplecpp::Output& output : outputList)
-            {
-                std::string filename = (output.location.fileIndex < filenames.size()) ? filenames[output.location.fileIndex] : name;
-                printf("%s:%u: %s\n", filename.c_str(), output.location.line, output.msg.c_str());
-            }
-            printf("\n ----------END PREPROCESS ERROR---------- \n\n");
-            return -1;
-        }
-
-        source = outputTokens.stringify();
-        return 0;
     }
 
     static void ReleaseReflectionData(ReflectionData& reflection)
@@ -538,7 +350,7 @@ namespace PKAssets::Shader
         };
 
         AddCapabilityOption(globalSession, options, "vk_mem_model");
-       // AddCapabilityOption(globalSession, options, "spvDescriptorHeapEXT");
+        // AddCapabilityOption(globalSession, options, "spvDescriptorHeapEXT");
         AddCapabilityOption(globalSession, options, "spvImageGatherExtended");
         AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_basic");
         AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_vote");
@@ -577,9 +389,6 @@ namespace PKAssets::Shader
         Slang::ComPtr<slang::IBlob> diagnostics;
         Slang::ComPtr<slang::IModule> module(session->loadModuleFromSourceString(name.c_str(), name.c_str(), variantSource.c_str(), diagnostics.writeRef()));
         std::vector<Slang::ComPtr<slang::IEntryPoint>> entryPoints;
-        std::vector<slang::IComponentType*> components = { module };
-        Slang::ComPtr<slang::IComponentType> composedProgram;
-        Slang::ComPtr<slang::IComponentType> linkedProgram;
         std::vector<uint32_t> activeStages;
 
         if (!module)
@@ -609,7 +418,6 @@ namespace PKAssets::Shader
                     return false;
                 }
 
-                components.push_back(entryPoint);
                 entryPoints.push_back(entryPoint);
                 activeStages.push_back(stageIndex);
             }
@@ -740,34 +548,24 @@ namespace PKAssets::Shader
         {
             EntryPointInfo* stageEntries[(uint32_t)PKShaderStage::EnumCount]{};
             uint32_t activeStageMask = 0u;
-            std::string activeHeaderDefines = variantDefines[variantIndex];
+            std::string activeHeaderDefines;
+            FindActiveEntryPoints(entryPoints, variantDefines[variantIndex], stageEntries, &activeStageMask, activeHeaderDefines);
 
-            for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
-            {
-                auto entryIndex = FindActiveEntryPointIndexForStage(entryPoints, variantDefines[variantIndex], (PKShaderStage)stageIndex);
+            std::string variantSource = activeHeaderDefines + source;
+            std::vector<std::string> filenames;
+            simplecpp::TokenList variantTokens(filenames);
 
-                if (entryIndex != -1)
-                {
-                    stageEntries[stageIndex] = &entryPoints.at(entryIndex);
-                    activeStageMask |= 1u << stageIndex;
-                    activeHeaderDefines += PK_SHADER_STAGE_DEFINES[stageIndex];
-                    activeHeaderDefines += "#define PK_ACTIVE_ENTRY_POINT_" + stageEntries[stageIndex]->name + "\n";
-                }
-            }
-
-            std::string variantSource = source;
-            variantSource.insert(0ull, activeHeaderDefines);
-
-            if (PreprocessSource(filename, variantSource) != 0)
+            if (PreprocessSource(filename, variantSource, filenames, variantTokens) != 0)
             {
                 return -1;
             }
 
-            SetActiveEntryPoints(variantSource, entryPoints, stageEntries);
-            RemoveUnusedResourcesAndFunctions(variantSource, stageEntries);
-
             SourcePushConstants sourceConstants;
-            ExtractPushConstants(variantSource, activeStageMask, sourceConstants);
+            SetActiveEntryPoints(variantTokens, entryPoints, stageEntries);
+            RemoveUnusedResourcesAndFunctions(variantTokens, stageEntries);
+            ExtractPushConstants(variantTokens, activeStageMask, sourceConstants);
+
+            variantSource = variantTokens.stringify();
             CompilePushConstantBlock(variantSource, sourceConstants);
             variantSource.insert(0ull, PK_SLANG_PRELUDE);
 
