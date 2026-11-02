@@ -25,9 +25,9 @@ namespace PKAssets::Shader
         return false;
     }
 
-    bool ReflectResourceWrite(const uint32_t* code, const uint32_t wordCount, uint32_t variable, PKDescriptorType type)
+    bool ReflectResourceWrite(const uint32_t* code, const uint32_t wordCount, uint32_t variable, PKUniform type)
     {
-        if (type != PKDescriptorType::Image && type != PKDescriptorType::StorageBuffer)
+        if (type != PKUniform::Image && type != PKUniform::StorageBuffer)
         {
             return false;
         }

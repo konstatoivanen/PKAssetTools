@@ -7,6 +7,13 @@ namespace PKAssets::Shader::Instancing
 {
     void InsertMaterialAssembly(std::string& source, std::vector<PKMaterialProperty>& outProperties, bool* outEnabled, bool* outNoFragInstancing)
     {
+        struct ParsedMaterialProperty
+        {
+            PKMaterialProperty prop{};
+            std::string fieldType;
+            std::string targetType;
+        };
+
         *outEnabled = false;
         outProperties.clear();
 
@@ -16,6 +23,7 @@ namespace PKAssets::Shader::Instancing
             *outNoFragInstancing = noFragment;
         }
 
+        std::vector<ParsedMaterialProperty> properties;
         std::string output;
         auto pos = 0ull;
 
@@ -30,23 +38,25 @@ namespace PKAssets::Shader::Instancing
 
             auto parts = StringUtilities::Split(output, " ");
 
-            if (parts.size() != 2)
+            if (parts.size() == 2)
             {
-                continue;
-            }
+                std::string fieldType;
+                std::string targetType;
+                const auto type = ReflectUniformType(parts[0], &fieldType, &targetType);
 
-            auto type = StringToPKUniform(parts[0].c_str());
-
-            if (type != PKUniform::Invalid)
-            {
-                PKMaterialProperty prop{};
-                prop.type = type;
-                WriteName(prop.name, parts[1].c_str());
-                outProperties.push_back(prop);
+                if (type != PKUniform::Invalid)
+                {
+                    ParsedMaterialProperty prop{};
+                    prop.prop.type = type;
+                    WriteName(prop.prop.name, parts[1].c_str());
+                    prop.fieldType = fieldType;
+                    prop.targetType = targetType;
+                    properties.push_back(prop);
+                }
             }
         }
 
-        if (outProperties.empty())
+        if (properties.empty())
         {
             if (!StringUtilities::ExtractToken(PK_SHADER_ATTRIB_INSTANCING_PROP, source, true).empty())
             {
@@ -62,22 +72,42 @@ namespace PKAssets::Shader::Instancing
             return;
         }
 
+        std::stable_sort(properties.begin(), properties.end(), [](const ParsedMaterialProperty& a, const ParsedMaterialProperty& b)
+        {
+            const auto alignA = PKUniformToScalarSize(a.prop.type);
+            const auto alignB = PKUniformToScalarSize(b.prop.type);
+
+            if (alignA != alignB)
+            {
+                return alignA > alignB;
+            }
+
+            return PKUniformToSize(a.prop.type) > PKUniformToSize(b.prop.type);
+        });
+
+        auto stride = 0u;
+        auto maxAlign = 4u;
         std::string structFields;
         std::string propertyAccessors;
+        outProperties.reserve(properties.size());
 
-        for (const auto& prop : outProperties)
+        for (const auto& prop : properties)
         {
-            const std::string name(prop.name);
-            const std::string fieldType = PKUniformToSlangString(prop.type);
-            structFields += fieldType + " " + name + ";\n";
+            outProperties.push_back(prop.prop);
+            const auto align = PKUniformToScalarSize(prop.prop.type);
+            maxAlign = std::max(maxAlign, align);
+            stride = (stride + align - 1u) & ~(align - 1u);
+            stride += PKUniformToSize(prop.prop.type);
 
-            switch (prop.type)
-            {
-                case PKUniform::Texture2D: propertyAccessors += "property Texture2D " + name + " {get{return pk_Heap_Textures2D[pk_Instancing_PropertyBlock." + name + "];}}\n"; break;
-                case PKUniform::Texture3D: propertyAccessors += "property Texture3D " + name + " {get{return pk_Heap_Textures3D[pk_Instancing_PropertyBlock." + name + "];}}\n"; break;
-                case PKUniform::TextureCube: propertyAccessors += "property TextureCube " + name + " {get{return pk_Heap_TexturesCube[pk_Instancing_PropertyBlock." + name + "];}}\n"; break;
-                default: propertyAccessors += "property " + fieldType + " " + name + " {get{return pk_Instancing_PropertyBlock." + name + ";}}\n"; break;
-            }
+            const std::string name(prop.prop.name);
+            const std::string getter = PKUniformIsResourceHandle(prop.prop.type) ? ".Get()" : "";
+            structFields +=  prop.fieldType + " " + name + ";\n";
+            propertyAccessors += "property " + prop.targetType + " " + name + " { get { return pk_Instancing_PropertyBlock." + name + getter + "; } }\n";
+        }
+
+        if ((stride % maxAlign) != 0u)
+        {
+            structFields += "    uint8_t _pk_pad[" + std::to_string(maxAlign - (stride % maxAlign)) + "];\n";
         }
 
         auto header = "struct PK_MaterialPropertyBlock\n{\n" + structFields + "};\n" +

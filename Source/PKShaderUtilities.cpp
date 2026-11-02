@@ -16,6 +16,37 @@ namespace PKAssets::Shader
         bool isFunction = false;
     };
 
+    struct UniformMeta
+    {
+        const char* name = nullptr;
+        const char* targetBase = nullptr;
+        const char* defaultTemplate = nullptr;
+        PKUniform type = PKUniform::Invalid;
+        bool requiresTemplate = false;
+    };
+
+    constexpr const static UniformMeta PK_UNIFORM_RESOURCE_META[] =
+    {
+        { "SamplerRef",                         "SamplerState",                    nullptr,    PKUniform::Sampler,               false },
+        { "SamplerCmpRef",                      "SamplerComparisonState",          nullptr,    PKUniform::Sampler,               false },
+        { "Texture2DRef",                       "Texture2D",                       "<float4>", PKUniform::Texture,               false },
+        { "Texture3DRef",                       "Texture3D",                       "<float4>", PKUniform::Texture,               false },
+        { "TextureCubeRef",                     "TextureCube",                     "<float4>", PKUniform::Texture,               false },
+        { "Texture2DArrayRef",                  "Texture2DArray",                  "<float4>", PKUniform::Texture,               false },
+        { "TextureCubeArrayRef",                "TextureCubeArray",                "<float4>", PKUniform::Texture,               false },
+        { "Texture2DMSRef",                     "Texture2DMS",                     "<float4>", PKUniform::Texture,               false },
+        { "RWTexture2DRef",                     "RWTexture2D",                     "<float4>", PKUniform::Image,                 false },
+        { "RWTexture2DArrayRef",                "RWTexture2DArray",                "<float4>", PKUniform::Image,                 false },
+        { "RWTexture3DRef",                     "RWTexture3D",                     "<float4>", PKUniform::Image,                 false },
+        { "StructuredBufferRef",                "StructuredBuffer",                nullptr,    PKUniform::StorageBuffer,         true  },
+        { "RWStructuredBufferRef",              "RWStructuredBuffer",              nullptr,    PKUniform::StorageBuffer,         true  },
+        { "ByteAddressBufferRef",               "ByteAddressBuffer",               nullptr,    PKUniform::StorageBuffer,         false },
+        { "RWByteAddressBufferRef",             "RWByteAddressBuffer",             nullptr,    PKUniform::StorageBuffer,         false },
+        { "ConstantBufferRef",                  "ConstantBuffer",                  nullptr,    PKUniform::ConstantBuffer,        true  },
+        { "AccelerationStructureRef",           "RaytracingAccelerationStructure", nullptr,    PKUniform::AccelerationStructure, false },
+        { "RaytracingAccelerationStructureRef", "RaytracingAccelerationStructure", nullptr,    PKUniform::AccelerationStructure, false },
+    };
+
     const static char* PKUniform_NAMES[] =
     {
         "Invalid",
@@ -36,9 +67,13 @@ namespace PKAssets::Shader
         "float4x2", "float4x3", "float4x4",
         "double2x2", "double3x3", "double4x4",
         "half2x2",   "half3x3",   "half4x4",
-        "Texture2D",
-        "Texture3D",
-        "TextureCube",
+        "Sampler",
+        "Texture",
+        "Image",
+        "ConstantBuffer",
+        "StorageBuffer",
+        "InputAttachment",
+        "AccelerationStructure",
         "keyword",
     };
 
@@ -114,15 +149,6 @@ namespace PKAssets::Shader
         return fallback;
     }
 
-    #define DECLARE_STRING_TO_ENUM(TType, TFallback) TType StringTo##TType(const char* str) { return (TType)FindEnumIndexFromString(TType##_NAMES, str, (uint32_t)TFallback); }
-    DECLARE_STRING_TO_ENUM(PKUniform, PKUniform::Invalid)
-    DECLARE_STRING_TO_ENUM(PKShaderStage, PKShaderStage::EnumCount)
-    DECLARE_STRING_TO_ENUM(PKComparison, PKComparison::Off)
-    DECLARE_STRING_TO_ENUM(PKCullMode, PKCullMode::Off)
-    DECLARE_STRING_TO_ENUM(PKBlendFactor, PKBlendFactor::None)
-    DECLARE_STRING_TO_ENUM(PKBlendOp, PKBlendOp::None)
-    DECLARE_STRING_TO_ENUM(PKRasterMode, PKRasterMode::Default)
-    #undef DECLARE_STRING_TO_ENUM
 
     static void EraseTokenRange(simplecpp::TokenList& tokens, simplecpp::Token* first, simplecpp::Token* last)
     {
@@ -182,19 +208,24 @@ namespace PKAssets::Shader
         return token;
     }
 
-    static std::unordered_map<std::string, uint32_t> BuildIdentifierUsageMap(const simplecpp::TokenList& tokens)
+    static uint32_t CountIdentifierInRange(const simplecpp::Token* first, const simplecpp::Token* last, const std::string& name)
     {
-        std::unordered_map<std::string, uint32_t> counts;
+        auto count = 0u;
 
-        for (const auto* token = tokens.cfront(); token != nullptr; token = token->next)
+        for (const auto* token = first; token != nullptr; token = token->next)
         {
-            if (token->name && (token->previous == nullptr || token->previous->op != '.'))
+            if (token->name && (token->previous == nullptr || token->previous->op != '.') && token->str() == name)
             {
-                counts[token->str()]++;
+                count++;
+            }
+
+            if (token == last)
+            {
+                break;
             }
         }
 
-        return counts;
+        return count;
     }
 
     static uint32_t GetIdentifierUsageCount(const std::unordered_map<std::string, uint32_t>& usageMap, const std::string& name)
@@ -384,6 +415,87 @@ namespace PKAssets::Shader
         return nullptr;
     }
 
+    static std::unordered_map<std::string, uint32_t> BuildIdentifierUsageMap(const simplecpp::TokenList& tokens, const std::vector<TokenStatement>& statements)
+    {
+        std::unordered_map<std::string, uint32_t> counts;
+
+        for (const auto* token = tokens.cfront(); token != nullptr; token = token->next)
+        {
+            if (token->name && (token->previous == nullptr || token->previous->op != '.'))
+            {
+                counts[token->str()]++;
+            }
+        }
+
+        // Subtract declaration tokens so the map only stores actual reference counts
+        for (const auto& statement : statements)
+        {
+            const simplecpp::Token* declToken = nullptr;
+
+            if (statement.isFunction)
+            {
+                declToken = statement.functionName;
+            }
+            else if (auto* propToken = FindPropertyDeclarationName(statement))
+            {
+                declToken = propToken;
+            }
+            else if (auto* varToken = FindVariableDeclarationName(statement))
+            {
+                declToken = varToken;
+            }
+
+            if (declToken != nullptr)
+            {
+                auto iterator = counts.find(declToken->str());
+                if (iterator != counts.end() && iterator->second > 0u)
+                {
+                    iterator->second--;
+                }
+            }
+        }
+
+        return counts;
+    }
+
+    static int32_t FindActiveEntryPointIndexForStage(const std::vector<EntryPointInfo>& entries, const std::string& defines, PKShaderStage stage)
+    {
+        auto maxIndex = -1;
+
+        for (auto i = 0u; i < entries.size(); ++i)
+        {
+            if (entries[i].stage == stage)
+            {
+                if (!entries[i].keyword.empty())
+                {
+                    auto keypos = defines.find(entries[i].keyword, 0u);
+
+                    if (keypos != std::string::npos && isspace((uint8_t)defines[keypos + entries[i].keyword.size()]))
+                    {
+                        return i;
+                    }
+
+                    continue;
+                }
+
+                maxIndex = i;
+            }
+        }
+
+        return maxIndex;
+    }
+
+
+    #define DECLARE_STRING_TO_ENUM(TType, TFallback) TType StringTo##TType(const char* str) { return (TType)FindEnumIndexFromString(TType##_NAMES, str, (uint32_t)TFallback); }
+    DECLARE_STRING_TO_ENUM(PKUniform, PKUniform::Invalid)
+    DECLARE_STRING_TO_ENUM(PKShaderStage, PKShaderStage::EnumCount)
+    DECLARE_STRING_TO_ENUM(PKComparison, PKComparison::Off)
+    DECLARE_STRING_TO_ENUM(PKCullMode, PKCullMode::Off)
+    DECLARE_STRING_TO_ENUM(PKBlendFactor, PKBlendFactor::None)
+    DECLARE_STRING_TO_ENUM(PKBlendOp, PKBlendOp::None)
+    DECLARE_STRING_TO_ENUM(PKRasterMode, PKRasterMode::Default)
+    #undef DECLARE_STRING_TO_ENUM
+
     PKColorMask StringToPKColorMask(const char* str)
     {
         auto length = str ? strnlen(str, 4) : 0;
@@ -460,98 +572,97 @@ namespace PKAssets::Shader
         return PKUniform::Invalid;
     }
 
-    std::string PKUniformToSlangString(PKUniform type)
+    PKUniform ReflectUniformType(std::string_view typeText, std::string* outFieldType, std::string* outTargetType)
+    {
+        auto baseName = typeText;
+        std::string_view templateArg{};
+
+        const auto templateOpen = typeText.find('<');
+
+        if (templateOpen != std::string_view::npos)
+        {
+            const auto templateClose = typeText.rfind('>');
+
+            if (templateClose == std::string_view::npos || templateClose < templateOpen)
+            {
+                return PKUniform::Invalid;
+            }
+
+            baseName = typeText.substr(0ull, templateOpen);
+            templateArg = typeText.substr(templateOpen, (templateClose + 1ull) - templateOpen);
+        }
+
+        if (templateArg.empty())
+        {
+            for (auto i = (uint32_t)PKUniform::Bool; i <= (uint32_t)PKUniform::Half4x4; ++i)
+            {
+                if (baseName == PKUniform_NAMES[i])
+                {
+                    if (outFieldType)
+                    {
+                        *outFieldType = std::string(baseName);
+                    }
+
+                    if (outTargetType)
+                    {
+                        *outTargetType = std::string(baseName);
+                    }
+
+                    return (PKUniform)i;
+                }
+            }
+        }
+
+        for (const auto& meta : PK_UNIFORM_RESOURCE_META)
+        {
+            if (baseName == meta.name)
+            {
+                if (meta.requiresTemplate && templateArg.empty())
+                {
+                    return PKUniform::Invalid;
+                }
+
+                if (outFieldType)
+                {
+                    *outFieldType = std::string(baseName) + std::string(templateArg);
+                }
+
+                if (outTargetType)
+                {
+                    *outTargetType = std::string(meta.targetBase);
+
+                    if (!templateArg.empty())
+                    {
+                        *outTargetType += std::string(templateArg);
+                    }
+                    else if (meta.defaultTemplate != nullptr)
+                    {
+                        *outTargetType += meta.defaultTemplate;
+                    }
+                }
+
+                return meta.type;
+            }
+        }
+
+        return PKUniform::Invalid;
+    }
+
+    PKUniform GetResourceType(SpvReflectDescriptorType type)
     {
         switch (type)
         {
-            case PKUniform::Invalid:   return "INVALID";
-            case PKUniform::Bool:      return "bool";
-            case PKUniform::Bool2:     return "bool2";
-            case PKUniform::Bool3:     return "bool3";
-            case PKUniform::Bool4:     return "bool4";
-            case PKUniform::Byte:      return "byte";
-            case PKUniform::Byte2:     return "byte2";
-            case PKUniform::Byte3:     return "byte3";
-            case PKUniform::Byte4:     return "byte4";
-            case PKUniform::Sbyte:     return "sbyte";
-            case PKUniform::Sbyte2:    return "sbyte2";
-            case PKUniform::Sbyte3:    return "sbyte3";
-            case PKUniform::Sbyte4:    return "sbyte4";
-            case PKUniform::Short:     return "short";
-            case PKUniform::Short2:    return "short2";
-            case PKUniform::Short3:    return "short3";
-            case PKUniform::Short4:    return "short4";
-            case PKUniform::Ushort:    return "ushort";
-            case PKUniform::Ushort2:   return "ushort2";
-            case PKUniform::Ushort3:   return "ushort3";
-            case PKUniform::Ushort4:   return "ushort4";
-            case PKUniform::Half:      return "half";
-            case PKUniform::Half2:     return "half2";
-            case PKUniform::Half3:     return "half3";
-            case PKUniform::Half4:     return "half4";
-            case PKUniform::Float:     return "float";
-            case PKUniform::Float2:    return "float2";
-            case PKUniform::Float3:    return "float3";
-            case PKUniform::Float4:    return "float4";
-            case PKUniform::Int:       return "int";
-            case PKUniform::Int2:      return "int2";
-            case PKUniform::Int3:      return "int3";
-            case PKUniform::Int4:      return "int4";
-            case PKUniform::Uint:      return "uint";
-            case PKUniform::Uint2:     return "uint2";
-            case PKUniform::Uint3:     return "uint3";
-            case PKUniform::Uint4:     return "uint4";
-            case PKUniform::Long:      return "long";
-            case PKUniform::Long2:     return "long2";
-            case PKUniform::Long3:     return "long3";
-            case PKUniform::Long4:     return "long4";
-            case PKUniform::Ulong:     return "ulong";
-            case PKUniform::Ulong2:    return "ulong2";
-            case PKUniform::Ulong3:    return "ulong3";
-            case PKUniform::Ulong4:    return "ulong4";
-            case PKUniform::Double:    return "double";
-            case PKUniform::Double2:   return "double2";
-            case PKUniform::Double3:   return "double3";
-            case PKUniform::Double4:   return "double4";
-            case PKUniform::Float2x2:  return "float2x2";
-            case PKUniform::Float2x3:  return "float2x3";
-            case PKUniform::Float2x4:  return "float2x4";
-            case PKUniform::Float3x2:  return "float3x2";
-            case PKUniform::Float3x3:  return "float3x3";
-            case PKUniform::Float4x2:  return "float4x2";
-            case PKUniform::Float4x3:  return "float4x3";
-            case PKUniform::Float4x4:  return "float4x4";
-            case PKUniform::Float3x4:  return "float3x4";
-            case PKUniform::Double2x2: return "double2x2";
-            case PKUniform::Double3x3: return "double3x3";
-            case PKUniform::Double4x4: return "double4x4";
-            case PKUniform::Half2x2:   return "half2x2";
-            case PKUniform::Half3x3:   return "half3x3";
-            case PKUniform::Half4x4:   return "half4x4";
-            case PKUniform::Texture2D:   return "uint";
-            case PKUniform::Texture3D:   return "uint";
-            case PKUniform::TextureCube: return "uint";
-            case PKUniform::Keyword:     return "INVALID";
+            case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER:                    return PKUniform::Sampler;
+            case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:              return PKUniform::Texture;
+            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE:              return PKUniform::Image;
+            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:             return PKUniform::ConstantBuffer;
+            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:             return PKUniform::StorageBuffer;
+            case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:           return PKUniform::InputAttachment;
+            case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: return PKUniform::AccelerationStructure;
+            default:                                                     return PKUniform::Invalid;
         }
-
-        return "INVALID";
     }
 
-    PKDescriptorType GetResourceType(SpvReflectDescriptorType type)
-    {
-        switch (type)
-        {
-            case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER: return PKDescriptorType::Sampler;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE: return PKDescriptorType::Texture;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE: return PKDescriptorType::Image;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER: return PKDescriptorType::ConstantBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER: return PKDescriptorType::StorageBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT: return PKDescriptorType::InputAttachment;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: return PKDescriptorType::AccelerationStructure;
-        }
-
-        return PKDescriptorType::Invalid;
-    }
 
     SlangStage PKShaderStageToSlangStage(PKShaderStage stage)
     {
@@ -859,33 +970,6 @@ namespace PKAssets::Shader
         return 0;
     }
 
-    static int32_t FindActiveEntryPointIndexForStage(const std::vector<EntryPointInfo>& entries, const std::string& defines, PKShaderStage stage)
-    {
-        auto maxIndex = -1;
-
-        for (auto i = 0u; i < entries.size(); ++i)
-        {
-            if (entries[i].stage == stage)
-            {
-                if (!entries[i].keyword.empty())
-                {
-                    auto keypos = defines.find(entries[i].keyword, 0u);
-
-                    if (keypos != std::string::npos && isspace((unsigned char)defines[keypos + entries[i].keyword.size()]))
-                    {
-                        return i;
-                    }
-
-                    continue;
-                }
-
-                maxIndex = i;
-            }
-        }
-
-        return maxIndex;
-    }
-
     void FindActiveEntryPoints(std::vector<EntryPointInfo>& entries, const std::string& variantDefines, EntryPointInfo** outStageEntries, uint32_t* outActiveStageMask, std::string& outActiveDefines)
     {
         *outActiveStageMask = 0u;
@@ -968,21 +1052,10 @@ namespace PKAssets::Shader
         }
     }
 
-    static bool IsPushConstantPrimitiveType(const std::string& typeStr)
-    {
-        const auto uniformType = StringToPKUniform(typeStr.c_str());
-
-        return uniformType != PKUniform::Invalid &&
-            uniformType != PKUniform::Texture2D &&
-            uniformType != PKUniform::Texture3D &&
-            uniformType != PKUniform::TextureCube &&
-            uniformType != PKUniform::Keyword;
-    }
-
     void ExtractPushConstants(simplecpp::TokenList& tokens, uint32_t stageMask, SourcePushConstants& outConstants)
     {
-        const auto usageMap = BuildIdentifierUsageMap(tokens);
         const auto statements = ScanTopLevelStatements(tokens);
+        const auto usageMap = BuildIdentifierUsageMap(tokens, statements);
 
         for (const auto& statement : statements)
         {
@@ -998,24 +1071,50 @@ namespace PKAssets::Shader
                 continue;
             }
 
-            auto* typeToken = token->next;
+            auto* typeStartToken = token->next;
 
-            if (typeToken == nullptr || !typeToken->name || !IsPushConstantPrimitiveType(typeToken->str()))
+            if (typeStartToken == nullptr || !typeStartToken->name)
             {
                 continue;
             }
 
-            auto* nameToken = typeToken->next;
+            auto* typeEndToken = typeStartToken;
+
+            if (typeEndToken->next != nullptr && typeEndToken->next->op == '<')
+            {
+                typeEndToken = FindTokenScope(typeEndToken->next, statement.end, '<', '>');
+
+                if (typeEndToken == nullptr)
+                {
+                    continue;
+                }
+            }
+
+            auto* nameToken = typeEndToken->next;
 
             if (nameToken == nullptr || !nameToken->name || nameToken->next != statement.end || statement.end->op != ';')
             {
                 continue;
             }
 
-            const auto& name = nameToken->str();
-            const auto field = typeToken->str() + " " + name + ";\n";
+            std::string typeText;
 
-            if (GetIdentifierUsageCount(usageMap, name) > 1u)
+            for (auto* t = typeStartToken; t != nameToken; t = t->next)
+            {
+                typeText += t->str();
+            }
+
+            std::string fieldType;
+
+            if (ReflectUniformType(typeText, &fieldType, nullptr) == PKUniform::Invalid)
+            {
+                continue;
+            }
+
+            const auto& name = nameToken->str();
+            const auto field = fieldType + " " + name + ";\n";
+
+            if (GetIdentifierUsageCount(usageMap, name) > 0u)
             {
                 auto found = false;
 
@@ -1070,8 +1169,8 @@ namespace PKAssets::Shader
         while (changed)
         {
             changed = false;
-            const auto usageMap = BuildIdentifierUsageMap(tokens);
             const auto statements = ScanTopLevelStatements(tokens);
+            const auto usageMap = BuildIdentifierUsageMap(tokens, statements);
 
             for (auto index = (int32_t)statements.size() - 1; index >= 0; --index)
             {
@@ -1080,9 +1179,10 @@ namespace PKAssets::Shader
                 if (statement.isFunction && statement.functionName != nullptr)
                 {
                     const auto& functionName = statement.functionName->str();
+                    const auto totalRefs = GetIdentifierUsageCount(usageMap, functionName);
+                    const auto selfRefs = CountIdentifierInRange(statement.openBrace, statement.end, functionName);
 
-                    if (FindActiveEntryPoint(functionName, activeEntries) == nullptr &&
-                        GetIdentifierUsageCount(usageMap, functionName) <= 1u)
+                    if (FindActiveEntryPoint(functionName, activeEntries) == nullptr && totalRefs <= selfRefs)
                     {
                         EraseTokenRange(tokens, statement.start, statement.end);
                         changed = true;
@@ -1092,7 +1192,7 @@ namespace PKAssets::Shader
 
                 if (auto* propertyNameToken = FindPropertyDeclarationName(statement))
                 {
-                    if (GetIdentifierUsageCount(usageMap, propertyNameToken->str()) <= 1u)
+                    if (GetIdentifierUsageCount(usageMap, propertyNameToken->str()) == 0u)
                     {
                         EraseTokenRange(tokens, statement.start, statement.end);
                         changed = true;
@@ -1102,7 +1202,7 @@ namespace PKAssets::Shader
 
                 if (auto* variableNameToken = FindVariableDeclarationName(statement))
                 {
-                    if (GetIdentifierUsageCount(usageMap, variableNameToken->str()) <= 1u)
+                    if (GetIdentifierUsageCount(usageMap, variableNameToken->str()) == 0u)
                     {
                         EraseTokenRange(tokens, statement.start, statement.end);
                         changed = true;

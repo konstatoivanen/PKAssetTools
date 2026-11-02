@@ -177,18 +177,37 @@ namespace PKAssets::Shader
             uint GetSampleCount() { uint w, h, s; this.GetDimensions(w, h, s); return s; }
         };
 
-        struct PKDescriptorHeap<T : IOpaqueDescriptor>
+        struct SamplerHandle<T : IOpaqueDescriptor>
         {
-            __subscript(uint index) -> DescriptorHandle<T>
-            {
-                get { return DescriptorHandle<T>(uint2(index, 0)); }
-            }
+            uint8_t index;
+            __init(uint8_t idx = 0) { this.index = idx; }
+            DescriptorHandle<T> Get() { return DescriptorHandle<T>(uint2(uint(index), 0u)); }
+        };
+        
+        struct ResourceHandle<T : IOpaqueDescriptor>
+        {
+            uint16_t index;
+            __init(uint16_t idx = 0) { this.index = idx; }
+            DescriptorHandle<T> Get() { return DescriptorHandle<T>(uint2(uint(index), 0u)); }
         };
 
-        static const PKDescriptorHeap<SamplerState> pk_Heap_Samplers = {};
-        static const PKDescriptorHeap<Texture2D<float4>> pk_Heap_Textures2D = {};
-        static const PKDescriptorHeap<Texture3D<float4>> pk_Heap_Textures3D = {};
-        static const PKDescriptorHeap<TextureCube<float4>> pk_Heap_TexturesCube = {};
+        typealias SamplerRef = SamplerHandle<SamplerState>;
+        typealias SamplerCmpRef = SamplerHandle<SamplerComparisonState>;
+        typealias Texture2DRef<T : ITexelElement = float4> = ResourceHandle<Texture2D<T>>;
+        typealias Texture3DRef<T : ITexelElement = float4> = ResourceHandle<Texture3D<T>>;
+        typealias TextureCubeRef<T : ITexelElement = float4> = ResourceHandle<TextureCube<T>>;
+        typealias Texture2DArrayRef<T : ITexelElement = float4> = ResourceHandle<Texture2DArray<T>>;
+        typealias TextureCubeArrayRef<T : ITexelElement = float4> = ResourceHandle<TextureCubeArray<T>>;
+        typealias Texture2DMSRef<T : ITexelElement = float4> = ResourceHandle<Texture2DMS<T>>;
+        typealias RWTexture2DRef<T : ITexelElement = float4> = ResourceHandle<RWTexture2D<T>>;
+        typealias RWTexture2DArrayRef<T : ITexelElement = float4> = ResourceHandle<RWTexture2DArray<T>>;
+        typealias RWTexture3DRef<T : ITexelElement = float4> = ResourceHandle<RWTexture3D<T>>;
+        typealias StructuredBufferRef<T> = ResourceHandle<StructuredBuffer<T>>;
+        typealias RWStructuredBufferRef<T> = ResourceHandle<RWStructuredBuffer<T>>;
+        typealias ConstantBufferRef<T> = ResourceHandle<ConstantBuffer<T>>;
+        typealias ByteAddressBufferRef = ResourceHandle<ByteAddressBuffer>;
+        typealias RWByteAddressBufferRef = ResourceHandle<RWByteAddressBuffer>;
+        typealias AccelerationStructureRef = ResourceHandle<RaytracingAccelerationStructure>;
         )";
 
     struct SourcePushConstant
@@ -210,7 +229,7 @@ namespace PKAssets::Shader
         std::string name;
         uint32_t writeStageMask = (uint32_t)PKShaderStageFlags::None;
         uint32_t accessStageMask = (uint32_t)PKShaderStageFlags::None;
-        PKDescriptorType type = PKDescriptorType::Invalid;
+        PKUniform type = PKUniform::Invalid;
         uint32_t bindingIndex = 0u;
         uint32_t count = 0u;
         uint32_t wordOffsetBinding[(int)PKShaderStage::EnumCount]{};
@@ -247,9 +266,9 @@ namespace PKAssets::Shader
     PKRasterMode StringToPKRasterMode(const char* str);
 
     PKUniform SpvFormatToPKUniform(SpvReflectFormat format);
-    std::string PKUniformToSlangString(PKUniform type);
+    PKUniform ReflectUniformType(std::string_view typeText, std::string* outFieldType = nullptr, std::string* outTargetType = nullptr);
+    PKUniform GetResourceType(SpvReflectDescriptorType type);
 
-    PKDescriptorType GetResourceType(SpvReflectDescriptorType type);
     SlangStage PKShaderStageToSlangStage(PKShaderStage stage);
     const char* GetSlangStageAttribute(PKShaderStage stage);
     std::string ReflectBindingName(SpvReflectDescriptorBinding* binding);
