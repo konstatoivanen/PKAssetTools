@@ -47,36 +47,6 @@ namespace PKAssets::Shader
         { "RaytracingAccelerationStructureRef", "RaytracingAccelerationStructure", nullptr,    PKUniform::AccelerationStructure, false },
     };
 
-    const static char* PKUniform_NAMES[] =
-    {
-        "Invalid",
-        "bool",   "bool2",   "bool3",   "bool4",
-        "byte",   "byte2",   "byte3",   "byte4",
-        "sbyte",  "sbyte2",  "sbyte3",  "sbyte4",
-        "short",  "short2",  "short3",  "short4",
-        "ushort", "ushort2", "ushort3", "ushort4",
-        "half",   "half2",   "half3",   "half4",
-        "float",  "float2",  "float3",  "float4",
-        "int",    "int2",    "int3",    "int4",
-        "uint",   "uint2",   "uint3",   "uint4",
-        "long",   "long2",   "long3",   "long4",
-        "ulong",  "ulong2",  "ulong3",  "ulong4",
-        "double", "double2", "double3", "double4",
-        "float2x2", "float2x3", "float2x4",
-        "float3x2", "float3x3", "float3x4",
-        "float4x2", "float4x3", "float4x4",
-        "double2x2", "double3x3", "double4x4",
-        "half2x2",   "half3x3",   "half4x4",
-        "Sampler",
-        "Texture",
-        "Image",
-        "ConstantBuffer",
-        "StorageBuffer",
-        "InputAttachment",
-        "AccelerationStructure",
-        "keyword",
-    };
-
     const static char* PKComparison_NAMES[] =
     {
         "Off",
@@ -339,7 +309,8 @@ namespace PKAssets::Shader
             }
             else if (token->op == ';')
             {
-                statements.push_back({ statementStart, token, openBrace, closeBrace, nullptr, false });
+                const auto isPrototype = openBrace == nullptr && !seenEquals && functionName != nullptr;
+                statements.push_back({ statementStart, token, openBrace, closeBrace, isPrototype ? functionName : nullptr, isPrototype });
                 statementStart = nullptr;
                 openBrace = nullptr;
                 closeBrace = nullptr;
@@ -744,6 +715,12 @@ namespace PKAssets::Shader
         *outValue = !StringUtilities::ExtractToken(PK_SHADER_ATTRIB_LOGVERBOSE, source, true).empty();
     }
 
+    void ExtractLogDisassembly(std::string& source, bool* outValue)
+    {
+        *outValue = !StringUtilities::ExtractToken(PK_SHADER_ATTRIB_LOGDISASSEMBLY, source, true).empty();
+
+    }
+
     void ExtractGenerateDebugInfo(std::string& source, bool* outValue)
     {
         *outValue = !StringUtilities::ExtractToken(PK_SHADER_ATTRIB_GENERATEDEBUGINFO, source, true).empty();
@@ -1092,7 +1069,36 @@ namespace PKAssets::Shader
 
             auto* nameToken = typeEndToken->next;
 
-            if (nameToken == nullptr || !nameToken->name || nameToken->next != statement.end || statement.end->op != ';')
+            if (nameToken == nullptr || !nameToken->name)
+            {
+                continue;
+            }
+
+            uint16_t count = 1u;
+
+            if (nameToken->next == statement.end && statement.end->op == ';')
+            {
+                count = 1u;
+            }
+
+            else if (nameToken->next != nullptr && nameToken->next->op == '[')
+            {
+                auto* closeBracket = FindTokenScope(nameToken->next, statement.end, '[', ']');
+                auto* countToken = nameToken->next->next;
+
+                if (closeBracket == nullptr ||
+                    closeBracket->next != statement.end ||
+                    statement.end->op != ';' ||
+                    countToken == nullptr ||
+                    !countToken->number ||
+                    countToken->next != closeBracket)
+                {
+                    continue;
+                }
+
+                count = (uint16_t)std::stoul(countToken->str());
+            }
+            else
             {
                 continue;
             }
@@ -1105,14 +1111,15 @@ namespace PKAssets::Shader
             }
 
             std::string fieldType;
+            std::string targetType;
+            const auto uniformType = ReflectUniformType(typeText, &fieldType, &targetType);
 
-            if (ReflectUniformType(typeText, &fieldType, nullptr) == PKUniform::Invalid)
+            if (uniformType == PKUniform::Invalid)
             {
                 continue;
             }
 
             const auto& name = nameToken->str();
-            const auto field = fieldType + " " + name + ";\n";
 
             if (GetIdentifierUsageCount(usageMap, name) > 0u)
             {
@@ -1122,9 +1129,9 @@ namespace PKAssets::Shader
                 {
                     if (member.name == name)
                     {
-                        if (member.field != field)
+                        if (member.fieldType != fieldType || member.count != count)
                         {
-                            printf("Warning constant parameter '%s' was declared again with a different format '%s'", member.field.c_str(), field.c_str());
+                            printf("Warning constant parameter '%s' was declared again with a different format '%s'\n", member.name.c_str(), fieldType.c_str());
                         }
 
                         member.stageFlags |= stageMask;
@@ -1135,7 +1142,14 @@ namespace PKAssets::Shader
 
                 if (!found)
                 {
-                    outConstants.push_back({ name, field, stageMask });
+                    SourcePushConstant constant{};
+                    constant.name = name;
+                    constant.fieldType = fieldType;
+                    constant.targetType = targetType;
+                    constant.type = uniformType;
+                    constant.count = count;
+                    constant.stageFlags = stageMask;
+                    outConstants.push_back(constant);
                 }
             }
 
@@ -1143,22 +1157,52 @@ namespace PKAssets::Shader
         }
     }
 
-    void CompilePushConstantBlock(std::string& source, const SourcePushConstants& constants)
+    void CompilePushConstantBlock(std::string& source, SourcePushConstants& constants)
     {
         if (constants.empty())
         {
             return;
         }
 
-        std::string layout = "[[vk::push_constant]] cbuffer pk_global_push_constant_block\n{\n";
+        std::stable_sort(constants.begin(), constants.end(), [](const SourcePushConstant& a, const SourcePushConstant& b)
+        {
+            const auto alignA = PKUniformToScalarSize(a.type);
+            const auto alignB = PKUniformToScalarSize(b.type);
+
+            if (alignA != alignB)
+            {
+                return alignA > alignB;
+            }
+
+            return (PKUniformToSize(a.type) * a.count) > (PKUniformToSize(b.type) * b.count);
+        });
+
+        std::string blockFields;
+        std::string resourceAccessors;
 
         for (const auto& member : constants)
         {
-            layout.append(member.field);
+            if (PKUniformIsResourceHandle(member.type))
+            {
+                if (member.count > 1u)
+                {
+                    blockFields += "ResourceHandleArray<" + member.targetType + ", " + std::to_string(member.count) + "> " + member.name + ";\n";
+                }
+                else
+                {
+                    const auto fieldName = member.name + "_Handle";
+                    blockFields += member.fieldType + " " + fieldName + ";\n";
+                    resourceAccessors += "property " + member.targetType + " " + member.name + " { get { return " + fieldName + ".Get();}}\n";
+                }
+            }
+            else
+            {
+                const auto arraySuffix = member.count > 1u ? ("[" + std::to_string(member.count) + "]") : "";
+                blockFields += member.fieldType + " " + member.name + arraySuffix + ";\n";
+            }
         }
 
-        layout.append("};\n");
-
+        std::string layout = "[[vk::push_constant]] cbuffer pk_global_push_constant_block\n{\n" + blockFields + "};\n" + resourceAccessors;
         source.insert(0ull, layout);
     }
 

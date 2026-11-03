@@ -5,12 +5,43 @@
 #include <simplecpp/simplecpp.h>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <string>
 #include <PKAsset.h>
 
 namespace PKAssets::Shader
 {
+    constexpr const static char* PKUniform_NAMES[] =
+    {
+        "Invalid",
+        "bool",   "bool2",   "bool3",   "bool4",
+        "byte",   "byte2",   "byte3",   "byte4",
+        "sbyte",  "sbyte2",  "sbyte3",  "sbyte4",
+        "short",  "short2",  "short3",  "short4",
+        "ushort", "ushort2", "ushort3", "ushort4",
+        "half",   "half2",   "half3",   "half4",
+        "float",  "float2",  "float3",  "float4",
+        "int",    "int2",    "int3",    "int4",
+        "uint",   "uint2",   "uint3",   "uint4",
+        "long",   "long2",   "long3",   "long4",
+        "ulong",  "ulong2",  "ulong3",  "ulong4",
+        "double", "double2", "double3", "double4",
+        "float2x2", "float2x3", "float2x4",
+        "float3x2", "float3x3", "float3x4",
+        "float4x2", "float4x3", "float4x4",
+        "double2x2", "double3x3", "double4x4",
+        "half2x2",   "half3x3",   "half4x4",
+        "Sampler",
+        "Texture",
+        "Image",
+        "ConstantBuffer",
+        "StorageBuffer",
+        "InputAttachment",
+        "AccelerationStructure",
+        "keyword",
+    };
+
     constexpr const static char* PKShaderStage_NAMES[] =
     {
         "Vertex",
@@ -191,6 +222,15 @@ namespace PKAssets::Shader
             DescriptorHandle<T> Get() { return DescriptorHandle<T>(uint2(uint(index), 0u)); }
         };
 
+        struct ResourceHandleArray<T : IOpaqueDescriptor, let N : int>
+        {
+            ResourceHandle<T> handles[N];
+            __subscript(uint index) -> DescriptorHandle<T>
+            {
+                get { return handles[index].Get(); }
+            }
+        };
+
         typealias SamplerRef = SamplerHandle<SamplerState>;
         typealias SamplerCmpRef = SamplerHandle<SamplerComparisonState>;
         typealias Texture2DRef<T : ITexelElement = float4> = ResourceHandle<Texture2D<T>>;
@@ -213,9 +253,17 @@ namespace PKAssets::Shader
     struct SourcePushConstant
     {
         std::string name;
-        std::string field;
+        std::string fieldType;
+        std::string targetType;
+        PKUniform type = PKUniform::Invalid;
+        uint16_t count = 1u;
+        uint8_t offset = 0u;
         uint32_t stageFlags = 0u;
+        uint32_t accessMask = 0u;
+        uint32_t writeMask = 0u;
     };
+
+    typedef std::vector<SourcePushConstant> SourcePushConstants;
 
     struct EntryPointInfo
     {
@@ -245,16 +293,20 @@ namespace PKAssets::Shader
     struct ReflectionData
     {
         SpvReflectShaderModule* modules[(int)PKShaderStage::EnumCount]{};
-        std::vector<uint32_t> deadVariableIds[(int)PKShaderStage::EnumCount]{};
+        uint32_t pushConstantStructIds[(int)PKShaderStage::EnumCount]{};
+        std::unordered_set<uint32_t> deadVariableIds[(int)PKShaderStage::EnumCount]{};
         std::vector<PKVertexInputAttribute> vertexAttributes;
         std::vector<ReflectBinding> sortedBindings;
         std::map<std::string, ReflectBinding> uniqueBindings;
-        std::map<std::string, ReflectPushConstant> uniqueConstants;
+        SourcePushConstants sourceConstants;
+        SourcePushConstants activeConstants;
         uint32_t constantRangeSize = 0u;
+        uint16_t groupSize[3]{};
+        bool generateDebugInfo;
         bool logVerbose;
+        bool logDisassembly;
     };
 
-    typedef std::vector<SourcePushConstant> SourcePushConstants;
 
     PKUniform StringToPKUniform(const char* str);
     PKShaderStage StringToPKShaderStage(const char* str);
@@ -274,6 +326,7 @@ namespace PKAssets::Shader
     std::string ReflectBindingName(SpvReflectDescriptorBinding* binding);
     std::string FormatErrorMessage(const std::string& name, const std::string& source, const std::string& error);
     void ExtractLogVerbose(std::string& source, bool* outValue);
+    void ExtractLogDisassembly(std::string& source, bool* outValue);
     void ExtractGenerateDebugInfo(std::string& source, bool* outValue);
     void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes);
     void ExtractMulticompiles(std::string& source, std::vector<std::string>& outVariantDefines, std::vector<PKShaderKeyword>& outKeywords);
@@ -283,5 +336,5 @@ namespace PKAssets::Shader
     void SetActiveEntryPoints(simplecpp::TokenList& tokens, const std::vector<EntryPointInfo>& entries, EntryPointInfo* const* activeEntries);
     void RemoveUnusedResourcesAndFunctions(simplecpp::TokenList& tokens, EntryPointInfo* const* activeEntries);
     void ExtractPushConstants(simplecpp::TokenList& tokens, uint32_t stageMask, SourcePushConstants& outConstants);
-    void CompilePushConstantBlock(std::string& source, const SourcePushConstants& constants);
+    void CompilePushConstantBlock(std::string& source, SourcePushConstants& constants);
 }
