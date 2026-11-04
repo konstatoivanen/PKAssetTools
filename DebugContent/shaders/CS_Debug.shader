@@ -1,41 +1,33 @@
-#version 460
 #pragma pk_program Compute main
 
 #include "includes/DebugUtilities.glsl"
 
-layout(rgba8, set = 4) uniform RWTexture2D<float4> g_Texture;
+uniform RWTexture2DRef<float4> g_Texture;
 
-uniform vec2 unused0;
-uniform vec2 unused1;
-uniform vec2 uScale;
-uniform vec2 uTranslate;
+uniform float2 unused0;
+uniform float2 unused1;
+uniform float2 uScale;
+uniform float2 uTranslate;
+uniform float4 offset_x;
+uniform float4 unused_x;
+uniform float2 unused3;
 
-PK_DECLARE_LOCAL_CBUFFER(MyPushConstantBlock)
+groupshared float g_test;
+groupshared float g_ModTime;
+
+[numthreads(16, 4, 1)]
+void main(uint thread : SV_GroupIndex, uint3 group_coord : SV_GroupID, int2 coord : SV_DispatchThreadID)
 {
-    float4 offset_x;
-    float4 unused_x;
-};
-
-hitAttributeEXT float2 invalidAttributeDeclaration;
-
-uniform vec2 unused3;
-shared float g_test;
-shared float g_ModTime;
-
-[numthreads(16,4,1)]
-void main()
-{
-    if (gl_LocalInvocationIndex == 0)
+    if (thread == 0u)
     {
-        g_ModTime = mod(float(gl_WorkGroupID.x), 10.0f);
+        g_ModTime = mod(float(group_coord.x), 10.0f);
     }
 
     GroupMemoryBarrierWithGroupSync();
 
-    int2 coord = int2(gl_GlobalInvocationID.xy);
-    int2 size = imageSize(g_Texture).xy;
+    int2 size = g_Texture.GetSize().xy;
     float4 value = float4(float2(coord + 0.5f.xx) / float2(size) * g_ModTime * 10.0f + uTranslate, 1.0f, 1.0f) * uScale.xyxy;
-    imageStore(g_Texture, coord, value);
+    g_Texture[coord] = value;
 
     printf("Debug text: %f", uscale.x);
 }

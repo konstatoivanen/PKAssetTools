@@ -44,7 +44,6 @@ namespace PKAssets::Shader
         { "RWByteAddressBufferRef",             "RWByteAddressBuffer",             nullptr,    PKUniform::StorageBuffer,         false },
         { "ConstantBufferRef",                  "ConstantBuffer",                  nullptr,    PKUniform::ConstantBuffer,        true  },
         { "AccelerationStructureRef",           "RaytracingAccelerationStructure", nullptr,    PKUniform::AccelerationStructure, false },
-        { "RaytracingAccelerationStructureRef", "RaytracingAccelerationStructure", nullptr,    PKUniform::AccelerationStructure, false },
     };
 
     const static char* PKComparison_NAMES[] =
@@ -1166,44 +1165,85 @@ namespace PKAssets::Shader
 
         std::stable_sort(constants.begin(), constants.end(), [](const SourcePushConstant& a, const SourcePushConstant& b)
         {
-            const auto alignA = PKUniformToScalarSize(a.type);
-            const auto alignB = PKUniformToScalarSize(b.type);
+            const auto sizeA = PKUniformToSize(a.type) * a.count;
+            const auto sizeB = PKUniformToSize(b.type) * b.count;
+            const auto isPackedA = sizeA < 4u;
+            const auto isPackedB = sizeB < 4u;
 
-            if (alignA != alignB)
+            if (isPackedA != isPackedB)
             {
-                return alignA > alignB;
+                return !isPackedA;
             }
 
-            return (PKUniformToSize(a.type) * a.count) > (PKUniformToSize(b.type) * b.count);
+            const auto alignA = PKUniformToScalarSize(a.type);
+            const auto alignB = PKUniformToScalarSize(b.type);
+            return alignA != alignB ? (alignA > alignB) : (sizeA > sizeB);
         });
 
+        auto memberIndex = 0u;
+        auto packedByteOffset = 0u;
         std::string blockFields;
         std::string resourceAccessors;
 
-        for (const auto& member : constants)
+        for (auto& member : constants)
         {
-            if (PKUniformIsResourceHandle(member.type))
+            const auto elementSize = PKUniformToSize(member.type);
+            const auto totalSize = elementSize * member.count;
+            const auto isHandle = PKUniformIsResourceHandle(member.type);
+
+            if (totalSize < 4u)
             {
-                if (member.count > 1u)
-                {
-                    blockFields += "ResourceHandleArray<" + member.targetType + ", " + std::to_string(member.count) + "> " + member.name + ";\n";
-                }
-                else
-                {
-                    const auto fieldName = member.name + "_Handle";
-                    blockFields += member.fieldType + " " + fieldName + ";\n";
-                    resourceAccessors += "property " + member.targetType + " " + member.name + " { get { return " + fieldName + ".Get();}}\n";
-                }
+                packedByteOffset = (packedByteOffset + elementSize - 1u) & ~(elementSize - 1u);
+                const auto wordIndex = packedByteOffset / 4u;
+                const auto* macro = isHandle ? "PK_PC_HANDLE(" : (member.type == PKUniform::Half ? "PK_PC_HALF(" : "PK_PC_VALUE(");
+
+                member.memberIndex = (uint16_t)(memberIndex + wordIndex);
+                member.memberSize = 4u;
+                member.memberAlignment = 4u;
+                member.bitOffset = (uint8_t)((packedByteOffset % 4u) * 8u);
+                member.bitSize = (uint8_t)(totalSize * 8u);
+                packedByteOffset += totalSize;
+                resourceAccessors += std::string(macro) + member.targetType + "," + member.name + ",pk_packed_pc_" + std::to_string(wordIndex) + "," + std::to_string(member.bitOffset) + "," + std::to_string(member.bitSize) + ")\n";
+                continue;
             }
-            else
+
+            member.memberIndex = (uint16_t)(memberIndex++);
+            member.bitOffset = 0u;
+            member.bitSize = 0u;
+
+            if (isHandle && member.type != PKUniform::AccelerationStructure)
             {
-                const auto arraySuffix = member.count > 1u ? ("[" + std::to_string(member.count) + "]") : "";
-                blockFields += member.fieldType + " " + member.name + arraySuffix + ";\n";
+                const auto wordCount = (member.count + 1u) / 2u;
+                member.memberSize = (uint16_t)(wordCount * 4u);
+                member.memberAlignment = 4u;
+                blockFields += "uint " + member.name + "_Handle[" + std::to_string(wordCount) + "];\n";
+                resourceAccessors += "PK_PC_HANDLE_ARRAY(" + member.targetType + "," + member.name + ")\n";
+                continue;
             }
+
+            member.memberSize = (uint16_t)totalSize;
+            member.memberAlignment = (uint8_t)PKUniformToScalarSize(member.type);
+
+            if (isHandle)
+            {
+                const auto fieldName = member.name + "_Handle";
+                blockFields += member.fieldType + " " + fieldName + ";\n";
+                resourceAccessors += "property " + member.targetType + " " + member.name + "{get{return " + fieldName + ".Get();}}\n";
+                continue;
+            }
+
+            const auto arraySuffix = member.count > 1u ? ("[" + std::to_string(member.count) + "]") : "";
+            blockFields += member.fieldType + " " + member.name + arraySuffix + ";\n";
         }
 
-        std::string layout = "[[vk::push_constant]] cbuffer pk_global_push_constant_block\n{\n" + blockFields + "};\n" + resourceAccessors;
-        source.insert(0ull, layout);
+        const auto packedWordCount = (packedByteOffset + 3u) / 4u;
+
+        for (auto wordIndex = 0u; wordIndex < packedWordCount; ++wordIndex)
+        {
+            blockFields += "uint pk_packed_pc_" + std::to_string(wordIndex) + ";\n";
+        }
+
+        source.insert(0ull, "[[vk::push_constant]] cbuffer pk_global_push_constant_block\n{\n" + blockFields + "};\n" + resourceAccessors);
     }
 
     void RemoveUnusedResourcesAndFunctions(simplecpp::TokenList& tokens, EntryPointInfo* const* activeEntries)

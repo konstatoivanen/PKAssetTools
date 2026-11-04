@@ -19,6 +19,22 @@
 
 namespace PKAssets::Shader
 {
+    struct SlangSessionCache
+    {
+        Slang::ComPtr<slang::IGlobalSession> globalSession;
+        Slang::ComPtr<slang::ISession> sessions[4];
+
+        ~SlangSessionCache()
+        {
+            for (auto& session : sessions)
+            {
+                session = nullptr;
+            }
+
+            globalSession = nullptr;
+        }
+    };
+
     static slang::CompilerOptionEntry MakeIntOption(slang::CompilerOptionName name, int32_t value)
     {
         slang::CompilerOptionEntry entry{};
@@ -40,27 +56,26 @@ namespace PKAssets::Shader
     
     static slang::ISession* GetSlangSession(bool generateDebugInfo, bool logDisassembly)
     {
+        static SlangSessionCache s_cache;
+
+        if (!s_cache.globalSession)
+        {
+            slang::createGlobalSession(s_cache.globalSession.writeRef());
+
+            if (!s_cache.globalSession)
+            {
+                return nullptr;
+            }
+        }
+
         const auto sessionIndex = (generateDebugInfo ? 1u : 0u) | (logDisassembly ? 2u : 0u);
-        static Slang::ComPtr<slang::ISession> s_sessions[4];
-        static Slang::ComPtr<slang::IGlobalSession> s_globalSession;
 
-        if (s_sessions[sessionIndex])
+        if (s_cache.sessions[sessionIndex])
         {
-            return s_sessions[sessionIndex].get();
+            return s_cache.sessions[sessionIndex].get();
         }
 
-        if (!s_globalSession)
-        {
-            slang::createGlobalSession(s_globalSession.writeRef());
-        }
-
-        auto globalSession = s_globalSession.get();
-
-        if (!globalSession)
-        {
-            return nullptr;
-        }
-
+        auto* globalSession = s_cache.globalSession.get();
         const auto debugLevel = generateDebugInfo ? SLANG_DEBUG_INFO_LEVEL_STANDARD : SLANG_DEBUG_INFO_LEVEL_NONE;
 
         std::vector<slang::CompilerOptionEntry> options =
@@ -116,8 +131,8 @@ namespace PKAssets::Shader
         sessionDesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR;
         sessionDesc.allowGLSLSyntax = true;
 
-        globalSession->createSession(sessionDesc, s_sessions[sessionIndex].writeRef());
-        return s_sessions[sessionIndex].get();
+        globalSession->createSession(sessionDesc, s_cache.sessions[sessionIndex].writeRef());
+        return s_cache.sessions[sessionIndex].get();
     }
 
 
@@ -222,6 +237,21 @@ namespace PKAssets::Shader
         }
     }
 
+    static uint32_t AllocatePushConstantOffset(std::vector<uint32_t>& memberOffsets, uint32_t& currentOffset, const SourcePushConstant& constant)
+    {
+        auto& memberOffset = memberOffsets[constant.memberIndex];
+
+        if (memberOffset == 0xFFFFFFFFu)
+        {
+            const auto align = (uint32_t)constant.memberAlignment;
+            currentOffset = (currentOffset + align - 1u) & ~(align - 1u);
+            memberOffset = currentOffset;
+            currentOffset += constant.memberSize;
+        }
+
+        return memberOffset + (constant.bitOffset / 8u);
+    }
+
     static void GetPushConstants(ReflectionData& reflection, PKShaderStage stage)
     {
         const auto stageIdx = (uint32_t)stage;
@@ -236,21 +266,33 @@ namespace PKAssets::Shader
         reflection.pushConstantStructIds[stageIdx] = block->type_description ? block->type_description->id : 0u;
         reflection.constantRangeSize = std::max(reflection.constantRangeSize, block->size);
 
-        const auto memberCount = std::min((size_t)block->member_count, reflection.sourceConstants.size());
-
-        for (auto i = 0u; i < memberCount; ++i)
+        for (auto& constant : reflection.sourceConstants)
         {
-            const auto* member = block->members + i;
-
-            if (member->flags & SPV_REFLECT_VARIABLE_FLAGS_UNUSED)
+            if (constant.memberIndex >= block->member_count)
             {
                 continue;
             }
 
-            auto& constant = reflection.sourceConstants[i];
-            constant.accessMask |= 1u << stageIdx;
+            auto isAccessed = false;
+            auto isWritten = false;
 
-            if (ReflectPushConstantResourceWrite(module->_internal->spirv_code, module->_internal->spirv_word_count, block->spirv_id, i, constant.type))
+            ReflectPushConstantMemberAccess(
+                module->_internal->spirv_code,
+                module->_internal->spirv_word_count,
+                block->spirv_id,
+                constant.memberIndex,
+                constant.bitOffset,
+                constant.bitSize,
+                constant.type,
+                &isAccessed,
+                &isWritten);
+
+            if (isAccessed)
+            {
+                constant.accessMask |= 1u << stageIdx;
+            }
+
+            if (isWritten)
             {
                 constant.writeMask |= 1u << stageIdx;
             }
@@ -264,27 +306,17 @@ namespace PKAssets::Shader
             return;
         }
 
-        std::vector<uint32_t> memberOffsets(reflection.sourceConstants.size(), 0u);
+        std::vector<uint32_t> memberOffsets(reflection.sourceConstants.size(), 0xFFFFFFFFu);
         reflection.activeConstants.clear();
         reflection.activeConstants.reserve(reflection.sourceConstants.size());
 
         auto currentOffset = 0u;
 
-        // Place active constants first (preserving alignment/size sort order)
-        for (auto i = 0u; i < reflection.sourceConstants.size(); ++i)
+        for (auto& constant : reflection.sourceConstants)
         {
-            auto& constant = reflection.sourceConstants[i];
-
-            if (constant.accessMask)
+            if (constant.accessMask != 0u)
             {
-                const auto align = PKUniformToScalarSize(constant.type);
-                const auto size = PKUniformToSize(constant.type) * constant.count;
-                currentOffset = (currentOffset + align - 1u) & ~(align - 1u);
-
-                constant.offset = (uint8_t)currentOffset;
-                memberOffsets[i] = currentOffset;
-                currentOffset += size;
-
+                constant.offset = (uint8_t)AllocatePushConstantOffset(memberOffsets, currentOffset, constant);
                 reflection.activeConstants.push_back(constant);
 
                 if (reflection.logVerbose)
@@ -294,24 +326,17 @@ namespace PKAssets::Shader
             }
         }
 
-        // Move dead constants to the tail of the SPIR-V block
-        for (auto i = 0u; i < reflection.sourceConstants.size(); ++i)
+        // Move dead SPIR-V struct members to the tail of the block
+        for (const auto& constant : reflection.sourceConstants)
         {
-            const auto& constant = reflection.sourceConstants[i];
-            
             if (constant.accessMask == 0u)
             {
-                const auto align = PKUniformToScalarSize(constant.type);
-                const auto size = PKUniformToSize(constant.type) * constant.count;
-                currentOffset = (currentOffset + align - 1u) & ~(align - 1u);
+                const auto deadOffset = AllocatePushConstantOffset(memberOffsets, currentOffset, constant);
 
                 if (reflection.logVerbose)
                 {
-                    printf("    Constant: Unused, %u, %s %s\n", currentOffset, constant.targetType.c_str(), constant.name.c_str());
+                    printf("    Constant: Unused, %u, %s %s\n", deadOffset, constant.targetType.c_str(), constant.name.c_str());
                 }
-
-                memberOffsets[i] = currentOffset;
-                currentOffset += size;
             }
         }
 

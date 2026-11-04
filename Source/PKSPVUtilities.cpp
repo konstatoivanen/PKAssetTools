@@ -14,9 +14,15 @@ namespace PKAssets::Shader
             auto wcount = (uint16_t)((code[i] >> 16) & 0xFFFFu);
             const auto* params = code + i + 1u;
 
-            if (opcode == SpvOp::SpvOpConstant && params[1] == constId)
+            if (opcode == SpvOp::SpvOpConstant && wcount >= 4u && params[1] == constId)
             {
                 *outValue = params[2];
+                return true;
+            }
+
+            if (opcode == SpvOp::SpvOpConstantNull && wcount >= 3u && params[1] == constId)
+            {
+                *outValue = 0u;
                 return true;
             }
 
@@ -124,13 +130,22 @@ namespace PKAssets::Shader
         return false;
     }
 
-    bool ReflectPushConstantResourceWrite(const uint32_t* code, const uint32_t wordCount, uint32_t pushConstantVariable, uint32_t memberIndex, PKUniform type)
+    void ReflectPushConstantMemberAccess(
+        const uint32_t* code,
+        const uint32_t wordCount,
+        uint32_t pushConstantVariable,
+        uint32_t memberIndex,
+        uint32_t bitOffset,
+        uint32_t bitSize,
+        PKUniform type,
+        bool* outAccessed,
+        bool* outWritten)
     {
-        if (type != PKUniform::Image && type != PKUniform::StorageBuffer)
-        {
-            return false;
-        }
+        *outAccessed = false;
+        *outWritten = false;
 
+        const auto canWrite = type == PKUniform::Image || type == PKUniform::StorageBuffer;
+        std::unordered_set<uint32_t> wordIds;
         std::unordered_set<uint32_t> indexIds;
         std::unordered_set<uint32_t> pointerIds;
 
@@ -157,7 +172,19 @@ namespace PKAssets::Shader
                         auto constVal = 0xFFFFFFFFu;
                         if (FindOpConstUint(code, wordCount, params[3], &constVal) && constVal == memberIndex)
                         {
-                            indexIds.insert(params[1]);
+                            if (bitSize == 0u)
+                            {
+                                *outAccessed = true;
+                                if (!canWrite)
+                                {
+                                    return;
+                                }
+                                indexIds.insert(params[1]);
+                            }
+                            else
+                            {
+                                wordIds.insert(params[1]);
+                            }
                         }
                     }
                     else if (wcount >= 4u)
@@ -170,6 +197,33 @@ namespace PKAssets::Shader
                         {
                             pointerIds.insert(params[1]);
                         }
+                    }
+                }
+                break;
+
+                case SpvOp::SpvOpBitFieldUExtract:
+                case SpvOp::SpvOpBitFieldSExtract:
+                {
+                    if (bitSize > 0u && wcount >= 6u && wordIds.count(params[2]))
+                    {
+                        auto extractedOffset = 0xFFFFFFFFu;
+                        auto extractedSize = 0xFFFFFFFFu;
+                        if (FindOpConstUint(code, wordCount, params[3], &extractedOffset) &&
+                            FindOpConstUint(code, wordCount, params[4], &extractedSize) &&
+                            extractedOffset == bitOffset &&
+                            extractedSize == bitSize)
+                        {
+                            *outAccessed = true;
+                            if (!canWrite)
+                            {
+                                return;
+                            }
+                            indexIds.insert(params[1]);
+                        }
+                    }
+                    else if (wcount >= 6u && indexIds.count(params[2]))
+                    {
+                        indexIds.insert(params[1]);
                     }
                 }
                 break;
@@ -189,7 +243,6 @@ namespace PKAssets::Shader
                 case SpvOp::SpvOpUntypedPtrAccessChainKHR:
                 case SpvOp::SpvOpUntypedInBoundsPtrAccessChainKHR:
                 {
-                    // params[0]=ResType, params[1]=ResId, params[2]=BaseType, params[3]=BasePtr, params[4]=FirstIndex
                     if (wcount >= 5u && pointerIds.count(params[3]))
                     {
                         pointerIds.insert(params[1]);
@@ -213,6 +266,10 @@ namespace PKAssets::Shader
                 {
                     if (wcount >= 4u)
                     {
+                        if (wordIds.count(params[2]))
+                        {
+                            wordIds.insert(params[1]);
+                        }
                         if (indexIds.count(params[2]))
                         {
                             indexIds.insert(params[1]);
@@ -268,7 +325,8 @@ namespace PKAssets::Shader
                 {
                     if (wcount >= 3u && pointerIds.count(params[0]))
                     {
-                        return true;
+                        *outWritten = true;
+                        return;
                     }
                 }
                 break;
@@ -291,7 +349,8 @@ namespace PKAssets::Shader
                 {
                     if (wcount >= 4u && pointerIds.count(params[2]))
                     {
-                        return true;
+                        *outWritten = true;
+                        return;
                     }
                 }
                 break;
@@ -301,8 +360,6 @@ namespace PKAssets::Shader
 
             i += wcount;
         }
-
-        return false;
     }
 
     void PatchPushConstantMemberOffsets(uint32_t* code, const uint32_t wordCount, uint32_t structTypeId, const std::vector<uint32_t>& memberOffsets)

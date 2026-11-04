@@ -1,5 +1,3 @@
-#version 460
-
 #pragma pk_log_verbose
 
 #pragma pk_cull Back
@@ -9,8 +7,8 @@
 #pragma pk_material_property float4 _Color
 #pragma pk_material_property float _Roughness
 #pragma pk_material_property float _Metallic
-#pragma pk_material_property texture2D _AlbedoTex
-#pragma pk_material_property texture3D _LutTex
+#pragma pk_material_property Texture2DRef _AlbedoTex
+#pragma pk_material_property Texture3DRef _LutTex
 
 #pragma pk_multi_compile _ PASS_COLOR
 #pragma pk_program Vertex MainVs 
@@ -19,76 +17,77 @@
 
 #include "includes/DebugUtilities.glsl"
 
-PK_DECLARE_LOCAL_CBUFFER(MyPushConstantBlock)
-{
-    float4 offset_x;
-    float4 unused_x;
-};
-
-PK_DECLARE_CBUFFER(UniformBufferObject, 0)
+struct UniformBufferObject
 {
     float4x4 model;
     float4x4 viewproj;
 };
 
-PK_DECLARE_CBUFFER(UniformBufferObject2, 10)
-{
-    float4x4 model;
-    float4x4 viewproj;
-} named;
+uniform float4 offset_x;
+uniform float4 unused_x;
+uniform ConstantBufferRef<UniformBufferObject> unused_ubo;
+uniform ConstantBufferRef<UniformBufferObject> named;
 
-#if defined(SHADER_VERTEX)
-in float3 in_POSITION;
-in float2 in_TEXCOORD0;
-in float3 in_COLOR;
-out float3 vs_COLOR;
-out float2 vs_TEXCOORD0;
-#endif
-
-uniform image2D pk_DebugImage;
-uniform RWStructuredBuffer<float4> _WriteBuffer;
-uniform StructuredBuffer<float4> _ReadVariable;
-uniform sampler2D tex1;
-uniform sampler smp;
-
-#if defined(SHADER_FRAGMENT)
-in float3 vs_COLOR;
-in float2 vs_TEXCOORD0;
-out float4 outColor;
-#endif
+uniform RWTexture2DRef<float4> pk_DebugImage;
+uniform RWStructuredBufferRef<float4> _WriteBuffer;
+uniform StructuredBufferRef<float4> _ReadVariable;
+uniform Texture2DRef<float4> tex1;
+uniform SamplerRef smp;
 
 #if defined(SHADER_FRAGMENT)
 uniform float MyUnusedStagePushConstant;
 #endif
 
-void TestFunc()
+struct VsIn
 {
-    vs_COLOR = in_COLOR;
-}
+    float3 in_POSITION : in_POSITION;
+    float2 in_TEXCOORD0 : in_TEXCOORD0;
+    float3 in_COLOR : in_COLOR;
+};
+
+struct VsOut
+{
+    float4 sv_Position : SV_Position;
+    float3 vs_COLOR : COLOR0;
+    float2 vs_TEXCOORD0 : TEXCOORD0;
+    PK_INSTANCING_VARYING_ID
+};
 
 struct TestStruct
 {
     float3 testfield;
 };
 
-void MainVs()
+void UnusedTestFunc(inout VsOut o, float3 color)
 {
-    gl_Position = mul(mul(named.viewproj, named.model), float4(in_POSITION + offset_x.xyz, 1.0f));
-    vs_COLOR = in_COLOR;
-    vs_TEXCOORD0 = in_TEXCOORD0;
-    vs_TEXCOORD0.x += gl_VertexIndex;
+    o.vs_COLOR = color;
 }
 
-layout(early_fragment_tests) in;
-void MainFs()
+VsOut MainVs(VsIn vin)
 {
-    float3 albedo = texture(sampler2D(_AlbedoTex, smp), vs_TEXCOORD0).xyz;
-    float3 texcolor = texture(tex1, vs_TEXCOORD0).xyz + _ReadVariable[0].xyz;
-    outColor = float4(albedo * texcolor * vs_COLOR * _Color.rgb, 1.0);
-    imageStore(pk_DebugImage, int2(outColor.xy * 1024), float4(outColor.x, 0, 0, 0));
-    _WriteBuffer[uint(outColor.x * 1024)] = outColor;
+    VsOut vout;
+    PK_INSTANCING_ASSIGN_VARYING_ID(vout, gl_InstanceIndex);
+    vout.sv_Position = mul(mul(named.viewproj, named.model), float4(vin.in_POSITION + offset_x.xyz, 1.0f));
+    vout.vs_COLOR = vin.in_COLOR;
+    vout.vs_TEXCOORD0 = vin.in_TEXCOORD0;
+    vout.vs_TEXCOORD0.x += gl_VertexIndex;
+    return vout;
 }
 
-layout(early_fragment_tests) in;
-void ColorFs() { outColor = float4(vs_COLOR, 1.0f); }
+[earlydepthstencil]
+float4 MainFs(VsOut vout) : SV_Target0
+{
+    PK_INSTANCING_ASSIGN_FRAGMENT_LOCALS(vout);
+    float3 albedo = _AlbedoTex.Sample(smp, vout.vs_TEXCOORD0).xyz;
+    float3 texcolor = tex1.Sample(smp, vout.vs_TEXCOORD0).xyz + _ReadVariable[0].xyz;
+    float4 outColor = float4(albedo * texcolor * vout.vs_COLOR * _Color.rgb, 1.0f);
+    pk_DebugImage[int2(outColor.xy * 1024.0f)] = float4(outColor.x, 0.0f, 0.0f, 0.0f);
+    _WriteBuffer[uint(outColor.x * 1024.0f)] = outColor;
+    return outColor;
+}
 
+[earlydepthstencil]
+float4 ColorFs(VsOut vout) : SV_Target0
+{
+    return float4(vout.vs_COLOR, 1.0f);
+}

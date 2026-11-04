@@ -222,14 +222,20 @@ namespace PKAssets::Shader
             DescriptorHandle<T> Get() { return DescriptorHandle<T>(uint2(uint(index), 0u)); }
         };
 
-        struct ResourceHandleArray<T : IOpaqueDescriptor, let N : int>
+        struct AccelerationStructureHandle
         {
-            ResourceHandle<T> handles[N];
-            __subscript(uint index) -> DescriptorHandle<T>
-            {
-                get { return handles[index].Get(); }
-            }
+            uint64_t address;
+            __init(uint64_t addr = 0) { this.address = addr; }
+            RaytracingAccelerationStructure Get() { return RaytracingAccelerationStructure(address); }
         };
+
+        #define PK_PC_HANDLE(TType, TName, TWord, TBitOffset, TBitSize) property TType TName { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(TWord, TBitOffset, TBitSize), 0u)); } }
+        #define PK_PC_HALF(TType, TName, TWord, TBitOffset, TBitSize) property TType TName { get { return half(f16tof32(bitfieldExtract(TWord, TBitOffset, TBitSize))); } }
+        #define PK_PC_VALUE(TType, TName, TWord, TBitOffset, TBitSize) property TType TName { get { return TType(bitfieldExtract(TWord, TBitOffset, TBitSize)); } }
+
+        #define PK_PC_HANDLE_ARRAY(TType, TName) \
+            struct TName##_Array { __subscript(uint i) -> DescriptorHandle<TType> { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(TName##_Handle[i >> 1u], (i & 1u) << 4u, 16u), 0u)); } } }; \
+            static const TName##_Array TName = {};
 
         typealias SamplerRef = SamplerHandle<SamplerState>;
         typealias SamplerCmpRef = SamplerHandle<SamplerComparisonState>;
@@ -247,8 +253,8 @@ namespace PKAssets::Shader
         typealias ConstantBufferRef<T> = ResourceHandle<ConstantBuffer<T>>;
         typealias ByteAddressBufferRef = ResourceHandle<ByteAddressBuffer>;
         typealias RWByteAddressBufferRef = ResourceHandle<RWByteAddressBuffer>;
-        typealias AccelerationStructureRef = ResourceHandle<RaytracingAccelerationStructure>;
-        )";
+        typealias AccelerationStructureRef = AccelerationStructureHandle;
+    )";
 
     struct SourcePushConstant
     {
@@ -257,7 +263,12 @@ namespace PKAssets::Shader
         std::string targetType;
         PKUniform type = PKUniform::Invalid;
         uint16_t count = 1u;
+        uint16_t memberIndex = 0u;
+        uint16_t memberSize = 0u;
+        uint8_t memberAlignment = 0u;
         uint8_t offset = 0u;
+        uint8_t bitOffset = 0u;
+        uint8_t bitSize = 0u;
         uint32_t stageFlags = 0u;
         uint32_t accessMask = 0u;
         uint32_t writeMask = 0u;
