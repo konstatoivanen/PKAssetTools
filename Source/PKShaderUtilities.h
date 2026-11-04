@@ -208,26 +208,7 @@ namespace PKAssets::Shader
             uint GetSampleCount() { uint w, h, s; this.GetDimensions(w, h, s); return s; }
         };
 
-        struct SamplerHandle<T : IOpaqueDescriptor>
-        {
-            uint8_t index;
-            __init(uint8_t idx = 0) { this.index = idx; }
-            DescriptorHandle<T> Get() { return DescriptorHandle<T>(uint2(uint(index), 0u)); }
-        };
-        
-        struct ResourceHandle<T : IOpaqueDescriptor>
-        {
-            uint16_t index;
-            __init(uint16_t idx = 0) { this.index = idx; }
-            DescriptorHandle<T> Get() { return DescriptorHandle<T>(uint2(uint(index), 0u)); }
-        };
-
-        struct AccelerationStructureHandle
-        {
-            uint64_t address;
-            __init(uint64_t addr = 0) { this.address = addr; }
-            RaytracingAccelerationStructure Get() { return RaytracingAccelerationStructure(address); }
-        };
+        #define PK_GetDescriptor(TType, TIndex) DescriptorHandle<TType>(uint2(TIndex, 0u))
 
         #define PK_PC_HANDLE(TType, TName, TWord, TBitOffset, TBitSize) property TType TName { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(TWord, TBitOffset, TBitSize), 0u)); } }
         #define PK_PC_HALF(TType, TName, TWord, TBitOffset, TBitSize) property TType TName { get { return half(f16tof32(bitfieldExtract(TWord, TBitOffset, TBitSize))); } }
@@ -237,23 +218,6 @@ namespace PKAssets::Shader
             struct TName##_Array { __subscript(uint i) -> DescriptorHandle<TType> { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(TName##_Handle[i >> 1u], (i & 1u) << 4u, 16u), 0u)); } } }; \
             static const TName##_Array TName = {};
 
-        typealias SamplerRef = SamplerHandle<SamplerState>;
-        typealias SamplerCmpRef = SamplerHandle<SamplerComparisonState>;
-        typealias Texture2DRef<T : ITexelElement = float4> = ResourceHandle<Texture2D<T>>;
-        typealias Texture3DRef<T : ITexelElement = float4> = ResourceHandle<Texture3D<T>>;
-        typealias TextureCubeRef<T : ITexelElement = float4> = ResourceHandle<TextureCube<T>>;
-        typealias Texture2DArrayRef<T : ITexelElement = float4> = ResourceHandle<Texture2DArray<T>>;
-        typealias TextureCubeArrayRef<T : ITexelElement = float4> = ResourceHandle<TextureCubeArray<T>>;
-        typealias Texture2DMSRef<T : ITexelElement = float4> = ResourceHandle<Texture2DMS<T>>;
-        typealias RWTexture2DRef<T : ITexelElement = float4> = ResourceHandle<RWTexture2D<T>>;
-        typealias RWTexture2DArrayRef<T : ITexelElement = float4> = ResourceHandle<RWTexture2DArray<T>>;
-        typealias RWTexture3DRef<T : ITexelElement = float4> = ResourceHandle<RWTexture3D<T>>;
-        typealias StructuredBufferRef<T> = ResourceHandle<StructuredBuffer<T>>;
-        typealias RWStructuredBufferRef<T> = ResourceHandle<RWStructuredBuffer<T>>;
-        typealias ConstantBufferRef<T> = ResourceHandle<ConstantBuffer<T>>;
-        typealias ByteAddressBufferRef = ResourceHandle<ByteAddressBuffer>;
-        typealias RWByteAddressBufferRef = ResourceHandle<RWByteAddressBuffer>;
-        typealias AccelerationStructureRef = AccelerationStructureHandle;
     )";
 
     struct SourcePushConstant
@@ -330,6 +294,7 @@ namespace PKAssets::Shader
 
     PKUniform SpvFormatToPKUniform(SpvReflectFormat format);
     PKUniform ReflectUniformType(std::string_view typeText, std::string* outFieldType = nullptr, std::string* outTargetType = nullptr);
+    std::string CompileUniformProperty(PKUniform type, const std::string& targetType, const std::string& name, const std::string& valueExpr, bool isBitpacked = false);
     PKUniform GetResourceType(SpvReflectDescriptorType type);
 
     SlangStage PKShaderStageToSlangStage(PKShaderStage stage);

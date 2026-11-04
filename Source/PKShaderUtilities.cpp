@@ -19,6 +19,7 @@ namespace PKAssets::Shader
     struct UniformMeta
     {
         const char* name = nullptr;
+        const char* fieldType = nullptr;
         const char* targetBase = nullptr;
         const char* defaultTemplate = nullptr;
         PKUniform type = PKUniform::Invalid;
@@ -27,23 +28,23 @@ namespace PKAssets::Shader
 
     constexpr const static UniformMeta PK_UNIFORM_RESOURCE_META[] =
     {
-        { "SamplerRef",                         "SamplerState",                    nullptr,    PKUniform::Sampler,               false },
-        { "SamplerCmpRef",                      "SamplerComparisonState",          nullptr,    PKUniform::Sampler,               false },
-        { "Texture2DRef",                       "Texture2D",                       "<float4>", PKUniform::Texture,               false },
-        { "Texture3DRef",                       "Texture3D",                       "<float4>", PKUniform::Texture,               false },
-        { "TextureCubeRef",                     "TextureCube",                     "<float4>", PKUniform::Texture,               false },
-        { "Texture2DArrayRef",                  "Texture2DArray",                  "<float4>", PKUniform::Texture,               false },
-        { "TextureCubeArrayRef",                "TextureCubeArray",                "<float4>", PKUniform::Texture,               false },
-        { "Texture2DMSRef",                     "Texture2DMS",                     "<float4>", PKUniform::Texture,               false },
-        { "RWTexture2DRef",                     "RWTexture2D",                     "<float4>", PKUniform::Image,                 false },
-        { "RWTexture2DArrayRef",                "RWTexture2DArray",                "<float4>", PKUniform::Image,                 false },
-        { "RWTexture3DRef",                     "RWTexture3D",                     "<float4>", PKUniform::Image,                 false },
-        { "StructuredBufferRef",                "StructuredBuffer",                nullptr,    PKUniform::StorageBuffer,         true  },
-        { "RWStructuredBufferRef",              "RWStructuredBuffer",              nullptr,    PKUniform::StorageBuffer,         true  },
-        { "ByteAddressBufferRef",               "ByteAddressBuffer",               nullptr,    PKUniform::StorageBuffer,         false },
-        { "RWByteAddressBufferRef",             "RWByteAddressBuffer",             nullptr,    PKUniform::StorageBuffer,         false },
-        { "ConstantBufferRef",                  "ConstantBuffer",                  nullptr,    PKUniform::ConstantBuffer,        true  },
-        { "AccelerationStructureRef",           "RaytracingAccelerationStructure", nullptr,    PKUniform::AccelerationStructure, false },
+        { "SamplerRef",               "byte",   "SamplerState",                    nullptr,    PKUniform::Sampler,               false },
+        { "SamplerCmpRef",            "byte",   "SamplerComparisonState",          nullptr,    PKUniform::Sampler,               false },
+        { "Texture2DRef",             "ushort", "Texture2D",                       "<float4>", PKUniform::Texture,               false },
+        { "Texture3DRef",             "ushort", "Texture3D",                       "<float4>", PKUniform::Texture,               false },
+        { "TextureCubeRef",           "ushort", "TextureCube",                     "<float4>", PKUniform::Texture,               false },
+        { "Texture2DArrayRef",        "ushort", "Texture2DArray",                  "<float4>", PKUniform::Texture,               false },
+        { "TextureCubeArrayRef",      "ushort", "TextureCubeArray",                "<float4>", PKUniform::Texture,               false },
+        { "Texture2DMSRef",           "ushort", "Texture2DMS",                     "<float4>", PKUniform::Texture,               false },
+        { "RWTexture2DRef",           "ushort", "RWTexture2D",                     "<float4>", PKUniform::Image,                 false },
+        { "RWTexture2DArrayRef",      "ushort", "RWTexture2DArray",                "<float4>", PKUniform::Image,                 false },
+        { "RWTexture3DRef",           "ushort", "RWTexture3D",                     "<float4>", PKUniform::Image,                 false },
+        { "StructuredBufferRef",      "ushort", "StructuredBuffer",                nullptr,    PKUniform::StorageBuffer,         true  },
+        { "RWStructuredBufferRef",    "ushort", "RWStructuredBuffer",              nullptr,    PKUniform::StorageBuffer,         true  },
+        { "ByteAddressBufferRef",     "ushort", "ByteAddressBuffer",               nullptr,    PKUniform::StorageBuffer,         false },
+        { "RWByteAddressBufferRef",   "ushort", "RWByteAddressBuffer",             nullptr,    PKUniform::StorageBuffer,         false },
+        { "ConstantBufferRef",        "ushort", "ConstantBuffer",                  nullptr,    PKUniform::ConstantBuffer,        true  },
+        { "AccelerationStructureRef", "ulong",  "RaytracingAccelerationStructure", nullptr,    PKUniform::AccelerationStructure, false },
     };
 
     const static char* PKComparison_NAMES[] =
@@ -594,7 +595,7 @@ namespace PKAssets::Shader
 
                 if (outFieldType)
                 {
-                    *outFieldType = std::string(baseName) + std::string(templateArg);
+                    *outFieldType = meta.fieldType;
                 }
 
                 if (outTargetType)
@@ -616,6 +617,30 @@ namespace PKAssets::Shader
         }
 
         return PKUniform::Invalid;
+    }
+
+    std::string CompileUniformProperty(PKUniform type, const std::string& targetType, const std::string& name, const std::string& valueExpr, bool isBitpacked)
+    {
+        std::string expr = valueExpr;
+
+        if (type == PKUniform::AccelerationStructure)
+        {
+            expr = targetType + "(" + valueExpr + ")";
+        }
+        else if (PKUniformIsResourceHandle(type))
+        {
+            expr = "DescriptorHandle<" + targetType + ">(uint2(" + valueExpr + ",0u))";
+        }
+        else if (isBitpacked && type == PKUniform::Half)
+        {
+            expr = "half(f16tof32(" + valueExpr + "))";
+        }
+        else if (isBitpacked)
+        {
+            expr = targetType + "(" + valueExpr + ")";
+        }
+
+        return "property " + targetType + " " + name + "{get{return " + expr + ";}}\n";
     }
 
     PKUniform GetResourceType(SpvReflectDescriptorType type)
@@ -1128,9 +1153,9 @@ namespace PKAssets::Shader
                 {
                     if (member.name == name)
                     {
-                        if (member.fieldType != fieldType || member.count != count)
+                        if (member.targetType != targetType || member.count != count)
                         {
-                            printf("Warning constant parameter '%s' was declared again with a different format '%s'\n", member.name.c_str(), fieldType.c_str());
+                            printf("Warning constant parameter '%s' was declared again with a different format '%s'\n", member.name.c_str(), targetType.c_str());
                         }
 
                         member.stageFlags |= stageMask;
@@ -1177,7 +1202,7 @@ namespace PKAssets::Shader
 
             const auto alignA = PKUniformToScalarSize(a.type);
             const auto alignB = PKUniformToScalarSize(b.type);
-            return alignA != alignB ? (alignA > alignB) : (sizeA > sizeB);
+            return alignA != alignB ? alignA > alignB : sizeA > sizeB;
         });
 
         auto memberIndex = 0u;
@@ -1195,7 +1220,6 @@ namespace PKAssets::Shader
             {
                 packedByteOffset = (packedByteOffset + elementSize - 1u) & ~(elementSize - 1u);
                 const auto wordIndex = packedByteOffset / 4u;
-                const auto* macro = isHandle ? "PK_PC_HANDLE(" : (member.type == PKUniform::Half ? "PK_PC_HALF(" : "PK_PC_VALUE(");
 
                 member.memberIndex = (uint16_t)(memberIndex + wordIndex);
                 member.memberSize = 4u;
@@ -1203,7 +1227,9 @@ namespace PKAssets::Shader
                 member.bitOffset = (uint8_t)((packedByteOffset % 4u) * 8u);
                 member.bitSize = (uint8_t)(totalSize * 8u);
                 packedByteOffset += totalSize;
-                resourceAccessors += std::string(macro) + member.targetType + "," + member.name + ",pk_packed_pc_" + std::to_string(wordIndex) + "," + std::to_string(member.bitOffset) + "," + std::to_string(member.bitSize) + ")\n";
+
+                const auto extractExpr = "bitfieldExtract(pk_packed_pc_" + std::to_string(wordIndex) + "," + std::to_string(member.bitOffset) + "," + std::to_string(member.bitSize) + ")";
+                resourceAccessors += CompileUniformProperty(member.type, member.targetType, member.name, extractExpr, true);
                 continue;
             }
 
@@ -1211,6 +1237,7 @@ namespace PKAssets::Shader
             member.bitOffset = 0u;
             member.bitSize = 0u;
 
+            // Single resource access was handled above. no need to check count here.
             if (isHandle && member.type != PKUniform::AccelerationStructure)
             {
                 const auto wordCount = (member.count + 1u) / 2u;
@@ -1228,11 +1255,11 @@ namespace PKAssets::Shader
             {
                 const auto fieldName = member.name + "_Handle";
                 blockFields += member.fieldType + " " + fieldName + ";\n";
-                resourceAccessors += "property " + member.targetType + " " + member.name + "{get{return " + fieldName + ".Get();}}\n";
+                resourceAccessors += CompileUniformProperty(member.type, member.targetType, member.name, fieldName, false);
                 continue;
             }
 
-            const auto arraySuffix = member.count > 1u ? ("[" + std::to_string(member.count) + "]") : "";
+            const auto arraySuffix = member.count > 1u ? "[" + std::to_string(member.count) + "]" : "";
             blockFields += member.fieldType + " " + member.name + arraySuffix + ";\n";
         }
 

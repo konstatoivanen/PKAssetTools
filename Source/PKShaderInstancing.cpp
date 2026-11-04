@@ -100,14 +100,13 @@ namespace PKAssets::Shader::Instancing
             stride += PKUniformToSize(prop.prop.type);
 
             const std::string name(prop.prop.name);
-            const std::string getter = PKUniformIsResourceHandle(prop.prop.type) ? ".Get()" : "";
-            structFields +=  prop.fieldType + " " + name + ";\n";
-            propertyAccessors += "property " + prop.targetType + " " + name + " { get { return pk_Instancing_PropertyBlock." + name + getter + "; } }\n";
+            structFields += prop.fieldType + " " + name + ";\n";
+            propertyAccessors += CompileUniformProperty(prop.prop.type, prop.targetType, name, "pk_Instancing_PropertyBlock." + name);
         }
 
         if ((stride % maxAlign) != 0u)
         {
-            structFields += "    uint8_t _pk_pad[" + std::to_string(maxAlign - (stride % maxAlign)) + "];\n";
+            structFields += "uint8_t _pk_pad[" + std::to_string(maxAlign - (stride % maxAlign)) + "];\n";
         }
 
         auto header = "struct PK_MaterialPropertyBlock\n{\n" + structFields + "};\n" +
