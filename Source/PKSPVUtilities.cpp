@@ -32,6 +32,80 @@ namespace PKAssets::Shader
         return false;
     }
 
+    static bool IsRemovablePureInstruction(SpvOp opcode, uint16_t wcount, const uint32_t* params)
+    {
+        if (wcount < 4u)
+        {
+            return false;
+        }
+
+        switch (opcode)
+        {
+            case SpvOpLoad:
+                return wcount == 4u || (params[3] & SpvMemoryAccessVolatileMask) == 0u;
+            case SpvOpAccessChain:
+            case SpvOpInBoundsAccessChain:
+            case SpvOpPtrAccessChain:
+            case SpvOpInBoundsPtrAccessChain:
+            case SpvOpUntypedAccessChainKHR:
+            case SpvOpUntypedInBoundsAccessChainKHR:
+            case SpvOpUntypedPtrAccessChainKHR:
+            case SpvOpUntypedInBoundsPtrAccessChainKHR:
+            case SpvOpBufferPointerEXT:
+            case SpvOpBitFieldUExtract:
+            case SpvOpBitFieldSExtract:
+            case SpvOpUConvert:
+            case SpvOpSConvert:
+            case SpvOpFConvert:
+            case SpvOpBitcast:
+            case SpvOpCopyObject:
+            case SpvOpCopyLogical:
+            case SpvOpCompositeExtract:
+            case SpvOpCompositeConstruct:
+            case SpvOpVectorShuffle:
+            case SpvOpConvertUToAccelerationStructureKHR:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static void MarkInstructionOperandsUsed(SpvOp opcode, uint16_t wcount, const uint32_t* params, uint32_t idBound, std::vector<uint8_t>& usedIds)
+    {
+        const auto paramCount = (uint32_t)(wcount - 1u);
+        auto operandEnd = paramCount;
+
+        // Exclude trailing literal immediates so that small literal numbers don't collide with low <id>s
+        switch (opcode)
+        {
+            case SpvOpCompositeExtract:  operandEnd = std::min(paramCount, 3u); break;
+            case SpvOpCompositeInsert:
+            case SpvOpVectorShuffle:     operandEnd = std::min(paramCount, 4u); break;
+            case SpvOpLoad:              operandEnd = std::min(paramCount, 3u); break;
+            case SpvOpStore:             operandEnd = std::min(paramCount, 2u); break;
+            case SpvOpSelectionMerge:    operandEnd = std::min(paramCount, 1u); break;
+            case SpvOpLoopMerge:         operandEnd = std::min(paramCount, 2u); break;
+            case SpvOpBranchConditional: operandEnd = std::min(paramCount, 3u); break;
+            default: break;
+        }
+
+        for (auto p = 0u; p < operandEnd; ++p)
+        {
+            if (opcode == SpvOpExtInst && p == 3u)
+            {
+                continue;
+            }
+
+            const auto id = params[p];
+
+            if (id < idBound)
+            {
+                usedIds[id] = 1u;
+            }
+        }
+    }
+
+
     bool ReflectResourceWrite(const uint32_t* code, const uint32_t wordCount, uint32_t variable, PKUniform type)
     {
         if (type != PKUniform::Image && type != PKUniform::StorageBuffer)
@@ -63,6 +137,7 @@ namespace PKAssets::Shader
                 case SpvOp::SpvOpInBoundsAccessChain:
                 case SpvOp::SpvOpPtrAccessChain:
                 case SpvOp::SpvOpInBoundsPtrAccessChain:
+                case SpvOp::SpvOpBufferPointerEXT:
                 case SpvOp::SpvOpCopyObject:
                 case SpvOp::SpvOpCopyLogical:
                 case SpvOp::SpvOpLoad:
@@ -144,6 +219,7 @@ namespace PKAssets::Shader
         *outAccessed = false;
         *outWritten = false;
 
+        const auto isHandle = PKUniformIsResourceHandle(type);
         const auto canWrite = type == PKUniform::Image || type == PKUniform::StorageBuffer;
         std::unordered_set<uint32_t> wordIds;
         std::unordered_set<uint32_t> indexIds;
@@ -174,11 +250,12 @@ namespace PKAssets::Shader
                         {
                             if (bitSize == 0u)
                             {
-                                *outAccessed = true;
-                                if (!canWrite)
+                                if (!isHandle)
                                 {
+                                    *outAccessed = true;
                                     return;
                                 }
+
                                 indexIds.insert(params[1]);
                             }
                             else
@@ -193,6 +270,7 @@ namespace PKAssets::Shader
                         {
                             indexIds.insert(params[1]);
                         }
+
                         if (pointerIds.count(params[2]) || (wcount >= 5u && indexIds.count(params[3])))
                         {
                             pointerIds.insert(params[1]);
@@ -213,11 +291,12 @@ namespace PKAssets::Shader
                             extractedOffset == bitOffset &&
                             extractedSize == bitSize)
                         {
-                            *outAccessed = true;
-                            if (!canWrite)
+                            if (!isHandle)
                             {
+                                *outAccessed = true;
                                 return;
                             }
+
                             indexIds.insert(params[1]);
                         }
                     }
@@ -228,6 +307,7 @@ namespace PKAssets::Shader
                 }
                 break;
 
+                case SpvOp::SpvOpBufferPointerEXT:
                 case SpvOp::SpvOpPtrAccessChain:
                 case SpvOp::SpvOpInBoundsPtrAccessChain:
                 {
@@ -254,7 +334,45 @@ namespace PKAssets::Shader
                 }
                 break;
 
+                case SpvOp::SpvOpConvertUToAccelerationStructureKHR:
+                {
+                    if (wcount >= 4u && indexIds.count(params[2]))
+                    {
+                        *outAccessed = true;
+                        return;
+                    }
+                }
+                break;
+
                 case SpvOp::SpvOpLoad:
+                {
+                    if (wcount >= 4u)
+                    {
+                        if (wordIds.count(params[2]))
+                        {
+                            wordIds.insert(params[1]);
+                        }
+
+                        if (indexIds.count(params[2]))
+                        {
+                            indexIds.insert(params[1]);
+                        }
+
+                        if (pointerIds.count(params[2]))
+                        {
+                            *outAccessed = true;
+
+                            if (!canWrite)
+                            {
+                                return;
+                            }
+
+                            pointerIds.insert(params[1]);
+                        }
+                    }
+                }
+                break;
+
                 case SpvOp::SpvOpCopyObject:
                 case SpvOp::SpvOpCopyLogical:
                 case SpvOp::SpvOpUConvert:
@@ -270,10 +388,12 @@ namespace PKAssets::Shader
                         {
                             wordIds.insert(params[1]);
                         }
+
                         if (indexIds.count(params[2]))
                         {
                             indexIds.insert(params[1]);
                         }
+
                         if (pointerIds.count(params[2]))
                         {
                             pointerIds.insert(params[1]);
@@ -301,6 +421,7 @@ namespace PKAssets::Shader
                             {
                                 indexIds.insert(params[1]);
                             }
+
                             if (pointerIds.count(params[opIdx]))
                             {
                                 pointerIds.insert(params[1]);
@@ -314,7 +435,22 @@ namespace PKAssets::Shader
                 {
                     if (wcount >= 4u && pointerIds.count(params[2]))
                     {
+                        *outAccessed = true;
                         pointerIds.insert(params[1]);
+                    }
+                }
+                break;
+
+                case SpvOp::SpvOpArrayLength:
+                {
+                    if (wcount >= 5u && pointerIds.count(params[2]))
+                    {
+                        *outAccessed = true;
+
+                        if (!canWrite)
+                        {
+                            return;
+                        }
                     }
                 }
                 break;
@@ -325,6 +461,7 @@ namespace PKAssets::Shader
                 {
                     if (wcount >= 3u && pointerIds.count(params[0]))
                     {
+                        *outAccessed = true;
                         *outWritten = true;
                         return;
                     }
@@ -349,6 +486,7 @@ namespace PKAssets::Shader
                 {
                     if (wcount >= 4u && pointerIds.count(params[2]))
                     {
+                        *outAccessed = true;
                         *outWritten = true;
                         return;
                     }
@@ -408,9 +546,9 @@ namespace PKAssets::Shader
 
             if (opcode == SpvOp::SpvOpExecutionModeId && params[1] == SpvExecutionMode::SpvExecutionModeLocalSizeId)
             {
-                const bool foundX = FindOpConstUint(code, wordCount, params[2], &localSize[0]);
-                const bool foundY = FindOpConstUint(code, wordCount, params[3], &localSize[1]);
-                const bool foundZ = FindOpConstUint(code, wordCount, params[4], &localSize[2]);
+                const auto foundX = FindOpConstUint(code, wordCount, params[2], &localSize[0]);
+                const auto foundY = FindOpConstUint(code, wordCount, params[3], &localSize[1]);
+                const auto foundZ = FindOpConstUint(code, wordCount, params[4], &localSize[2]);
                 return foundX && foundY && foundZ;
             }
 
@@ -422,28 +560,34 @@ namespace PKAssets::Shader
 
     std::vector<uint32_t> CleanSPIRV(const uint32_t* code, uint32_t wordCount, const std::unordered_set<uint32_t>& deadVariableIds, bool stripDebugInfo)
     {
-        std::vector<uint32_t> out;
-        out.reserve(wordCount + 2u);
-
-        // Copy 5-word SPIR-V header
-        for (auto i = 0u; i < 5u && i < wordCount; ++i)
+        if (wordCount < 5u)
         {
-            out.push_back(code[i]);
+            return {};
         }
+
+        const auto idBound = code[3];
+        std::vector<uint32_t> instOffsets;
+        instOffsets.reserve(wordCount / 4u);
 
         // Workaround for Slang omitting OpCapability SampleRateShading when emitting SpvDecorationSample
         auto hasSampleRateCapability = false;
         auto usesSampleDecoration = false;
+        auto firstFunctionInstIdx = 0xFFFFFFFFu;
 
         for (auto i = 5u; i < wordCount;)
         {
             const auto opcode = (SpvOp)(code[i] & 0xFFFFu);
             const auto wcount = (uint16_t)((code[i] >> 16) & 0xFFFFu);
             const auto* params = code + i + 1u;
-            
+
             if (wcount == 0u)
             {
                 break;
+            }
+
+            if (opcode == SpvOpFunction && firstFunctionInstIdx == 0xFFFFFFFFu)
+            {
+                firstFunctionInstIdx = (uint32_t)instOffsets.size();
             }
 
             if (opcode == SpvOpCapability && wcount >= 2u && params[0] == SpvCapabilitySampleRateShading)
@@ -457,7 +601,55 @@ namespace PKAssets::Shader
                 usesSampleDecoration = true;
             }
 
+            instOffsets.push_back(i);
             i += wcount;
+        }
+
+        std::vector<uint8_t> usedIds(idBound, 0u);
+        std::vector<uint8_t> deadIds(idBound, 0u);
+        std::vector<uint8_t> deadInsts(instOffsets.size(), 0u);
+
+        for (const auto deadVarId : deadVariableIds)
+        {
+            if (deadVarId < idBound)
+            {
+                deadIds[deadVarId] = 1u;
+            }
+        }
+
+        // Backwards SSA dead-instruction sweep across function bodies
+        if (firstFunctionInstIdx != 0xFFFFFFFFu)
+        {
+            for (auto idx = (int32_t)instOffsets.size() - 1; idx >= (int32_t)firstFunctionInstIdx; --idx)
+            {
+                const auto offset = instOffsets[idx];
+                const auto opcode = (SpvOp)(code[offset] & 0xFFFFu);
+                const auto wcount = (uint16_t)((code[offset] >> 16) & 0xFFFFu);
+                const auto* params = code + offset + 1u;
+
+                if (IsRemovablePureInstruction(opcode, wcount, params))
+                {
+                    const auto resultId = params[1];
+
+                    if (resultId < idBound && !usedIds[resultId])
+                    {
+                        deadInsts[idx] = 1u;
+                        deadIds[resultId] = 1u;
+                        continue;
+                    }
+                }
+
+                MarkInstructionOperandsUsed(opcode, wcount, params, idBound, usedIds);
+            }
+        }
+
+        std::vector<uint32_t> out;
+        out.reserve(wordCount + 2u);
+
+        // Copy 5-word SPIR-V header
+        for (auto i = 0u; i < 5u; ++i)
+        {
+            out.push_back(code[i]);
         }
 
         if (usesSampleDecoration && !hasSampleRateCapability)
@@ -466,18 +658,17 @@ namespace PKAssets::Shader
             out.push_back((uint32_t)SpvCapabilitySampleRateShading);
         }
 
-        auto i = 5u;
-
-        while (i < wordCount)
+        for (auto idx = 0u; idx < instOffsets.size(); ++idx)
         {
+            if (deadInsts[idx])
+            {
+                continue;
+            }
+
+            const auto i = instOffsets[idx];
             const auto opcode = (SpvOp)(code[i] & 0xFFFFu);
             const auto wcount = (uint16_t)((code[i] >> 16) & 0xFFFFu);
             const auto* params = code + i + 1u;
-
-            if (wcount == 0u)
-            {
-                break;
-            }
 
             if (stripDebugInfo)
             {
@@ -490,70 +681,65 @@ namespace PKAssets::Shader
                     opcode == SpvOpNoLine ||
                     opcode == SpvOpModuleProcessed)
                 {
-                    i += wcount;
                     continue;
                 }
             }
 
-            if (!deadVariableIds.empty())
+            if ((opcode == SpvOpDecorate || opcode == SpvOpMemberDecorate || opcode == SpvOpName) &&
+                wcount >= 2u &&
+                params[0] < idBound &&
+                deadIds[params[0]])
             {
-                if ((opcode == SpvOpDecorate || opcode == SpvOpMemberDecorate || opcode == SpvOpName) && wcount >= 2u && deadVariableIds.count(params[0]))
-                {
-                    i += wcount;
-                    continue;
-                }
+                continue;
+            }
 
-                if (opcode == SpvOpVariable && wcount >= 4u && deadVariableIds.count(params[1]))
-                {
-                    i += wcount;
-                    continue;
-                }
+            if (opcode == SpvOpVariable && wcount >= 4u && params[1] < idBound && deadIds[params[1]])
+            {
+                continue;
+            }
 
-                if (opcode == SpvOpEntryPoint)
-                {
-                    const auto headerIdx = out.size();
-                    out.push_back(code[i]);
-                    out.push_back(params[0]);
-                    out.push_back(params[1]);
+            if (opcode == SpvOpEntryPoint && !deadVariableIds.empty())
+            {
+                const auto headerIdx = out.size();
+                out.push_back(code[i]);
+                out.push_back(params[0]);
+                out.push_back(params[1]);
 
-                    uint16_t w = 3u;
-                    
-                    while (w < wcount)
+                uint16_t w = 3u;
+
+                while (w < wcount)
+                {
+                    const auto word = code[i + w];
+                    out.push_back(word);
+                    w++;
+
+                    if ((word & 0xFFu) == 0u ||
+                        (word & 0xFF00u) == 0u ||
+                        (word & 0xFF0000u) == 0u ||
+                        (word & 0xFF000000u) == 0u)
                     {
-                        const auto word = code[i + w];
-                        out.push_back(word);
-                        w++;
-
-                        if ((word & 0xFFu) == 0u ||
-                            (word & 0xFF00u) == 0u ||
-                            (word & 0xFF0000u) == 0u ||
-                            (word & 0xFF000000u) == 0u)
-                        {
-                            break;
-                        }
+                        break;
                     }
-
-                    auto newWCount = w;
-
-                    for (; w < wcount; ++w)
-                    {
-                        const auto interfaceId = code[i + w];
-
-                        if (!deadVariableIds.count(interfaceId))
-                        {
-                            out.push_back(interfaceId);
-                            newWCount++;
-                        }
-                    }
-
-                    out[headerIdx] = ((uint32_t)newWCount << 16u) | (uint32_t)opcode;
-                    i += wcount;
-                    continue;
                 }
+
+                auto newWCount = w;
+
+                for (; w < wcount; ++w)
+                {
+                    const auto interfaceId = code[i + w];
+
+                    if (interfaceId >= idBound || !deadIds[interfaceId])
+                    {
+                        out.push_back(interfaceId);
+                        newWCount++;
+                    }
+                }
+
+                out[headerIdx] = ((uint32_t)newWCount << 16u) | (uint32_t)opcode;
+                continue;
             }
 
             out.insert(out.end(), code + i, code + i + wcount);
-            i += wcount;
         }
 
         return out;

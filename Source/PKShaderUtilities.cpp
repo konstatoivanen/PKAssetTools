@@ -178,13 +178,59 @@ namespace PKAssets::Shader
         return token;
     }
 
-    static uint32_t CountIdentifierInRange(const simplecpp::Token* first, const simplecpp::Token* last, const std::string& name)
+    static uint32_t CountFunctionArguments(const simplecpp::Token* openParen)
+    {
+        if (openParen == nullptr || openParen->op != '(')
+        {
+            return 0u;
+        }
+
+        const auto* closeParen = FindTokenScope(const_cast<simplecpp::Token*>(openParen), nullptr, '(', ')');
+        
+        if (closeParen == nullptr || openParen->next == closeParen)
+        {
+            return 0u;
+        }
+
+        auto count = 1u;
+        auto depth = 0;
+
+        for (const auto* token = openParen->next; token != nullptr && token != closeParen; token = token->next)
+        {
+            if (token->op == '(' || token->op == '[' || token->op == '{')
+            {
+                depth++;
+            }
+            else if (token->op == ')' || token->op == ']' || token->op == '}')
+            {
+                depth = std::max(0, depth - 1);
+            }
+            else if (depth == 0 && token->op == ',')
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    static std::string GetTokenUsageKey(const simplecpp::Token* token)
+    {
+        if (token->next != nullptr && token->next->op == '(')
+        {
+            return token->str() + "#" + std::to_string(CountFunctionArguments(token->next));
+        }
+
+        return token->str();
+    }
+
+    static uint32_t CountIdentifierInRange(const simplecpp::Token* first, const simplecpp::Token* last, const std::string& key)
     {
         auto count = 0u;
 
         for (const auto* token = first; token != nullptr; token = token->next)
         {
-            if (token->name && (token->previous == nullptr || token->previous->op != '.') && token->str() == name)
+            if (token->name && (token->previous == nullptr || token->previous->op != '.') && GetTokenUsageKey(token) == key)
             {
                 count++;
             }
@@ -394,7 +440,7 @@ namespace PKAssets::Shader
         {
             if (token->name && (token->previous == nullptr || token->previous->op != '.'))
             {
-                counts[token->str()]++;
+                counts[GetTokenUsageKey(token)]++;
             }
         }
 
@@ -418,7 +464,7 @@ namespace PKAssets::Shader
 
             if (declToken != nullptr)
             {
-                auto iterator = counts.find(declToken->str());
+                auto iterator = counts.find(GetTokenUsageKey(declToken));
                 if (iterator != counts.end() && iterator->second > 0u)
                 {
                     iterator->second--;
@@ -1290,8 +1336,9 @@ namespace PKAssets::Shader
                 if (statement.isFunction && statement.functionName != nullptr)
                 {
                     const auto& functionName = statement.functionName->str();
-                    const auto totalRefs = GetIdentifierUsageCount(usageMap, functionName);
-                    const auto selfRefs = CountIdentifierInRange(statement.openBrace, statement.end, functionName);
+                    const auto functionKey = GetTokenUsageKey(statement.functionName);
+                    const auto totalRefs = GetIdentifierUsageCount(usageMap, functionKey);
+                    const auto selfRefs = CountIdentifierInRange(statement.openBrace, statement.end, functionKey);
 
                     if (FindActiveEntryPoint(functionName, activeEntries) == nullptr && totalRefs <= selfRefs)
                     {

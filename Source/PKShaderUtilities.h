@@ -215,7 +215,7 @@ namespace PKAssets::Shader
         #define PK_PC_VALUE(TType, TName, TWord, TBitOffset, TBitSize) property TType TName { get { return TType(bitfieldExtract(TWord, TBitOffset, TBitSize)); } }
 
         #define PK_PC_HANDLE_ARRAY(TType, TName) \
-            struct TName##_Array { __subscript(uint i) -> DescriptorHandle<TType> { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(TName##_Handle[i >> 1u], (i & 1u) << 4u, 16u), 0u)); } } }; \
+            struct TName##_Array { __subscript(uint i) -> TType { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(TName##_Handle[i >> 1u], (i & 1u) << 4u, 16u), 0u)); } } }; \
             static const TName##_Array TName = {};
 
     )";
