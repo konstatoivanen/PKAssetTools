@@ -7,8 +7,8 @@
 #pragma pk_material_property float4 _Color
 #pragma pk_material_property float _Roughness
 #pragma pk_material_property float _Metallic
-#pragma pk_material_property Texture2DRef _AlbedoTex
-#pragma pk_material_property Texture3DRef _LutTex
+#pragma pk_material_property Texture2D _AlbedoTex
+#pragma pk_material_property Texture3D _LutTex
 
 #pragma pk_multi_compile _ PASS_COLOR
 #pragma pk_program Vertex MainVs 
@@ -25,13 +25,13 @@ struct UniformBufferObject
 
 uniform float4 offset_x;
 uniform float4 unused_x;
-uniform ConstantBufferRef<UniformBufferObject> unused_ubo;
-uniform ConstantBufferRef<UniformBufferObject> named;
+uniform ConstantBuffer<UniformBufferObject> unused_ubo;
+uniform ConstantBuffer<UniformBufferObject> named;
 
-uniform RWTexture2DRef<float4> pk_DebugImage;
-uniform RWStructuredBufferRef<float4> _WriteBuffer;
-uniform StructuredBufferRef<float4> _ReadVariable;
-uniform Texture2DRef<float4> tex1;
+uniform RWTexture2D<float4> pk_DebugImage;
+uniform RWStructuredBuffer<float4> _WriteBuffer;
+uniform StructuredBuffer<float4> _ReadVariable;
+uniform Texture2D<float4> tex1;
 uniform SamplerRef smp;
 
 #if defined(SHADER_FRAGMENT)

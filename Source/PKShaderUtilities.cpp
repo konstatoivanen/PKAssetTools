@@ -20,7 +20,6 @@ namespace PKAssets::Shader
     {
         const char* name = nullptr;
         const char* fieldType = nullptr;
-        const char* targetBase = nullptr;
         const char* defaultTemplate = nullptr;
         PKUniform type = PKUniform::Invalid;
         bool requiresTemplate = false;
@@ -28,23 +27,23 @@ namespace PKAssets::Shader
 
     constexpr const static UniformMeta PK_UNIFORM_RESOURCE_META[] =
     {
-        { "SamplerRef",               "byte",   "SamplerState",                    nullptr,    PKUniform::Sampler,               false },
-        { "SamplerCmpRef",            "byte",   "SamplerComparisonState",          nullptr,    PKUniform::Sampler,               false },
-        { "Texture2DRef",             "ushort", "Texture2D",                       "<float4>", PKUniform::Texture,               false },
-        { "Texture3DRef",             "ushort", "Texture3D",                       "<float4>", PKUniform::Texture,               false },
-        { "TextureCubeRef",           "ushort", "TextureCube",                     "<float4>", PKUniform::Texture,               false },
-        { "Texture2DArrayRef",        "ushort", "Texture2DArray",                  "<float4>", PKUniform::Texture,               false },
-        { "TextureCubeArrayRef",      "ushort", "TextureCubeArray",                "<float4>", PKUniform::Texture,               false },
-        { "Texture2DMSRef",           "ushort", "Texture2DMS",                     "<float4>", PKUniform::Texture,               false },
-        { "RWTexture2DRef",           "ushort", "RWTexture2D",                     "<float4>", PKUniform::Image,                 false },
-        { "RWTexture2DArrayRef",      "ushort", "RWTexture2DArray",                "<float4>", PKUniform::Image,                 false },
-        { "RWTexture3DRef",           "ushort", "RWTexture3D",                     "<float4>", PKUniform::Image,                 false },
-        { "StructuredBufferRef",      "ushort", "StructuredBuffer",                nullptr,    PKUniform::StorageBuffer,         true  },
-        { "RWStructuredBufferRef",    "ushort", "RWStructuredBuffer",              nullptr,    PKUniform::StorageBuffer,         true  },
-        { "ByteAddressBufferRef",     "ushort", "ByteAddressBuffer",               nullptr,    PKUniform::StorageBuffer,         false },
-        { "RWByteAddressBufferRef",   "ushort", "RWByteAddressBuffer",             nullptr,    PKUniform::StorageBuffer,         false },
-        { "ConstantBufferRef",        "ushort", "ConstantBuffer",                  nullptr,    PKUniform::ConstantBuffer,        true  },
-        { "AccelerationStructureRef", "ulong",  "RaytracingAccelerationStructure", nullptr,    PKUniform::AccelerationStructure, false },
+        { "SamplerState",                    "byte",   nullptr,    PKUniform::Sampler,               false },
+        { "SamplerComparisonState",          "byte",   nullptr,    PKUniform::Sampler,               false },
+        { "Texture2D",                       "ushort", "<float4>", PKUniform::Texture,               false },
+        { "Texture3D",                       "ushort", "<float4>", PKUniform::Texture,               false },
+        { "TextureCube",                     "ushort", "<float4>", PKUniform::Texture,               false },
+        { "Texture2DArray",                  "ushort", "<float4>", PKUniform::Texture,               false },
+        { "TextureCubeArray",                "ushort", "<float4>", PKUniform::Texture,               false },
+        { "Texture2DMS",                     "ushort", "<float4>", PKUniform::Texture,               false },
+        { "RWTexture2D",                     "ushort", "<float4>", PKUniform::Image,                 false },
+        { "RWTexture2DArray",                "ushort", "<float4>", PKUniform::Image,                 false },
+        { "RWTexture3D",                     "ushort", "<float4>", PKUniform::Image,                 false },
+        { "StructuredBuffer",                "ushort", nullptr,    PKUniform::StorageBuffer,         true  },
+        { "RWStructuredBuffer",              "ushort", nullptr,    PKUniform::StorageBuffer,         true  },
+        { "ByteAddressBuffer",               "ushort", nullptr,    PKUniform::StorageBuffer,         false },
+        { "RWByteAddressBuffer",             "ushort", nullptr,    PKUniform::StorageBuffer,         false },
+        { "ConstantBuffer",                  "ushort", nullptr,    PKUniform::ConstantBuffer,        true  },
+        { "RaytracingAccelerationStructure", "ulong",  nullptr,    PKUniform::AccelerationStructure, false },
     };
 
     const static char* PKComparison_NAMES[] =
@@ -646,7 +645,7 @@ namespace PKAssets::Shader
 
                 if (outTargetType)
                 {
-                    *outTargetType = std::string(meta.targetBase);
+                    *outTargetType = std::string(meta.name);
 
                     if (!templateArg.empty())
                     {
@@ -689,22 +688,6 @@ namespace PKAssets::Shader
         return "property " + targetType + " " + name + "{get{return " + expr + ";}}\n";
     }
 
-    PKUniform GetResourceType(SpvReflectDescriptorType type)
-    {
-        switch (type)
-        {
-            case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER:                    return PKUniform::Sampler;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:              return PKUniform::Texture;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE:              return PKUniform::Image;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:             return PKUniform::ConstantBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:             return PKUniform::StorageBuffer;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:           return PKUniform::InputAttachment;
-            case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: return PKUniform::AccelerationStructure;
-            default:                                                     return PKUniform::Invalid;
-        }
-    }
-
-
     SlangStage PKShaderStageToSlangStage(PKShaderStage stage)
     {
         switch (stage)
@@ -745,21 +728,6 @@ namespace PKAssets::Shader
             case PKShaderStage::RayIntersection:       return "[shader(\"intersection\")] ";
             default:                                   return "";
         }
-    }
-
-    std::string ReflectBindingName(SpvReflectDescriptorBinding* binding)
-    {
-        if (binding->name && binding->name[0] != '\0')
-        {
-            return std::string(binding->name);
-        }
-
-        if (binding->type_description && binding->type_description->type_name)
-        {
-            return std::string(binding->type_description->type_name);
-        }
-
-        return {};
     }
 
     std::string FormatErrorMessage(const std::string& name, const std::string& source, const std::string& error)

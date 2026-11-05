@@ -210,10 +210,6 @@ namespace PKAssets::Shader
 
         #define PK_GetDescriptor(TType, TIndex) DescriptorHandle<TType>(uint2(TIndex, 0u))
 
-        #define PK_PC_HANDLE(TType, TName, TWord, TBitOffset, TBitSize) property TType TName { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(TWord, TBitOffset, TBitSize), 0u)); } }
-        #define PK_PC_HALF(TType, TName, TWord, TBitOffset, TBitSize) property TType TName { get { return half(f16tof32(bitfieldExtract(TWord, TBitOffset, TBitSize))); } }
-        #define PK_PC_VALUE(TType, TName, TWord, TBitOffset, TBitSize) property TType TName { get { return TType(bitfieldExtract(TWord, TBitOffset, TBitSize)); } }
-
         #define PK_PC_HANDLE_ARRAY(TType, TName) \
             struct TName##_Array { __subscript(uint i) -> TType { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(TName##_Handle[i >> 1u], (i & 1u) << 4u, 16u), 0u)); } } }; \
             static const TName##_Array TName = {};
@@ -247,32 +243,11 @@ namespace PKAssets::Shader
         std::string keyword;
     };
 
-    struct ReflectBinding
-    {
-        std::string name;
-        uint32_t writeStageMask = (uint32_t)PKShaderStageFlags::None;
-        uint32_t accessStageMask = (uint32_t)PKShaderStageFlags::None;
-        PKUniform type = PKUniform::Invalid;
-        uint32_t bindingIndex = 0u;
-        uint32_t count = 0u;
-        uint32_t wordOffsetBinding[(int)PKShaderStage::EnumCount]{};
-        uint32_t wordOffsetSet[(int)PKShaderStage::EnumCount]{};
-    };
-
-    struct ReflectPushConstant
-    {
-        uint16_t offset = 0u;
-        uint16_t size = 0u;
-    };
-
     struct ReflectionData
     {
         SpvReflectShaderModule* modules[(int)PKShaderStage::EnumCount]{};
         uint32_t pushConstantStructIds[(int)PKShaderStage::EnumCount]{};
-        std::unordered_set<uint32_t> deadVariableIds[(int)PKShaderStage::EnumCount]{};
         std::vector<PKVertexInputAttribute> vertexAttributes;
-        std::vector<ReflectBinding> sortedBindings;
-        std::map<std::string, ReflectBinding> uniqueBindings;
         SourcePushConstants sourceConstants;
         SourcePushConstants activeConstants;
         uint32_t constantRangeSize = 0u;
@@ -281,7 +256,6 @@ namespace PKAssets::Shader
         bool logVerbose;
         bool logDisassembly;
     };
-
 
     PKUniform StringToPKUniform(const char* str);
     PKShaderStage StringToPKShaderStage(const char* str);
@@ -295,11 +269,9 @@ namespace PKAssets::Shader
     PKUniform SpvFormatToPKUniform(SpvReflectFormat format);
     PKUniform ReflectUniformType(std::string_view typeText, std::string* outFieldType = nullptr, std::string* outTargetType = nullptr);
     std::string CompileUniformProperty(PKUniform type, const std::string& targetType, const std::string& name, const std::string& valueExpr, bool isBitpacked = false);
-    PKUniform GetResourceType(SpvReflectDescriptorType type);
 
     SlangStage PKShaderStageToSlangStage(PKShaderStage stage);
     const char* GetSlangStageAttribute(PKShaderStage stage);
-    std::string ReflectBindingName(SpvReflectDescriptorBinding* binding);
     std::string FormatErrorMessage(const std::string& name, const std::string& source, const std::string& error);
     void ExtractLogVerbose(std::string& source, bool* outValue);
     void ExtractLogDisassembly(std::string& source, bool* outValue);

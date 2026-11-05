@@ -194,9 +194,9 @@ namespace PKAssets::Shader
         std::vector<SpvReflectInterfaceVariable*> variables(count);
         spvReflectEnumerateEntryPointInputVariables(module, module->entry_point_name, &count, variables.data());
 
-        if (count > 0 && reflection.logVerbose)
+        if (count && reflection.logVerbose)
         {
-            printf("    Interface:");
+            printf("    Vertex Inputs:\n");
         }
 
         for (auto* variable : variables)
@@ -227,13 +227,13 @@ namespace PKAssets::Shader
 
             if (reflection.logVerbose)
             {
-                printf(" %s ", attrName.c_str());
+                printf("        %s\n", attrName.c_str());
             }
         }
 
-        if (count > 0 && reflection.logVerbose)
+        if (count && reflection.logVerbose)
         {
-            printf("\n");
+            printf("        None\n");
         }
     }
 
@@ -321,7 +321,7 @@ namespace PKAssets::Shader
 
                 if (reflection.logVerbose)
                 {
-                    printf("    Constant: %s, %u, %s %s\n", constant.writeMask ? "Write" : "Read", constant.offset, constant.targetType.c_str(), constant.name.c_str());
+                    printf("    Parameter: %s, %u, %s %s\n", constant.writeMask ? "Write" : "Read", constant.offset, constant.targetType.c_str(), constant.name.c_str());
                 }
             }
         }
@@ -335,7 +335,7 @@ namespace PKAssets::Shader
 
                 if (reflection.logVerbose)
                 {
-                    printf("    Constant: Unused, %u, %s %s\n", deadOffset, constant.targetType.c_str(), constant.name.c_str());
+                    printf("    Parameter: Unused, %u, %s %s\n", deadOffset, constant.targetType.c_str(), constant.name.c_str());
                 }
             }
         }
@@ -378,98 +378,6 @@ namespace PKAssets::Shader
         if (reflection.logVerbose && (reflection.groupSize[0] || reflection.groupSize[1] || reflection.groupSize[2]))
         {
             printf("    GroupSize: %i,%i,%i\n", reflection.groupSize[0], reflection.groupSize[1], reflection.groupSize[2]);
-        }
-    }
-
-    static void GetUniqueBindings(ReflectionData& reflection, PKShaderStage stage)
-    {
-        const auto stageIdx = (uint32_t)stage;
-        auto* module = reflection.modules[stageIdx];
-
-        uint32_t bindingCount = 0u;
-        spvReflectEnumerateDescriptorBindings(module, &bindingCount, nullptr);
-
-        std::vector<SpvReflectDescriptorBinding*> activeBindings(bindingCount);
-        spvReflectEnumerateDescriptorBindings(module, &bindingCount, activeBindings.data());
-
-        for (auto i = 0u; i < bindingCount; ++i)
-        {
-            auto* desc = activeBindings.at(i);
-
-            // Skip BuiltIn ResourceHeapEXT / SamplerHeapEXT variables (no Binding decoration)
-            if (desc->word_offset.binding == 0u)
-            {
-                continue;
-            }
-
-            if (!desc->accessed)
-            {
-                reflection.deadVariableIds[stageIdx].insert(desc->spirv_id);
-                continue;
-            }
-            
-            if (desc->type_description->op == SpvOpTypeRuntimeArray || desc->count == 0u)
-            {
-                printf("Warning: Trying to use an unbounded runtime array. This is no longer supported, please use resource/sampler heaps instead.");
-                continue;
-            }
-
-            auto name = ReflectBindingName(desc);
-            auto& binding = reflection.uniqueBindings[name];
-            binding.name = name;
-            binding.accessStageMask |= 1u << stageIdx;
-            binding.type = GetResourceType(desc->descriptor_type);
-            binding.bindingIndex = std::max(binding.bindingIndex, desc->binding);
-            binding.count = desc->count;
-
-            const auto isWritten = ReflectResourceWrite(module->_internal->spirv_code, module->_internal->spirv_word_count, desc->spirv_id, binding.type);
-
-            if (isWritten)
-            {
-                binding.writeStageMask |= 1u << stageIdx;
-            }
-
-            binding.wordOffsetBinding[stageIdx] = desc->word_offset.binding;
-            binding.wordOffsetSet[stageIdx] = desc->word_offset.set;
-        }
-    }
-
-    static void CompressBindIndices(ReflectionData& reflection)
-    {
-        reflection.sortedBindings.clear();
-        reflection.sortedBindings.reserve(reflection.uniqueBindings.size());
-
-        for (auto& kv : reflection.uniqueBindings)
-        {
-            reflection.sortedBindings.push_back(kv.second);
-        }
-
-        std::sort(reflection.sortedBindings.begin(), reflection.sortedBindings.end(), [](const ReflectBinding& a, const ReflectBinding& b) { return a.name < b.name; });
-
-        auto bindingCounter = 0u;
-
-        for (auto& binding : reflection.sortedBindings)
-        {
-            const auto bindId = bindingCounter++;
-
-            if (reflection.logVerbose)
-            {
-                const auto* typeName = PKUniform_NAMES[(uint32_t)binding.type];
-                printf("    Resource: %s, %s %s\n", binding.writeStageMask ? "Write" : "Read", typeName, binding.name.c_str());
-            }
-
-            for (auto i = 0u; i < (int)PKShaderStage::EnumCount; ++i)
-            {
-                if (binding.wordOffsetBinding[i] != 0u)
-                {
-                    reflection.modules[i]->_internal->spirv_code[binding.wordOffsetBinding[i]] = bindId;
-                }
-
-                if (binding.wordOffsetSet[i] != 0u)
-                {
-                    reflection.modules[i]->_internal->spirv_code[binding.wordOffsetSet[i]] = 0u;
-                }
-            }
         }
     }
 
@@ -579,7 +487,6 @@ namespace PKAssets::Shader
             }
 
             reflectionData.modules[stageIndex] = reflectModule;
-            GetUniqueBindings(reflectionData, stage);
             GetVertexAttributes(reflectionData, stage);
             GetPushConstants(reflectionData, stage);
             GetComputeGroupSize(reflectionData, stage);
@@ -692,7 +599,6 @@ namespace PKAssets::Shader
             }
 
             CompactPushConstants(reflectionData);
-            CompressBindIndices(reflectionData);
 
             for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
             {
@@ -701,7 +607,7 @@ namespace PKAssets::Shader
                     const auto* mod = reflectionData.modules[stageIndex];
                     const auto code = spvReflectGetCode(mod);
                     const auto wordCount = (uint32_t)(spvReflectGetCodeSize(mod) / sizeof(uint32_t));
-                    const auto cleanedSpirv = CleanSPIRV(code, wordCount, reflectionData.deadVariableIds[stageIndex], !generateDebugInfo);
+                    const auto cleanedSpirv = CleanSPIRV(code, wordCount, !generateDebugInfo);
                     auto pSpirv = buffer.Write(cleanedSpirv.data(), cleanedSpirv.size());
                     pVariants[variantIndex].sprivSizes[stageIndex] = (uint32_t)(cleanedSpirv.size() * sizeof(uint32_t));
                     pVariants[variantIndex].sprivBuffers[stageIndex].Set(buffer.data(), pSpirv.get());
@@ -721,17 +627,24 @@ namespace PKAssets::Shader
 
             if (reflectionData.activeConstants.size() > 0)
             {
-                const auto constantCount = std::min((uint32_t)reflectionData.activeConstants.size(), PK_ASSET_MAX_PUSH_CONSTANTS);
+                const auto constantCount = std::min((uint32_t)reflectionData.activeConstants.size(), PK_ASSET_MAX_SHADER_PARAMETERS);
 
-                if (reflectionData.activeConstants.size() > PK_ASSET_MAX_PUSH_CONSTANTS)
+                if (reflectionData.activeConstants.size() > PK_ASSET_MAX_SHADER_PARAMETERS)
                 {
-                    printf("Warning! Shader has more push constants than supported (%i / %i) \n", (int)reflectionData.activeConstants.size(), PK_ASSET_MAX_PUSH_CONSTANTS);
+                    printf("Error! Shader has more parameters than supported (%i / %i) \n", (int)reflectionData.activeConstants.size(), PK_ASSET_MAX_SHADER_PARAMETERS);
+                    return -1;
                 }
 
-                auto pConstantVariables = buffer.Allocate<PKConstantVariable>(constantCount);
-                pVariants[variantIndex].constantCount = (uint16_t)constantCount;
-                pVariants[variantIndex].constantRange = (uint16_t)reflectionData.constantRangeSize;
-                pVariants[variantIndex].constants.Set(buffer.data(), pConstantVariables.get());
+                if (reflectionData.constantRangeSize > 256u)
+                {
+                    printf("Error! Shader parameter block range exceeds supported maxium (%i / %i) \n", (int)reflectionData.constantRangeSize, 256);
+                    return -1;
+                }
+
+                auto pConstantVariables = buffer.Allocate<PKShaderParameter>(constantCount);
+                pVariants[variantIndex].parameterCount = (uint16_t)constantCount;
+                pVariants[variantIndex].parameterBlockSize = (uint16_t)reflectionData.constantRangeSize;
+                pVariants[variantIndex].parameters.Set(buffer.data(), pConstantVariables.get());
 
                 for (auto j = 0u; j < constantCount; ++j)
                 {
@@ -742,30 +655,6 @@ namespace PKAssets::Shader
                     pConstantVariables[j].type = constant.type;
                     pConstantVariables[j].offset = constant.offset;
                     pConstantVariables[j].arraySize = constant.count;
-                }
-            }
-
-            pVariants[variantIndex].descriptorCount = (uint16_t)reflectionData.sortedBindings.size();
-
-            if (pVariants[variantIndex].descriptorCount > 0)
-            {
-                auto pDescriptors = buffer.Allocate<PKDescriptor>(pVariants[variantIndex].descriptorCount);
-                pVariants[variantIndex].descriptors.Set(buffer.data(), pDescriptors.get());
-
-                if (pVariants[variantIndex].descriptorCount > PK_ASSET_MAX_DESCRIPTORS_PER_SET)
-                {
-                    printf("Warning! Shader has descriptors outside of supported range (%i / %i) \n", pVariants[variantIndex].descriptorCount, PK_ASSET_MAX_DESCRIPTORS_PER_SET);
-                }
-
-                for (auto j = 0u; j < reflectionData.sortedBindings.size(); ++j)
-                {
-                    auto& binding = reflectionData.sortedBindings.at(j);
-                    pDescriptors[j].type = binding.type;
-                    pDescriptors[j].__padding = 0u;
-                    pDescriptors[j].count = binding.count;
-                    pDescriptors[j].writeMask = (PKShaderStageFlags)binding.writeStageMask;
-                    pDescriptors[j].accessMask = (PKShaderStageFlags)binding.accessStageMask;
-                    WriteName(pDescriptors[j].name, binding.name.c_str());
                 }
             }
 

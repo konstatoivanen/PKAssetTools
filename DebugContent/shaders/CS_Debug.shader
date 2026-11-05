@@ -2,7 +2,7 @@
 
 #include "includes/DebugUtilities.glsl"
 
-uniform RWTexture2DRef<float4> g_Texture;
+uniform RWTexture2D<float4> g_Texture;
 
 uniform float2 unused0;
 uniform float2 unused1;

@@ -105,106 +105,6 @@ namespace PKAssets::Shader
         }
     }
 
-
-    bool ReflectResourceWrite(const uint32_t* code, const uint32_t wordCount, uint32_t variable, PKUniform type)
-    {
-        if (type != PKUniform::Image && type != PKUniform::StorageBuffer)
-        {
-            return false;
-        }
-
-        std::unordered_set<uint32_t> derivedIds;
-        derivedIds.insert(variable);
-
-        auto i = 5u;
-
-        while (i < wordCount)
-        {
-            const auto opcode = (SpvOp)(code[i] & 0xFFFFu);
-            const auto wcount = (uint16_t)((code[i] >> 16) & 0xFFFFu);
-            const auto* params = code + i + 1u;
-
-            if (wcount == 0u)
-            {
-                break;
-            }
-
-            // We have a valid access chain from resource to a load op. look for write op.
-            // Buffer access always references resoruces through access chains so we can ignore the op load.
-            switch (opcode)
-            {
-                case SpvOp::SpvOpAccessChain:
-                case SpvOp::SpvOpInBoundsAccessChain:
-                case SpvOp::SpvOpPtrAccessChain:
-                case SpvOp::SpvOpInBoundsPtrAccessChain:
-                case SpvOp::SpvOpBufferPointerEXT:
-                case SpvOp::SpvOpCopyObject:
-                case SpvOp::SpvOpCopyLogical:
-                case SpvOp::SpvOpLoad:
-                case SpvOp::SpvOpImageTexelPointer:
-                {
-                    if (wcount >= 4u && derivedIds.count(params[2]))
-                    {
-                        derivedIds.insert(params[1]);
-                    }
-                }
-                break;
-
-                case SpvOp::SpvOpUntypedAccessChainKHR:
-                case SpvOp::SpvOpUntypedInBoundsAccessChainKHR:
-                case SpvOp::SpvOpUntypedPtrAccessChainKHR:
-                case SpvOp::SpvOpUntypedInBoundsPtrAccessChainKHR:
-                {
-                    if (wcount >= 5u && derivedIds.count(params[3]))
-                    {
-                        derivedIds.insert(params[1]);
-                    }
-                }
-                break;
-
-                case SpvOp::SpvOpStore:
-                case SpvOp::SpvOpAtomicStore:
-                case SpvOp::SpvOpImageWrite:
-                {
-                    if (wcount >= 3u && derivedIds.count(params[0]))
-                    {
-                        return true;
-                    }
-                }
-                break;
-
-                case SpvOp::SpvOpAtomicExchange:
-                case SpvOp::SpvOpAtomicCompareExchange:
-                case SpvOp::SpvOpAtomicCompareExchangeWeak:
-                case SpvOp::SpvOpAtomicIIncrement:
-                case SpvOp::SpvOpAtomicIDecrement:
-                case SpvOp::SpvOpAtomicIAdd:
-                case SpvOp::SpvOpAtomicISub:
-                case SpvOp::SpvOpAtomicSMin:
-                case SpvOp::SpvOpAtomicUMin:
-                case SpvOp::SpvOpAtomicSMax:
-                case SpvOp::SpvOpAtomicUMax:
-                case SpvOp::SpvOpAtomicAnd:
-                case SpvOp::SpvOpAtomicOr:
-                case SpvOp::SpvOpAtomicXor:
-                case SpvOp::SpvOpAtomicFAddEXT:
-                {
-                    if (wcount >= 4u && derivedIds.count(params[2]))
-                    {
-                        return true;
-                    }
-                }
-                break;
-
-                default: break;
-            }
-
-            i += wcount;
-        }
-
-        return false;
-    }
-
     void ReflectPushConstantMemberAccess(
         const uint32_t* code,
         const uint32_t wordCount,
@@ -533,7 +433,6 @@ namespace PKAssets::Shader
         }
     }
 
-
     bool ReflectLocalSize(const uint32_t* code, const uint32_t wordCount, uint32_t* localSize)
     {
         auto i = 5u;
@@ -558,7 +457,7 @@ namespace PKAssets::Shader
         return false;
     }
 
-    std::vector<uint32_t> CleanSPIRV(const uint32_t* code, uint32_t wordCount, const std::unordered_set<uint32_t>& deadVariableIds, bool stripDebugInfo)
+    std::vector<uint32_t> CleanSPIRV(const uint32_t* code, uint32_t wordCount, bool stripDebugInfo)
     {
         if (wordCount < 5u)
         {
@@ -608,14 +507,6 @@ namespace PKAssets::Shader
         std::vector<uint8_t> usedIds(idBound, 0u);
         std::vector<uint8_t> deadIds(idBound, 0u);
         std::vector<uint8_t> deadInsts(instOffsets.size(), 0u);
-
-        for (const auto deadVarId : deadVariableIds)
-        {
-            if (deadVarId < idBound)
-            {
-                deadIds[deadVarId] = 1u;
-            }
-        }
 
         // Backwards SSA dead-instruction sweep across function bodies
         if (firstFunctionInstIdx != 0xFFFFFFFFu)
@@ -690,52 +581,6 @@ namespace PKAssets::Shader
                 params[0] < idBound &&
                 deadIds[params[0]])
             {
-                continue;
-            }
-
-            if (opcode == SpvOpVariable && wcount >= 4u && params[1] < idBound && deadIds[params[1]])
-            {
-                continue;
-            }
-
-            if (opcode == SpvOpEntryPoint && !deadVariableIds.empty())
-            {
-                const auto headerIdx = out.size();
-                out.push_back(code[i]);
-                out.push_back(params[0]);
-                out.push_back(params[1]);
-
-                uint16_t w = 3u;
-
-                while (w < wcount)
-                {
-                    const auto word = code[i + w];
-                    out.push_back(word);
-                    w++;
-
-                    if ((word & 0xFFu) == 0u ||
-                        (word & 0xFF00u) == 0u ||
-                        (word & 0xFF0000u) == 0u ||
-                        (word & 0xFF000000u) == 0u)
-                    {
-                        break;
-                    }
-                }
-
-                auto newWCount = w;
-
-                for (; w < wcount; ++w)
-                {
-                    const auto interfaceId = code[i + w];
-
-                    if (interfaceId >= idBound || !deadIds[interfaceId])
-                    {
-                        out.push_back(interfaceId);
-                        newWCount++;
-                    }
-                }
-
-                out[headerIdx] = ((uint32_t)newWCount << 16u) | (uint32_t)opcode;
                 continue;
             }
 
