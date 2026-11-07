@@ -285,4 +285,5 @@ namespace PKAssets::Shader
     void RemoveUnusedResourcesAndFunctions(simplecpp::TokenList& tokens, EntryPointInfo* const* activeEntries);
     void ExtractPushConstants(simplecpp::TokenList& tokens, uint32_t stageMask, SourcePushConstants& outConstants);
     void CompilePushConstantBlock(std::string& source, SourcePushConstants& constants);
+    uint64_t FNV1aHash(const void* data, uint64_t size, uint64_t hash = 14695981039346656037ull);
 }

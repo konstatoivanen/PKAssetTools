@@ -600,28 +600,34 @@ namespace PKAssets::Shader
 
             CompactPushConstants(reflectionData);
 
+            auto variantHash = FNV1aHash(filename.data(), filename.size());
+            variantHash = FNV1aHash(&variantIndex, sizeof(variantIndex), variantHash);
+
             for (auto stageIndex = 0u; stageIndex < (uint32_t)PKShaderStage::EnumCount; ++stageIndex)
             {
                 if (reflectionData.modules[stageIndex])
                 {
-                    const auto* mod = reflectionData.modules[stageIndex];
-                    const auto code = spvReflectGetCode(mod);
-                    const auto wordCount = (uint32_t)(spvReflectGetCodeSize(mod) / sizeof(uint32_t));
+                    const auto* module = reflectionData.modules[stageIndex];
+                    const auto code = spvReflectGetCode(module);
+                    const auto wordCount = (uint32_t)(spvReflectGetCodeSize(module) / sizeof(uint32_t));
                     const auto cleanedSpirv = CleanSPIRV(code, wordCount, !generateDebugInfo);
+                    const auto byteSize = (uint32_t)(cleanedSpirv.size() * sizeof(uint32_t));
                     auto pSpirv = buffer.Write(cleanedSpirv.data(), cleanedSpirv.size());
-                    pVariants[variantIndex].sprivSizes[stageIndex] = (uint32_t)(cleanedSpirv.size() * sizeof(uint32_t));
+                    pVariants[variantIndex].sprivSizes[stageIndex] = byteSize;
                     pVariants[variantIndex].sprivBuffers[stageIndex].Set(buffer.data(), pSpirv.get());
+                    variantHash = FNV1aHash(cleanedSpirv.data(), byteSize, variantHash);
                 }
             }
 
+            pVariants[variantIndex].versionHash = variantHash;
             pVariants[variantIndex].groupSize[0] = reflectionData.groupSize[0];
             pVariants[variantIndex].groupSize[1] = reflectionData.groupSize[1];
             pVariants[variantIndex].groupSize[2] = reflectionData.groupSize[2];
 
             if (reflectionData.vertexAttributes.size() > 0)
             {
-                pVariants[variantIndex].vertexAttributeCount = (uint16_t)reflectionData.vertexAttributes.size();
                 auto pVertexAttributes = buffer.Write<PKVertexInputAttribute>(reflectionData.vertexAttributes.data(), reflectionData.vertexAttributes.size());
+                pVariants[variantIndex].vertexAttributeCount = (uint16_t)reflectionData.vertexAttributes.size();
                 pVariants[variantIndex].vertexAttributes.Set(buffer.data(), pVertexAttributes.get());
             }
 

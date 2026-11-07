@@ -1067,6 +1067,57 @@ namespace PKAssets::Shader
         }
     }
 
+    void RemoveUnusedResourcesAndFunctions(simplecpp::TokenList& tokens, EntryPointInfo* const* activeEntries)
+    {
+        auto changed = true;
+
+        while (changed)
+        {
+            changed = false;
+            const auto statements = ScanTopLevelStatements(tokens);
+            const auto usageMap = BuildIdentifierUsageMap(tokens, statements);
+
+            for (auto index = (int32_t)statements.size() - 1; index >= 0; --index)
+            {
+                const auto& statement = statements[index];
+
+                if (statement.isFunction && statement.functionName != nullptr)
+                {
+                    const auto& functionName = statement.functionName->str();
+                    const auto functionKey = GetTokenUsageKey(statement.functionName);
+                    const auto totalRefs = GetIdentifierUsageCount(usageMap, functionKey);
+                    const auto selfRefs = CountIdentifierInRange(statement.openBrace, statement.end, functionKey);
+
+                    if (FindActiveEntryPoint(functionName, activeEntries) == nullptr && totalRefs <= selfRefs)
+                    {
+                        EraseTokenRange(tokens, statement.start, statement.end);
+                        changed = true;
+                    }
+                    continue;
+                }
+
+                if (auto* propertyNameToken = FindPropertyDeclarationName(statement))
+                {
+                    if (GetIdentifierUsageCount(usageMap, propertyNameToken->str()) == 0u)
+                    {
+                        EraseTokenRange(tokens, statement.start, statement.end);
+                        changed = true;
+                    }
+                    continue;
+                }
+
+                if (auto* variableNameToken = FindVariableDeclarationName(statement))
+                {
+                    if (GetIdentifierUsageCount(usageMap, variableNameToken->str()) == 0u)
+                    {
+                        EraseTokenRange(tokens, statement.start, statement.end);
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
+
     void ExtractPushConstants(simplecpp::TokenList& tokens, uint32_t stageMask, SourcePushConstants& outConstants)
     {
         const auto statements = ScanTopLevelStatements(tokens);
@@ -1287,54 +1338,17 @@ namespace PKAssets::Shader
         source.insert(0ull, "[[vk::push_constant]] cbuffer pk_global_push_constant_block\n{\n" + blockFields + "};\n" + resourceAccessors);
     }
 
-    void RemoveUnusedResourcesAndFunctions(simplecpp::TokenList& tokens, EntryPointInfo* const* activeEntries)
+
+    uint64_t FNV1aHash(const void* data, uint64_t size, uint64_t hash)
     {
-        auto changed = true;
+        const auto* bytes = static_cast<const uint8_t*>(data);
 
-        while (changed)
+        for (size_t i = 0ull; i < size; ++i)
         {
-            changed = false;
-            const auto statements = ScanTopLevelStatements(tokens);
-            const auto usageMap = BuildIdentifierUsageMap(tokens, statements);
-
-            for (auto index = (int32_t)statements.size() - 1; index >= 0; --index)
-            {
-                const auto& statement = statements[index];
-
-                if (statement.isFunction && statement.functionName != nullptr)
-                {
-                    const auto& functionName = statement.functionName->str();
-                    const auto functionKey = GetTokenUsageKey(statement.functionName);
-                    const auto totalRefs = GetIdentifierUsageCount(usageMap, functionKey);
-                    const auto selfRefs = CountIdentifierInRange(statement.openBrace, statement.end, functionKey);
-
-                    if (FindActiveEntryPoint(functionName, activeEntries) == nullptr && totalRefs <= selfRefs)
-                    {
-                        EraseTokenRange(tokens, statement.start, statement.end);
-                        changed = true;
-                    }
-                    continue;
-                }
-
-                if (auto* propertyNameToken = FindPropertyDeclarationName(statement))
-                {
-                    if (GetIdentifierUsageCount(usageMap, propertyNameToken->str()) == 0u)
-                    {
-                        EraseTokenRange(tokens, statement.start, statement.end);
-                        changed = true;
-                    }
-                    continue;
-                }
-
-                if (auto* variableNameToken = FindVariableDeclarationName(statement))
-                {
-                    if (GetIdentifierUsageCount(usageMap, variableNameToken->str()) == 0u)
-                    {
-                        EraseTokenRange(tokens, statement.start, statement.end);
-                        changed = true;
-                    }
-                }
-            }
+            hash ^= bytes[i];
+            hash *= 1099511628211ull;
         }
+
+        return hash;
     }
 }
