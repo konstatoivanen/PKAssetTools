@@ -508,29 +508,49 @@ namespace PKAssets::Shader
         std::vector<uint8_t> deadIds(idBound, 0u);
         std::vector<uint8_t> deadInsts(instOffsets.size(), 0u);
 
-        // Backwards SSA dead-instruction sweep across function bodies
+        // Iterative SSA dead-instruction sweep across function bodies
         if (firstFunctionInstIdx != 0xFFFFFFFFu)
         {
-            for (auto idx = (int32_t)instOffsets.size() - 1; idx >= (int32_t)firstFunctionInstIdx; --idx)
+            auto changed = true;
+            while (changed)
             {
-                const auto offset = instOffsets[idx];
-                const auto opcode = (SpvOp)(code[offset] & 0xFFFFu);
-                const auto wcount = (uint16_t)((code[offset] >> 16) & 0xFFFFu);
-                const auto* params = code + offset + 1u;
+                changed = false;
+                std::fill(usedIds.begin(), usedIds.end(), 0u);
 
-                if (IsRemovablePureInstruction(opcode, wcount, params))
+                for (auto idx = firstFunctionInstIdx; idx < (uint32_t)instOffsets.size(); ++idx)
                 {
-                    const auto resultId = params[1];
-
-                    if (resultId < idBound && !usedIds[resultId])
+                    if (!deadInsts[idx])
                     {
-                        deadInsts[idx] = 1u;
-                        deadIds[resultId] = 1u;
-                        continue;
+                        const auto offset = instOffsets[idx];
+                        const auto opcode = (SpvOp)(code[offset] & 0xFFFFu);
+                        const auto wcount = (uint16_t)((code[offset] >> 16) & 0xFFFFu);
+                        MarkInstructionOperandsUsed(opcode, wcount, code + offset + 1u, idBound, usedIds);
                     }
                 }
 
-                MarkInstructionOperandsUsed(opcode, wcount, params, idBound, usedIds);
+                for (auto idx = (int32_t)instOffsets.size() - 1; idx >= (int32_t)firstFunctionInstIdx; --idx)
+                {
+                    if (deadInsts[idx])
+                    {
+                        continue;
+                    }
+
+                    const auto offset = instOffsets[idx];
+                    const auto opcode = (SpvOp)(code[offset] & 0xFFFFu);
+                    const auto wcount = (uint16_t)((code[offset] >> 16) & 0xFFFFu);
+                    const auto* params = code + offset + 1u;
+
+                    if (IsRemovablePureInstruction(opcode, wcount, params))
+                    {
+                        const auto resultId = params[1];
+                        if (resultId < idBound && !usedIds[resultId])
+                        {
+                            deadInsts[idx] = 1u;
+                            deadIds[resultId] = 1u;
+                            changed = true;
+                        }
+                    }
+                }
             }
         }
 
