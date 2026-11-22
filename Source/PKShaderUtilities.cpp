@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <sstream>
+#include <format>
 #include "PKStringUtilities.h"
 #include "PKAssetWriter.h"
 #include "PKShaderUtilities.h"
@@ -354,6 +355,99 @@ namespace PKAssets::Shader
         return false;
     }
 
+    static PKUniform ReflectUniformType(std::string_view typeText, std::string* outFieldType, std::string* outTargetType)
+    {
+        auto baseName = typeText;
+        std::string_view templateArg{};
+
+        const auto templateOpen = typeText.find('<');
+
+        if (templateOpen != std::string_view::npos)
+        {
+            const auto templateClose = typeText.rfind('>');
+
+            if (templateClose == std::string_view::npos || templateClose < templateOpen)
+            {
+                return PKUniform::Invalid;
+            }
+
+            baseName = typeText.substr(0ull, templateOpen);
+            templateArg = typeText.substr(templateOpen, (templateClose + 1ull) - templateOpen);
+        }
+
+        if (templateArg.empty())
+        {
+            for (auto i = (uint32_t)PKUniform::Bool; i <= (uint32_t)PKUniform::Half4x4; ++i)
+            {
+                if (baseName == PKUniform_NAMES[i])
+                {
+                    if (outFieldType)
+                    {
+                        *outFieldType = std::string(baseName);
+                    }
+
+                    if (outTargetType)
+                    {
+                        *outTargetType = std::string(baseName);
+                    }
+
+                    return (PKUniform)i;
+                }
+            }
+        }
+
+        for (const auto& meta : PK_UNIFORM_RESOURCE_META)
+        {
+            if (baseName == meta.name)
+            {
+                if (meta.requiresTemplate && templateArg.empty())
+                {
+                    return PKUniform::Invalid;
+                }
+
+                if (outFieldType)
+                {
+                    *outFieldType = meta.fieldType;
+                }
+
+                if (outTargetType)
+                {
+                    *outTargetType = std::string(meta.name);
+
+                    if (!templateArg.empty())
+                    {
+                        *outTargetType += std::string(templateArg);
+                    }
+                    else if (meta.defaultTemplate)
+                    {
+                        *outTargetType += meta.defaultTemplate;
+                    }
+                }
+
+                return meta.type;
+            }
+        }
+
+        return PKUniform::Invalid;
+    }
+
+    static std::string CompileUniformProperty(PKUniform type, const std::string& targetType, const std::string& name, const std::string& valueExpr, bool isArray = false)
+    {
+        auto expression = "DescriptorHandle<" + targetType + ">(uint2(" + valueExpr + ",0u))";
+
+        if (type == PKUniform::AccelerationStructure)
+        {
+            expression = targetType + "(" + valueExpr + ")";
+        }
+
+        if (isArray)
+        {
+            return "struct " + name + "_Array{__subscript(uint i)->" + targetType + "{get{return " + expression + ";}}};static const " + name + "_Array " + name + "={};\n";
+        }
+            
+        return "property " + targetType + " " + name + "{get{return " + expression + ";}}\n";
+    }
+
 
     static void EraseTokenRange(simplecpp::TokenList& tokens, simplecpp::Token* first, simplecpp::Token* last)
     {
@@ -431,6 +525,11 @@ namespace PKAssets::Shader
             }
 
             if ((token->op == '&' || token->op == '|') && token->next && token->next->op == token->op)
+            {
+                return nullptr;
+            }
+
+            if ((token->op == '<' || token->op == '>' || token->op == '=' || token->op == '!') && token->next && token->next->op == '=')
             {
                 return nullptr;
             }
@@ -575,7 +674,7 @@ namespace PKAssets::Shader
 
         const auto* closeParen = FindTokenScope(const_cast<simplecpp::Token*>(openParen), nullptr, '(', ')');
 
-        if (!closeParen || openParen->next == closeParen)
+        if (!closeParen || openParen->next == closeParen || (openParen->next->next == closeParen && openParen->next->str() == "void"))
         {
             return 0u;
         }
@@ -587,7 +686,7 @@ namespace PKAssets::Shader
 
         for (const auto* token = openParen->next; token && token != closeParen; token = token->next)
         {
-            if (depth == 0 && token->op == '<')
+            if (depth == 0 && token->op == '<' && token->previous && token->previous->name)
             {
                 if (const auto* closeAngle = FindTemplateArgumentScope(const_cast<simplecpp::Token*>(token)))
                 {
@@ -745,9 +844,10 @@ namespace PKAssets::Shader
 
                 token = closeBrace;
                 const auto isFunction = functionName != nullptr;
-                const auto isProperty = statementBeg->name && statementBeg->str() == "property";
+                const auto* firstToken = SkipLeadingAttributes(statementBeg, openBrace);
+                const auto isBlock = firstToken && firstToken->name && (firstToken->str() == "property" || firstToken->str() == "namespace" || firstToken->str() == "extension");
 
-                if (isFunction || isProperty)
+                if (isFunction || isBlock)
                 {
                     if (token->next && token->next->op == ';')
                     {
@@ -973,106 +1073,6 @@ namespace PKAssets::Shader
         return PKUniform::Invalid;
     }
 
-    PKUniform ReflectUniformType(std::string_view typeText, std::string* outFieldType, std::string* outTargetType)
-    {
-        auto baseName = typeText;
-        std::string_view templateArg{};
-
-        const auto templateOpen = typeText.find('<');
-
-        if (templateOpen != std::string_view::npos)
-        {
-            const auto templateClose = typeText.rfind('>');
-
-            if (templateClose == std::string_view::npos || templateClose < templateOpen)
-            {
-                return PKUniform::Invalid;
-            }
-
-            baseName = typeText.substr(0ull, templateOpen);
-            templateArg = typeText.substr(templateOpen, (templateClose + 1ull) - templateOpen);
-        }
-
-        if (templateArg.empty())
-        {
-            for (auto i = (uint32_t)PKUniform::Bool; i <= (uint32_t)PKUniform::Half4x4; ++i)
-            {
-                if (baseName == PKUniform_NAMES[i])
-                {
-                    if (outFieldType)
-                    {
-                        *outFieldType = std::string(baseName);
-                    }
-
-                    if (outTargetType)
-                    {
-                        *outTargetType = std::string(baseName);
-                    }
-
-                    return (PKUniform)i;
-                }
-            }
-        }
-
-        for (const auto& meta : PK_UNIFORM_RESOURCE_META)
-        {
-            if (baseName == meta.name)
-            {
-                if (meta.requiresTemplate && templateArg.empty())
-                {
-                    return PKUniform::Invalid;
-                }
-
-                if (outFieldType)
-                {
-                    *outFieldType = meta.fieldType;
-                }
-
-                if (outTargetType)
-                {
-                    *outTargetType = std::string(meta.name);
-
-                    if (!templateArg.empty())
-                    {
-                        *outTargetType += std::string(templateArg);
-                    }
-                    else if (meta.defaultTemplate)
-                    {
-                        *outTargetType += meta.defaultTemplate;
-                    }
-                }
-
-                return meta.type;
-            }
-        }
-
-        return PKUniform::Invalid;
-    }
-
-    std::string CompileUniformProperty(PKUniform type, const std::string& targetType, const std::string& name, const std::string& valueExpr, bool isBitpacked)
-    {
-        std::string expr = valueExpr;
-
-        if (type == PKUniform::AccelerationStructure)
-        {
-            expr = targetType + "(" + valueExpr + ")";
-        }
-        else if (PKUniformIsResourceHandle(type))
-        {
-            expr = "DescriptorHandle<" + targetType + ">(uint2(" + valueExpr + ",0u))";
-        }
-        else if (isBitpacked && type == PKUniform::Half)
-        {
-            expr = "half(f16tof32(" + valueExpr + "))";
-        }
-        else if (isBitpacked)
-        {
-            expr = targetType + "(" + valueExpr + ")";
-        }
-
-        return "property " + targetType + " " + name + "{get{return " + expr + ";}}\n";
-    }
-
     SlangStage PKShaderStageToSlangStage(PKShaderStage stage)
     {
         switch (stage)
@@ -1258,17 +1258,18 @@ namespace PKAssets::Shader
             return -1;
         }
 
-        if (passes.empty())
-        {
-            printf("Error: Shader didn't declare any passes!\n");
-            return -1;
-        }
-
         return 0;
     }
 
     int ExtractMulticompiles(std::string& source, ShaderPasses& passes)
     {
+        constexpr auto maxDirectiveValuesPerDirective = PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE;
+        constexpr auto maxDirectivesPerPass = PK_ASSET_MAX_SHADER_DIRECTIVES;
+        constexpr auto maxVariantsPerPass = PK_ASSET_MAX_SHADER_VARIANTS;
+        constexpr auto maxTotalDirectives = 0xFFu;
+        constexpr auto maxTotalDirectiveValues = 0xFFFFu;
+        constexpr auto maxTotalVariants = 0x1000u;
+
         std::vector<PragmaDirective> pragmaDirectives;
 
         if (ExtractPragmaDirectives(PK_SHADER_ATTRIB_MULTI_COMPILE, source, passes, pragmaDirectives, true) != 0)
@@ -1283,22 +1284,14 @@ namespace PKAssets::Shader
         {
             if (pragma.args.size() < 3u)
             {
-                printf("Error: Multicompile pragma in pass '%s' requires a directive name and at least two integer values!\n", pragma.pass.c_str());
-                return -1;
-            }
-
-            const auto valueCount = pragma.args.size() - 1ull;
-
-            if (valueCount > PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE)
-            {
-                printf("Error: Multicompile directive '%s' in pass '%s' exceeds maximum value count (%llu / %u)!\n", pragma.args[0].c_str(), pragma.pass.c_str(), valueCount, PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE);
+                printf("Error: Multicompile directive in pass '%s' requires a directive name, pass name and at least two integer values!\n", pragma.pass.c_str());
                 return -1;
             }
 
             ParsedDirective parsed{};
             parsed.pass = pragma.pass;
             parsed.name = pragma.args[0];
-            parsed.values.reserve(valueCount);
+            parsed.values.reserve(pragma.args.size() - 1ull);
 
             for (auto i = 1ull; i < pragma.args.size(); ++i)
             {
@@ -1310,11 +1303,30 @@ namespace PKAssets::Shader
                     return -1;
                 }
 
-                parsed.values.push_back(value);
+                if (std::find(parsed.values.begin(), parsed.values.end(), value) == parsed.values.end())
+                {
+                    parsed.values.push_back(value);
+                }
+            }
+
+            if (parsed.values.size() < 2u)
+            {
+                printf("Error: Multicompile directive '%s' in pass '%s' requires at least two unique integer values!\n", parsed.name.c_str(), parsed.pass.c_str());
+                return -1;
+            }
+
+            if (parsed.values.size() > maxDirectiveValuesPerDirective)
+            {
+                printf("Error: Multicompile directive '%s' exceeds maximum value count limit '%u' in pass '%s'!\n", parsed.name.c_str(), maxDirectiveValuesPerDirective, parsed.pass.c_str());
+                return -1;
             }
 
             parsedDirectives.push_back(std::move(parsed));
         }
+
+        auto totalDirectives = 0ull;
+        auto totalDirectiveValues = 0ull;
+        auto totalVariants = 0ull;
 
         for (auto& pass : passes)
         {
@@ -1342,9 +1354,9 @@ namespace PKAssets::Shader
 
                 if (!overridden)
                 {
-                    if (pass.directives.size() >= PK_ASSET_MAX_SHADER_DIRECTIVES)
+                    if (pass.directives.size() >= maxDirectivesPerPass)
                     {
-                        printf("Error: Maximum number of multicompile directives exceeded in pass '%s' (%u)!\n", pass.name.c_str(), PK_ASSET_MAX_SHADER_DIRECTIVES);
+                        printf("Error: Pass multicompile directive limit '%u' exceeded in pass '%s'!\n", maxDirectivesPerPass, pass.name.c_str());
                         return -1;
                     }
 
@@ -1355,19 +1367,43 @@ namespace PKAssets::Shader
                 }
             }
 
+            if (totalDirectives + pass.directives.size() > maxTotalDirectives)
+            {
+                printf("Error: Total multicompile directive limit '%u' exceeded!\n", maxTotalDirectives);
+                return -1;
+            }
+
+            totalDirectives += pass.directives.size();
+
             auto variantCount = 1ull;
 
             for (auto& dir : pass.directives)
             {
-                if (variantCount * dir.values.size() > PK_ASSET_MAX_SHADER_VARIANTS)
+                totalDirectiveValues += dir.values.size();
+
+                if (totalDirectiveValues > maxTotalDirectiveValues)
                 {
-                    printf("Error: Maximum number of shader variants exceeded in pass '%s' (%u)!\n", pass.name.c_str(), PK_ASSET_MAX_SHADER_VARIANTS);
+                    printf("Error: Total shader directive value count limit '%u' exceeded!\n", maxTotalDirectiveValues);
                     return -1;
                 }
 
-                dir.stride = (uint16_t)variantCount;
+                if (variantCount * dir.values.size() > maxVariantsPerPass)
+                {
+                    printf("Error: Pass variant count limit '%u' exceeded in pass '%s'!\n", maxVariantsPerPass, pass.name.c_str());
+                    return -1;
+                }
+
+                dir.stride = (uint8_t)variantCount;
                 variantCount *= dir.values.size();
             }
+
+            if (totalVariants + variantCount > maxTotalVariants)
+            {
+                printf("Error: Total shader variant count limit '%u' exceeded!\n", maxTotalVariants);
+                return -1;
+            }
+
+            totalVariants += variantCount;
 
             pass.variantDefines.reserve(variantCount);
             const auto passDefine = pass.name != PK_SHADER_ATTRIB_PASS_ANY ? ("#define " + pass.name + "\n") : "";
@@ -1765,89 +1801,118 @@ namespace PKAssets::Shader
             return;
         }
 
-        std::stable_sort(constants.begin(), constants.end(), [](const SourcePushConstant& a, const SourcePushConstant& b)
-        {
-            const auto sizeA = PKUniformToSize(a.type) * a.count;
-            const auto sizeB = PKUniformToSize(b.type) * b.count;
-            const auto isPackedA = sizeA < 4u;
-            const auto isPackedB = sizeB < 4u;
-
-            if (isPackedA != isPackedB)
-            {
-                return !isPackedA;
-            }
-
-            const auto alignA = PKUniformToScalarSize(a.type);
-            const auto alignB = PKUniformToScalarSize(b.type);
-            return alignA != alignB ? alignA > alignB : sizeA > sizeB;
-        });
-
-        auto memberIndex = 0u;
-        auto packedByteOffset = 0u;
-        std::string blockFields;
-        std::string resourceAccessors;
-
         for (auto& member : constants)
         {
             const auto elementSize = PKUniformToSize(member.type);
             const auto totalSize = elementSize * member.count;
-            const auto isHandle = PKUniformIsResourceHandle(member.type);
+            const auto isPackedHandle = PKUniformIsResourceHandle(member.type) && elementSize < 4u;
 
-            if (totalSize < 4u)
-            {
-                packedByteOffset = (packedByteOffset + elementSize - 1u) & ~(elementSize - 1u);
-                const auto wordIndex = packedByteOffset / 4u;
-
-                member.memberIndex = (uint16_t)(memberIndex + wordIndex);
-                member.memberSize = 4u;
-                member.memberAlignment = 4u;
-                member.bitOffset = (uint8_t)((packedByteOffset % 4u) * 8u);
-                member.bitSize = (uint8_t)(totalSize * 8u);
-                packedByteOffset += totalSize;
-
-                const auto extractExpr = "bitfieldExtract(pk_packed_pc_" + std::to_string(wordIndex) + "," + std::to_string(member.bitOffset) + "," + std::to_string(member.bitSize) + ")";
-                resourceAccessors += CompileUniformProperty(member.type, member.targetType, member.name, extractExpr, true);
-                continue;
-            }
-
-            member.memberIndex = (uint16_t)(memberIndex++);
+            member.memberIndex = 0u;
             member.bitOffset = 0u;
             member.bitSize = 0u;
 
-            // Single resource access was handled above. no need to check count here.
-            if (isHandle && member.type != PKUniform::AccelerationStructure)
+            if (isPackedHandle)
             {
-                const auto wordCount = (member.count + 1u) / 2u;
-                member.memberSize = (uint16_t)(wordCount * 4u);
                 member.memberAlignment = 4u;
-                blockFields += "uint " + member.name + "_Handle[" + std::to_string(wordCount) + "];\n";
-                resourceAccessors += "PK_PC_HANDLE_ARRAY(" + member.targetType + "," + member.name + ")\n";
-                continue;
+                member.memberSize = (totalSize + 3u) & ~3u;
+
+                if (member.count == 1u)
+                {
+                    member.bitSize = elementSize * 8u;
+                }
+            }
+            else
+            {
+                member.memberAlignment = PKUniformToScalarSize(member.type);
+                member.memberSize = totalSize;
+            }
+        }
+
+        std::stable_sort(constants.begin(), constants.end(), [](const SourcePushConstant& a, const SourcePushConstant& b)
+        {
+            const auto isSharedA = a.bitSize > 0u;
+            const auto isSharedB = b.bitSize > 0u;
+
+            if (isSharedA != isSharedB)
+            {
+                return !isSharedA;
             }
 
-            member.memberSize = (uint16_t)totalSize;
-            member.memberAlignment = (uint8_t)PKUniformToScalarSize(member.type);
-
-            if (isHandle)
+            if (isSharedA)
             {
-                const auto fieldName = member.name + "_Handle";
-                blockFields += member.fieldType + " " + fieldName + ";\n";
-                resourceAccessors += CompileUniformProperty(member.type, member.targetType, member.name, fieldName, false);
+                return a.bitSize > b.bitSize;
+            }
+
+            if (a.memberAlignment != b.memberAlignment)
+            {
+                return a.memberAlignment > b.memberAlignment;
+            }
+
+            return a.memberSize > b.memberSize;
+        });
+
+        auto dedicatedMemberCount = 0u;
+        auto packedByteOffset = 0u;
+
+        for (auto& member : constants)
+        {
+            if (member.bitSize > 0u)
+            {
+                const auto elementSize = member.bitSize / 8u;
+                packedByteOffset = (packedByteOffset + elementSize - 1u) & ~(elementSize - 1u);
+
+                member.memberIndex = dedicatedMemberCount + packedByteOffset / 4u;
+                member.bitOffset = (packedByteOffset % 4u) * 8u;
+                packedByteOffset += elementSize;
+            }
+            else
+            {
+                member.memberIndex = (uint16_t)(dedicatedMemberCount++);
+            }
+        }
+
+        const auto packedWordCount = (packedByteOffset + 3u) / 4u;
+
+        std::string blockFields;
+        std::string accessors;
+
+        for (const auto& member : constants)
+        {
+            if (member.bitSize > 0u)
+            {
+                const auto wordIndex = member.memberIndex - dedicatedMemberCount;
+                accessors += "PK_PC_HANDLE(" + member.targetType + ", " + member.name + ", " + std::to_string(wordIndex) + ", " + std::to_string(member.bitOffset) + ", " + std::to_string(member.bitSize) + ")\n";
                 continue;
             }
 
             const auto arraySuffix = member.count > 1u ? "[" + std::to_string(member.count) + "]" : "";
-            blockFields += member.fieldType + " " + member.name + arraySuffix + ";\n";
-        }
 
-        const auto packedWordCount = (packedByteOffset + 3u) / 4u;
+            if (!PKUniformIsResourceHandle(member.type))
+            {
+                blockFields += member.fieldType + " " + member.name + arraySuffix + ";\n";
+                continue;
+            }
+
+            if (member.type == PKUniform::AccelerationStructure)
+            {
+                const auto macro = member.count > 1u ? "PK_PC_TLAS_ARRAY(" : "PK_PC_TLAS(";
+                blockFields += member.fieldType + " " + member.name + "_Handle" + arraySuffix + ";\n";
+                accessors += macro + member.targetType + ", " + member.name + ")\n";
+                continue;
+            }
+
+            const auto wordCount = member.memberSize / 4u;
+            const auto elementBits = PKUniformToSize(member.type) * 8u;
+            blockFields += "uint " + member.name + "_Handle[" + std::to_string(wordCount) + "];\n";
+            accessors += "PK_PC_HANDLE_ARRAY(" + member.targetType + ", " + member.name + ", " + std::to_string(elementBits) + "u)\n";
+        }
 
         for (auto wordIndex = 0u; wordIndex < packedWordCount; ++wordIndex)
         {
             blockFields += "uint pk_packed_pc_" + std::to_string(wordIndex) + ";\n";
         }
 
-        source.insert(0ull, "[[vk::push_constant]] cbuffer pk_global_push_constant_block\n{\n" + blockFields + "};\n" + resourceAccessors);
+        source.insert(0ull, "[[vk::push_constant]] cbuffer pk_global_push_constant_block\n{\n" + blockFields + "};\n" + accessors);
     }
 
     uint64_t FNV1aHash(const void* data, uint64_t size, uint64_t hash)

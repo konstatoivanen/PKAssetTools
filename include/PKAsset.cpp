@@ -10,17 +10,14 @@ namespace PKAssets
 
         1u * 4u, /*Bool*/
         2u * 4u, /*Bool2*/
-        3u * 4u, /*Bool3*/
         4u * 4u, /*Bool4*/
 
         1u * 1u, /*Byte*/
         2u * 1u, /*Byte2*/
-        3u * 1u, /*Byte3*/
         4u * 1u, /*Byte4*/
 
         1u * 1u, /*Sbyte*/
         2u * 1u, /*Sbyte2*/
-        3u * 1u, /*Sbyte3*/
         4u * 1u, /*Sbyte4*/
 
         1u * 2u, /*Short*/
@@ -99,9 +96,9 @@ namespace PKAssets
     const static PKUniform PKUniform_SCALAR[] =
     {
         PKUniform::Invalid,
-        PKUniform::Bool,   PKUniform::Bool,   PKUniform::Bool,   PKUniform::Bool,
-        PKUniform::Byte,   PKUniform::Byte,   PKUniform::Byte,   PKUniform::Byte,
-        PKUniform::Sbyte,  PKUniform::Sbyte,  PKUniform::Sbyte,  PKUniform::Sbyte,
+        PKUniform::Bool,   PKUniform::Bool,   PKUniform::Bool,
+        PKUniform::Byte,   PKUniform::Byte,   PKUniform::Byte,
+        PKUniform::Sbyte,  PKUniform::Sbyte,  PKUniform::Sbyte,
         PKUniform::Short,  PKUniform::Short,  PKUniform::Short,  PKUniform::Short,
         PKUniform::Ushort, PKUniform::Ushort, PKUniform::Ushort, PKUniform::Ushort,
         PKUniform::Half,   PKUniform::Half,   PKUniform::Half,   PKUniform::Half,

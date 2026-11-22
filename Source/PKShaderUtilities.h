@@ -15,9 +15,9 @@ namespace PKAssets::Shader
     constexpr const static char* PKUniform_NAMES[] =
     {
         "Invalid",
-        "bool",   "bool2",   "bool3",   "bool4",
-        "byte",   "byte2",   "byte3",   "byte4",
-        "sbyte",  "sbyte2",  "sbyte3",  "sbyte4",
+        "bool",   "bool2",   "bool4",
+        "byte",   "byte2",   "byte4",
+        "sbyte",  "sbyte2",  "sbyte4",
         "short",  "short2",  "short3",  "short4",
         "ushort", "ushort2", "ushort3", "ushort4",
         "half",   "half2",   "half3",   "half4",
@@ -210,10 +210,19 @@ namespace PKAssets::Shader
 
         #define PK_GetDescriptor(TType, TIndex) DescriptorHandle<TType>(uint2(TIndex, 0u))
 
-        #define PK_PC_HANDLE_ARRAY(TType, TName) \
-            struct TName##_Array { __subscript(uint i) -> TType { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(TName##_Handle[i >> 1u], (i & 1u) << 4u, 16u), 0u)); } } }; \
-            static const TName##_Array TName = {};
+        #define PK_PC_HANDLE(TType, TName, TWord, TOffset, TBits) \
+        property TType TName { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(pk_packed_pc_##TWord, TOffset, TBits), 0u)); } }
 
+        #define PK_PC_HANDLE_ARRAY(TType, TName, TBits) \
+        struct TName##_Array { __subscript(uint i) -> TType { get { return DescriptorHandle<TType>(uint2(bitfieldExtract(TName##_Handle[i / (32u / TBits)], (i % (32u / TBits)) * TBits, TBits), 0u)); } } }; \
+        static const TName##_Array TName = {};
+
+        #define PK_PC_TLAS(TType, TName) \
+        property TType TName { get { return TType(TName##_Handle); } }
+
+        #define PK_PC_TLAS_ARRAY(TType, TName) \
+        struct TName##_Array { __subscript(uint i) -> TType { get { return TType(TName##_Handle[i]); } } }; \
+        static const TName##_Array TName = {};
     )";
 
     struct SourcePushConstant
@@ -290,10 +299,7 @@ namespace PKAssets::Shader
     PKBlendOp StringToPKBlendOp(const char* str);
     PKColorMask StringToPKColorMask(const char* str);
     PKRasterMode StringToPKRasterMode(const char* str);
-
     PKUniform SpvFormatToPKUniform(SpvReflectFormat format);
-    PKUniform ReflectUniformType(std::string_view typeText, std::string* outFieldType = nullptr, std::string* outTargetType = nullptr);
-    std::string CompileUniformProperty(PKUniform type, const std::string& targetType, const std::string& name, const std::string& valueExpr, bool isBitpacked = false);
 
     SlangStage PKShaderStageToSlangStage(PKShaderStage stage);
     const char* GetSlangStageAttribute(PKShaderStage stage);

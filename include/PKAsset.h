@@ -88,17 +88,14 @@ namespace PKAssets
 
         Bool,
         Bool2,
-        Bool3,
         Bool4,
 
         Byte,
         Byte2,
-        Byte3,
         Byte4,
 
         Sbyte,
         Sbyte2,
-        Sbyte3,
         Sbyte4,
 
         Short,
