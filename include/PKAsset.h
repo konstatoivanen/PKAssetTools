@@ -5,11 +5,6 @@ namespace PKAssets
 {
     constexpr static const uint64_t PK_ASSET_MAGIC_NUMBER = 16056123332373007180ull;
     constexpr static const uint32_t PK_ASSET_NAME_MAX_LENGTH = 64u;
-    constexpr static const uint32_t PK_ASSET_MAX_VERTEX_ATTRIBUTES = 8u;
-    constexpr static const uint32_t PK_ASSET_MAX_SHADER_PARAMETERS = 64u;
-    constexpr static const uint32_t PK_ASSET_MAX_SHADER_KEYWORDS = 256u;
-    constexpr static const uint32_t PK_ASSET_MAX_SHADER_DIRECTIVES = 16u;
-    constexpr static const uint32_t PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE = 16u;
 
     constexpr static const char* PK_ASSET_EXTENSION_SHADER = ".pkshader";
     constexpr static const char* PK_ASSET_EXTENSION_MESH = ".pkmesh";
@@ -37,6 +32,12 @@ namespace PKAssets
         {
             auto cptr = static_cast<char*>(base) + offset;
             return reinterpret_cast<T*>(cptr);
+        }
+
+        const T* Get(void* base) const
+        {
+            const auto cptr = static_cast<const char*>(base) + offset;
+            return reinterpret_cast<const T*>(cptr);
         }
 
         void Set(void* base, T* value)
@@ -410,6 +411,13 @@ namespace PKAssets
         UnderEstimate,
     };
 
+    constexpr static const uint32_t PK_ASSET_MAX_VERTEX_ATTRIBUTES = 8u;
+    constexpr static const uint32_t PK_ASSET_MAX_SHADER_PARAMETERS = 64u;
+    constexpr static const uint32_t PK_ASSET_MAX_SHADER_PASSES = 16u;
+    constexpr static const uint32_t PK_ASSET_MAX_SHADER_VARIANTS = 256u;
+    constexpr static const uint32_t PK_ASSET_MAX_SHADER_DIRECTIVES = 8u;
+    constexpr static const uint32_t PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE = 16u;
+
     constexpr const static char* PK_SHADER_ATTRIB_LOGVERBOSE = "#pragma pk_log_verbose";
     constexpr const static char* PK_SHADER_ATTRIB_LOGDISASSEMBLY= "#pragma pk_log_disassembly";
     constexpr const static char* PK_SHADER_ATTRIB_GENERATEDEBUGINFO = "#pragma pk_generate_debug_info";
@@ -422,14 +430,9 @@ namespace PKAssets
     constexpr const static char* PK_SHADER_ATTRIB_OFFSET = "#pragma pk_offset ";
     constexpr const static char* PK_SHADER_ATTRIB_RASTERMODE = "#pragma pk_raster_mode ";
     constexpr const static char* PK_SHADER_ATTRIB_MULTI_COMPILE = "#pragma pk_multi_compile ";
-    constexpr const static char* PK_SHADER_ATTRIB_MATERIAL_PROP = "#pragma pk_material_property ";
-    constexpr const static char* PK_SHADER_ATTRIB_INSTANCING_PROP = "#pragma pk_enable_instancing";
-    constexpr const static char* PK_SHADER_ATTRIB_INSTANCING_NOFRAG_PROP = "#pragma pk_disable_fragment_instancing";
     constexpr const static char* PK_SHADER_ATTRIB_PROGRAM = "#pragma pk_program ";
-
-    constexpr const static char* PK_SHADER_INSTANCING_TRANSFORMS = "pk_Instancing_Transforms";
-    constexpr const static char* PK_SHADER_INSTANCING_INDICES = "pk_Instancing_Indices";
-    constexpr const static char* PK_SHADER_INSTANCING_PROPERTIES = "pk_Instancing_Properties";
+    constexpr const static char* PK_SHADER_ATTRIB_PASS_ANY = "pass_any";
+    constexpr const static char* PK_SHADER_ATTRIB_EXPORT_STRUCT = "#pragma pk_export_struct";
 
     constexpr const static char* PK_MESH_VS_POSITION = "in_POSITION";
     constexpr const static char* PK_MESH_VS_NORMAL = "in_NORMAL";
@@ -477,13 +480,20 @@ namespace PKAssets
         uint16_t __padding = 0u;             // 68 bytes
     };
 
-    struct alignas(4) PKMaterialProperty
+    struct alignas(4) PKShaderStructField
     {
         char name[PK_ASSET_NAME_MAX_LENGTH]; // 64 bytes
-        PKUniform type;                      // 66 bytes
+        PKUniform type;                      // 65 bytes
+        uint8_t count;                       // 66 bytes
+        uint16_t offset;                     // 68 bytes
+    };
 
-        uint8_t __padding0 = 0u;             // 68 bytes
-        uint16_t __padding1 = 0u;            // 68 bytes
+    struct alignas(4) PKShaderStruct
+    {
+        char name[PK_ASSET_NAME_MAX_LENGTH];      // 64 bytes
+        uint16_t size = 0u;                       // 66 bytes
+        uint16_t fieldCount = 0u;                 // 68 bytes
+        RelativePtr<PKShaderStructField> fields;  // 72 bytes
     };
 
     struct alignas(4) PKShaderParameter
@@ -494,14 +504,6 @@ namespace PKAssets
         PKUniform type;                      // 69 bytes
         uint8_t offset;                      // 70 bytes
         uint16_t arraySize;                  // 72 bytes
-    };
-
-    struct alignas(4) PKShaderKeyword
-    {
-        char name[PK_ASSET_NAME_MAX_LENGTH]; // 64 bytes
-        uint16_t offset;                     // 66 bytes
-        uint8_t directive;                   // 67 bytes
-        uint8_t value;                       // 68 bytes
     };
 
     struct alignas(4) PKShaderFixedStateAttributes
@@ -521,28 +523,50 @@ namespace PKAssets
         float zoffsets[3] = { 0, 0, 0 };                            // 36 bytes
     };
 
+    struct alignas(4) PKShaderDirective
+    {
+        char name[PK_ASSET_NAME_MAX_LENGTH]; // 64 bytes
+        uint16_t valueOffset;                // 66 bytes
+        uint8_t stride;                      // 67 bytes
+        uint8_t valueCount;                  // 68 bytes
+    };
+
+    struct alignas(4) PKShaderPass
+    {
+        char name[PK_ASSET_NAME_MAX_LENGTH]{};     // 64 bytes
+        PKShaderFixedStateAttributes attributes;   // 100 bytes
+        uint16_t variantOffset;                    // 102 bytes
+        uint16_t variantCount;                     // 104 bytes
+        uint16_t directiveOffset;                  // 106 bytes
+        uint16_t directiveCount;                   // 108 bytes
+    };
+
     struct alignas(8) PKShaderVariant
     {
-        uint16_t vertexAttributeCount;                                      // 2 bytes
-        uint16_t parameterCount;                                            // 4 bytes
-        uint16_t parameterBlockSize;                                        // 6 bytes
-        uint16_t groupSize[3]{};                                            // 12 bytes
-        uint64_t versionHash;                                               // 20 bytes
-        RelativePtr<PKShaderParameter> parameters;                          // 24 bytes
-        RelativePtr<PKVertexInputAttribute> vertexAttributes;               // 28 bytes
-        uint32_t sprivSizes[(int)PKShaderStage::EnumCount];                 // 80 bytes
-        RelativePtr<void> sprivBuffers[(int)PKShaderStage::EnumCount];      // 132 bytes
+        uint8_t passIndex;                                              // 1 bytes
+        uint8_t vertexAttributeCount;                                   // 2 bytes
+        uint16_t parameterCount;                                        // 4 bytes
+        uint16_t parameterBlockSize;                                    // 6 bytes
+        uint16_t groupSize[3]{};                                        // 12 bytes
+        uint64_t versionHash;                                           // 20 bytes
+        RelativePtr<PKShaderParameter> parameters;                      // 24 bytes
+        RelativePtr<PKVertexInputAttribute> vertexAttributes;           // 28 bytes
+        uint32_t sprivSizes[(int)PKShaderStage::EnumCount];             // 80 bytes
+        RelativePtr<void> sprivBuffers[(int)PKShaderStage::EnumCount];  // 132 bytes
     };
 
     struct alignas(4) PKShader
     {
-        uint32_t materialPropertyCount = 0;                 // 4 bytes
-        uint32_t keywordCount = 0;                          // 8 bytes
-        uint32_t variantcount = 0;                          // 12 bytes
-        PKShaderFixedStateAttributes attributes;            // 48 bytes
-        RelativePtr<PKMaterialProperty> materialProperties; // 52 bytes
-        RelativePtr<PKShaderKeyword> keywords;              // 56 bytes
-        RelativePtr<PKShaderVariant> variants;              // 60 bytes
+        uint16_t passCount;                         // 2 bytes
+        uint16_t variantCount;                      // 4 bytes
+        uint16_t directiveCount;                    // 6 bytes
+        uint16_t directiveValueCount;               // 8 bytes
+        uint32_t structCount;                       // 12 bytes
+        RelativePtr<PKShaderPass> passes;           // 16 bytes
+        RelativePtr<PKShaderVariant> variants;      // 20 bytes
+        RelativePtr<PKShaderDirective> directives;  // 24 bytes
+        RelativePtr<int16_t> directiveValues;       // 28 bytes
+        RelativePtr<PKShaderStruct> structs;        // 32 bytes
     };
 
 

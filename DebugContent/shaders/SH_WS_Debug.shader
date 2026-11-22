@@ -1,19 +1,23 @@
 #pragma pk_log_verbose
 
-#pragma pk_cull Back
-#pragma pk_ztest LessEqual
-#pragma pk_zwrite True
+#pragma pk_cull pass_any Back
+#pragma pk_ztest pass_any LessEqual
+#pragma pk_zwrite pass_any True
 
-#pragma pk_material_property float4 _Color
-#pragma pk_material_property float _Roughness
-#pragma pk_material_property float _Metallic
-#pragma pk_material_property Texture2D _AlbedoTex
-#pragma pk_material_property Texture3D _LutTex
+struct PKMaterialProperties
+{
+    float4 _Color;
+    float _Roughness;
+    float _Metallic;
+    Texture2D<float4> _AlbedoTex;
+    Texture3D<float4> _LutTex;
+};
 
-#pragma pk_multi_compile _ PASS_COLOR
-#pragma pk_program Vertex MainVs 
-#pragma pk_program Fragment MainFs
-#pragma pk_program Fragment ColorFs PASS_COLOR
+#pragma pk_export_struct PKMaterialProperties
+
+#pragma pk_program pass_any Vertex MainVs 
+#pragma pk_program PASS_MAIN Fragment MainFs
+#pragma pk_program PASS_COLOR Fragment ColorFs
 
 #include "includes/DebugUtilities.glsl"
 

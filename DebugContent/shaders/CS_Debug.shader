@@ -1,4 +1,4 @@
-#pragma pk_program Compute main
+#pragma pk_program pass_any Compute main
 
 #include "includes/DebugUtilities.glsl"
 

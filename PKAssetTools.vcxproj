@@ -314,7 +314,6 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClInclude Include="Source\PKAssetWriter.h" />
     <ClInclude Include="Source\PKMeshUtilities.h" />
     <ClInclude Include="Source\PKMeshWriter.h" />
-    <ClInclude Include="Source\PKShaderInstancing.h" />
     <ClInclude Include="Source\PKShaderUtilities.h" />
     <ClInclude Include="Source\PKShaderWriter.h" />
     <ClInclude Include="Source\PKSPVUtilities.h" />
@@ -359,7 +358,6 @@ xcopy /y /s "$(SolutionDir)PKAssetTools\Include\*.*" "$(SolutionDir)PKRenderer\T
     <ClCompile Include="Source\PKMeshletWriter.cpp" />
     <ClCompile Include="Source\PKMeshUtilities.cpp" />
     <ClCompile Include="Source\PKMeshWriter.cpp" />
-    <ClCompile Include="Source\PKShaderInstancing.cpp" />
     <ClCompile Include="Source\PKShaderUtilities.cpp" />
     <ClCompile Include="Source\PKShaderWriter.cpp" />
     <ClCompile Include="Source\PKSPVUtilities.cpp" />

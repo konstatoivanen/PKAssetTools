@@ -135,7 +135,7 @@ namespace PKAssets
 
         if (useCompression)
         {
-            printf(" Success: compression ratio %4.2f \n", (float)compressionRatio * 100.0f);
+            printf(" Success: compression ratio %4.2f%%\n", (float)compressionRatio * 100.0f);
         }
         else
         {

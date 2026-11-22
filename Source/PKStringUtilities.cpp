@@ -251,6 +251,60 @@ namespace PKAssets::StringUtilities
         return pos;
     }
 
+    size_t SkipWhitespaceAndComments(const std::string& source, size_t pos)
+    {
+        while (pos < source.size())
+        {
+            if (isspace((uint8_t)source[pos]))
+            {
+                pos++;
+            }
+            else if (pos + 1ull < source.size() && source[pos] == '/' && source[pos + 1ull] == '/')
+            {
+                pos += 2ull;
+
+                while (pos < source.size() && source[pos] != '\n')
+                {
+                    pos++;
+                }
+            }
+            else if (pos + 1ull < source.size() && source[pos] == '/' && source[pos + 1ull] == '*')
+            {
+                pos += 2ull;
+
+                while (pos + 1ull < source.size() && !(source[pos] == '*' && source[pos + 1ull] == '/'))
+                {
+                    pos++;
+                }
+
+                pos = std::min(pos + 2ull, source.size());
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return pos;
+    }
+
+    size_t SkipStringLiteral(const std::string& source, size_t pos)
+    {
+        if (pos >= source.size() || (source[pos] != '"' && source[pos] != '\''))
+        {
+            return pos;
+        }
+
+        const auto quote = source[pos++];
+
+        while (pos < source.size() && source[pos] != quote)
+        {
+            pos += source[pos] == '\\' && pos + 1ull < source.size() ? 2ull : 1ull;
+        }
+
+        return std::min(pos + 1ull, source.size());
+    }
+
     void ConvertTabsToSpaces(std::string& value)
     {
         for (auto i = 0u; i < value.size(); ++i)
@@ -260,6 +314,11 @@ namespace PKAssets::StringUtilities
                 value[i] = ' ';
             }
         }
+    }
+
+    bool IsAlphaNumeric(char c)
+    {
+        return isalnum((uint8_t)c) || c == '_';
     }
 
     bool ExtractDiagnosticLineIndex(const std::string& line, const std::string& moduleName, size_t* outLineIndex)
@@ -282,5 +341,24 @@ namespace PKAssets::StringUtilities
         }
 
         return false;
+    }
+
+    bool TryParseInt16(const std::string& str, int16_t* outValue)
+    {
+        if (str.empty())
+        {
+            return false;
+        }
+
+        char* endPtr = nullptr;
+        const auto parsed = std::strtol(str.c_str(), &endPtr, 0);
+
+        if (endPtr == str.c_str() || *endPtr != '\0')
+        {
+            return false;
+        }
+
+        *outValue = (int16_t)parsed;
+        return true;
     }
 }

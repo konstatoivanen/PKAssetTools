@@ -229,7 +229,6 @@ namespace PKAssets::Shader
         uint8_t offset = 0u;
         uint8_t bitOffset = 0u;
         uint8_t bitSize = 0u;
-        uint32_t stageFlags = 0u;
         uint32_t accessMask = 0u;
         uint32_t writeMask = 0u;
     };
@@ -240,8 +239,34 @@ namespace PKAssets::Shader
     {
         PKShaderStage stage;
         std::string name;
-        std::string keyword;
     };
+
+    struct ShaderDirective
+    {
+        std::string name;
+        std::vector<int16_t> values;
+        uint16_t stride = 0u;
+    };
+
+    struct ShaderPass
+    {
+        std::string name;
+        uint32_t stageMask = 0u;
+        std::vector<EntryPointInfo> entryPoints;
+        std::vector<ShaderDirective> directives;
+        std::vector<std::string> variantDefines;
+        PKShaderFixedStateAttributes attributes;
+    };
+
+    struct ShaderStruct
+    {
+        std::string name;
+        std::vector<PKShaderStructField> fields;
+        uint16_t size = 0u;
+    };
+
+    using ShaderStructs = std::vector<ShaderStruct>;
+    using ShaderPasses = std::vector<ShaderPass>;
 
     struct ReflectionData
     {
@@ -273,17 +298,15 @@ namespace PKAssets::Shader
     SlangStage PKShaderStageToSlangStage(PKShaderStage stage);
     const char* GetSlangStageAttribute(PKShaderStage stage);
     std::string FormatErrorMessage(const std::string& name, const std::string& source, const std::string& error);
-    void ExtractLogVerbose(std::string& source, bool* outValue);
-    void ExtractLogDisassembly(std::string& source, bool* outValue);
-    void ExtractGenerateDebugInfo(std::string& source, bool* outValue);
-    void ExtractStateAttributes(std::string& source, PKShaderFixedStateAttributes* attributes);
-    void ExtractMulticompiles(std::string& source, std::vector<std::string>& outVariantDefines, std::vector<PKShaderKeyword>& outKeywords);
-    int ExtractEntryPoints(std::string& source, std::vector<EntryPointInfo>& outEntryPoints);
-    void FindActiveEntryPoints(std::vector<EntryPointInfo>& entries, const std::string& variantDefines, EntryPointInfo** outStageEntries, uint32_t* outActiveStageMask, std::string& outActiveDefines);
+    bool ExtractFlag(const char* token, std::string& source);
+    int ExtractEntryPoints(std::string& source, ShaderPasses& passes);
+    int ExtractMulticompiles(std::string& source, ShaderPasses& passes);
+    int ExtractStateAttributes(std::string& source, ShaderPasses& passes);
+    int ExtractExportedStructs(std::string& source, ShaderStructs& outStructs);
     int PreprocessSource(const std::string& name, const std::string& source, std::vector<std::string>& filenames, simplecpp::TokenList& outTokens);
-    void SetActiveEntryPoints(simplecpp::TokenList& tokens, const std::vector<EntryPointInfo>& entries, EntryPointInfo* const* activeEntries);
-    void RemoveUnusedResourcesAndFunctions(simplecpp::TokenList& tokens, EntryPointInfo* const* activeEntries);
-    void ExtractPushConstants(simplecpp::TokenList& tokens, uint32_t stageMask, SourcePushConstants& outConstants);
+    void SetActiveEntryPoints(simplecpp::TokenList& tokens, const std::vector<EntryPointInfo>& activeEntries);
+    void RemoveUnusedResourcesAndFunctions(simplecpp::TokenList& tokens, const std::vector<EntryPointInfo>& activeEntries);
+    void ExtractPushConstants(simplecpp::TokenList& tokens, SourcePushConstants& outConstants);
     void CompilePushConstantBlock(std::string& source, SourcePushConstants& constants);
     uint64_t FNV1aHash(const void* data, uint64_t size, uint64_t hash = 14695981039346656037ull);
 }

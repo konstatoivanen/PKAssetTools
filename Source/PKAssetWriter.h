@@ -51,9 +51,10 @@ namespace PKAssets
         template<typename T>
         WritePtr<T> Allocate(size_t count = 1)
         {
-            auto offs = size();
-            resize(offs + sizeof(T) * count);
-            return WritePtr<T>(this, (uint32_t)offs);
+            constexpr auto align = alignof(T);
+            const auto offset = (size() + align - 1ull) & ~(align - 1ull);
+            resize(offset + sizeof(T) * count);
+            return WritePtr<T>(this, (uint32_t)offset);
         }
 
         template<typename T>
@@ -62,11 +63,6 @@ namespace PKAssets
             auto ptr = Allocate<T>(count);
             memcpy(ptr.get(), src, sizeof(T) * count);
             return ptr;
-        }
-
-        inline void* GeatHead()
-        {
-            return data() + size();
         }
 
         WritePtr<PKAssetHeader> header;
