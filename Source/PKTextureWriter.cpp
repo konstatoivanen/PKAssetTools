@@ -40,13 +40,6 @@ namespace PKAssets::Texture
         pkTexture->resolution[2] = (uint16_t)ktxTex2->baseDepth;
         pkTexture->layers = ktxTex2->numLayers;
         pkTexture->levels = ktxTex2->numLevels;
-        pkTexture->anisotropy = 16.0f;
-        pkTexture->filterMin = ktxTex2->numLevels > 1 ? PKFilterMode::Trilinear : PKFilterMode::Bilinear;
-        pkTexture->filterMag = ktxTex2->numLevels > 1 ? PKFilterMode::Trilinear : PKFilterMode::Bilinear;
-        pkTexture->wrap[0] = PKWrapMode::Repeat;
-        pkTexture->wrap[1] = PKWrapMode::Repeat;
-        pkTexture->wrap[2] = PKWrapMode::Repeat;
-        pkTexture->borderColor = PKBorderColor::FloatClear;
         pkTexture->format = VkFormatToPKTextureFormat((VkFormat)ktxTex2->vkFormat);
         pkTexture->type = PKTextureType::Texture2D;
         pkTexture->dataSize = (uint32_t)ktxTextureSize;

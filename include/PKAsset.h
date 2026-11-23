@@ -257,33 +257,6 @@ namespace PKAssets
         BC7_RGBA
     };
 
-    enum class PKFilterMode : uint8_t
-    {
-        Point,
-        Bilinear,
-        Trilinear,
-        Bicubic
-    };
-
-    enum class PKWrapMode : uint8_t
-    {
-        Clamp,
-        Repeat,
-        Mirror,
-        MirrorOnce,
-        Border
-    };
-
-    enum class PKBorderColor : uint8_t
-    {
-        FloatClear,
-        IntClear,
-        FloatBlack,
-        IntBlack,
-        FloatWhite,
-        IntWhite
-    };
-
     enum class PKShaderStage : uint8_t
     {
         Vertex,
@@ -664,23 +637,16 @@ namespace PKAssets
 
 
     // Texture asset type
-    // @TODO deprecate sampler values.
     struct alignas(4) PKTexture
     {
         RelativePtr<void> data;             // 4 bytes
         RelativePtr<uint32_t> levelOffsets; // 8 bytes
         uint32_t dataSize;                  // 12 bytes
-        float anisotropy;                   // 16 bytes
-        uint16_t resolution[3];             // 22 bytes
-        uint16_t levels;                    // 24 bytes
-        uint16_t layers;                    // 26 bytes
-        PKTextureFormat format;             // 27 bytes
-        PKTextureType type;                 // 28 bytes
-        PKFilterMode filterMin;             // 29 bytes
-        PKFilterMode filterMag;             // 30 bytes
-        PKWrapMode wrap[3];                 // 33 bytes
-        PKBorderColor borderColor;          // 34 bytes
-        uint8_t __padding0;                 // 36 bytes
+        uint16_t resolution[3];             // 18 bytes
+        uint16_t levels;                    // 20 bytes
+        uint16_t layers;                    // 22 bytes
+        PKTextureFormat format;             // 23 bytes
+        PKTextureType type;                 // 24 bytes
     };
 
     // IES profile asset type
