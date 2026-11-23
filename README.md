@@ -2,7 +2,7 @@
 A repository of build tools used to cook assets for use in PKRenderer.
 
 ## Features
-- GLSL To spriv compilation.
+- Slang To spriv compilation.
 - .obj to custom binary mesh format conversion.
 - .ttf to custom font format conversion.
 - .ktx to custom texture format conversion.
@@ -10,14 +10,15 @@ A repository of build tools used to cook assets for use in PKRenderer.
 - Lossless file compression.
 
 ## Shader Format
-- Converts glsl shader files to **.pkshader** files.
-- Supports multiple compilation (in source glsl: #pragma pk_multi_compile VARIANT0 VARIANT1).
-- The following attributes are parsed & stored from the source glsl:
+- Converts slang shader files to **.pkshader** files.
+- Supports multiple entry pipelines per file via pass attributes in pk_program directives.
+- Supports multiple compilation (in source slang: #pragma pk_multi_compile PASS DIRECTIVE 0 1 2 ...).
+- The following attributes are parsed & stored from the source slang:
 	- Vertex attributes.
-	- Descriptor sets.
-	- Material property layout.
+	- User defined struct exports.
+    - Descriptors in a single compacted push constant block designed to work with fully bindless api design.
 	- Rasterization parameters (blend mode, cull face, depth test mode, etc.).
-	- multi compile keyword map.
+	- Per pass directive maps.
 
 ## Mesh Format
 - Converts .obj files to binary files (**.pkmesh**) containing interleaved vertex data, index buffer & vertex buffer attributes.

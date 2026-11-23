@@ -167,8 +167,7 @@ namespace PKAssets
         ConstantBuffer,
         StorageBuffer,
         InputAttachment,
-        AccelerationStructure,
-        Keyword
+        AccelerationStructure
     };
 
     enum class PKTextureType : uint8_t
@@ -455,18 +454,6 @@ namespace PKAssets
     constexpr static const PKTextureFormat PK_IES_PROFILE_FORMAT = PKTextureFormat::BC4_R_Unorm;
 
 
-    // This is not an asset class. use this class to provide draw infos to instancing shaders
-    // Packed as uint4
-    struct PKDrawInfo
-    {
-        uint16_t material;
-        uint16_t uniformScale;
-        uint32_t transform;
-        uint32_t submesh;
-        uint32_t userdata;
-    };
-
-
     // Shader asset types
     struct alignas(4) PKVertexInputAttribute
     {
@@ -710,8 +697,6 @@ namespace PKAssets
     uint32_t PKUniformToComponents(PKUniform type);
     PKUniform PKUniformToScalar(PKUniform type);
     bool PKUniformIsResourceHandle(PKUniform type);
-
-    PKDrawInfo PackPKDrawInfo(uint16_t material, float uniformScale, uint32_t transform, uint32_t submesh, uint32_t userdata);
 
     PKMeshletVertex PackPKMeshletVertex(const float* pPosition, 
                         const float* pTexcoord, 

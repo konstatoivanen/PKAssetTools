@@ -82,13 +82,22 @@ namespace PKAssets::Shader
             MakeIntOption(slang::CompilerOptionName::DefaultImageFormatUnknown, 1),
             MakeIntOption(slang::CompilerOptionName::VulkanUseEntryPointName, 0),
             MakeIntOption(slang::CompilerOptionName::Optimization, SLANG_OPTIMIZATION_LEVEL_MAXIMAL),
+            MakeIntOption(slang::CompilerOptionName::FloatingPointMode, SLANG_FLOATING_POINT_MODE_FAST),
             MakeIntOption(slang::CompilerOptionName::SPIRVUnifiedDescriptorHeapStride, 1),
             MakeIntOption(slang::CompilerOptionName::DebugInformation, debugLevel),
         };
 
+        slang::CompilerOptionEntry optArgs{};
+        optArgs.name = slang::CompilerOptionName::DownstreamArgs;
+        optArgs.value.kind = slang::CompilerOptionValueKind::String;
+        optArgs.value.stringValue0 = "spirv-opt";
+        optArgs.value.stringValue1 = "-O";
+        options.push_back(optArgs);
+
         AddCapabilityOption(globalSession, options, "vk_mem_model");
         AddCapabilityOption(globalSession, options, "spvDescriptorHeapEXT");
         AddCapabilityOption(globalSession, options, "spvImageGatherExtended");
+        AddCapabilityOption(globalSession, options, "spvMaximalReconvergenceKHR");
         AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_basic");
         AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_vote");
         AddCapabilityOption(globalSession, options, "GL_KHR_shader_subgroup_arithmetic");
@@ -132,7 +141,7 @@ namespace PKAssets::Shader
     }
 
 
-    static void PrintError(slang::IBlob* diagnostics, const std::string& name, const std::string& source, const char* header, bool formatLines)
+    static void PrintDiagostics(slang::IBlob* diagnostics, const std::string& name, const std::string& source, const char* header, bool formatLines, bool isError)
     {
         if (!diagnostics || diagnostics->getBufferSize() == 0)
         {
@@ -140,15 +149,17 @@ namespace PKAssets::Shader
         }
 
         const std::string errorStr(static_cast<const char*>(diagnostics->getBufferPointer()), diagnostics->getBufferSize());
+        const auto color = isError ? 12 : 14;
+        const auto typeStr = isError ? "ERROR" : "WARNING";
 
         #if defined(WIN32)
-        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
+        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
         #endif
 
-        printf("\n ----------BEGIN ERROR---------- \n");
+        printf("\n ----------BEGIN %s---------- \n", typeStr);
         printf("\n %s (%s)\n\n", header, name.c_str());
         printf("%s", (formatLines ? FormatErrorMessage(name, source, errorStr) : errorStr).c_str());
-        printf("\n ----------END ERROR---------- \n\n");
+        printf("\n ----------END %s---------- \n\n", typeStr);
 
         #if defined(WIN32)
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
@@ -235,17 +246,15 @@ namespace PKAssets::Shader
 
     static uint32_t AllocatePushConstantOffset(std::vector<uint32_t>& memberOffsets, uint32_t& currentOffset, const SourcePushConstant& constant)
     {
-        auto& memberOffset = memberOffsets[constant.memberIndex];
+        auto& offset = memberOffsets[constant.memberIndex];
 
-        if (memberOffset == 0xFFFFFFFFu)
+        if (offset == 0xFFFFFFFFu)
         {
-            const auto align = (uint32_t)constant.memberAlignment;
-            currentOffset = (currentOffset + align - 1u) & ~(align - 1u);
-            memberOffset = currentOffset;
-            currentOffset += constant.memberSize;
+            offset = (currentOffset + constant.memberAlignment - 1u) & ~(constant.memberAlignment - 1u);
+            currentOffset = offset + constant.memberSize;
         }
 
-        return memberOffset + (constant.bitOffset / 8u);
+        return offset + (constant.bitOffset / 8u);
     }
 
     static void GetPushConstants(ReflectionData& reflection, PKShaderStage stage)
@@ -396,10 +405,10 @@ namespace PKAssets::Shader
 
         Slang::ComPtr<slang::IBlob> diagnostics;
         Slang::ComPtr<slang::IModule> module(session->loadModuleFromSourceString(uniqueName.c_str(), uniqueName.c_str(), variantSource.c_str(), diagnostics.writeRef()));
-
+        PrintDiagostics(diagnostics, uniqueName, variantSource, "Source load:", true, !module);
+        
         if (!module)
         {
-            PrintError(diagnostics, uniqueName, variantSource, "Source load failed:", true);
             return false;
         }
 
@@ -412,50 +421,50 @@ namespace PKAssets::Shader
 
             Slang::ComPtr<slang::IEntryPoint> entryPoint;
             diagnostics = nullptr;
-            module->findAndCheckEntryPoint(entry.name.c_str(), PKShaderStageToSlangStage(entry.stage), entryPoint.writeRef(), diagnostics.writeRef());
+            auto result = module->findAndCheckEntryPoint(entry.name.c_str(), PKShaderStageToSlangStage(entry.stage), entryPoint.writeRef(), diagnostics.writeRef());
+            PrintDiagostics(diagnostics, name, variantSource, "Compilation:", false, SLANG_FAILED(result) || !entryPoint);
 
-            if (!entryPoint)
+            if (SLANG_FAILED(result) || !entryPoint)
             {
-                PrintError(diagnostics, name, variantSource, "Compilation failed:", false);
                 return false;
             }
 
             slang::IComponentType* stageComponents[2] = { module.get(), entryPoint.get() };
             Slang::ComPtr<slang::IComponentType> composedProgram;
             Slang::ComPtr<slang::IComponentType> linkedProgram;
-
-            diagnostics = nullptr;
-            session->createCompositeComponentType(stageComponents, 2, composedProgram.writeRef(), diagnostics.writeRef());
-
-            if (!composedProgram)
-            {
-                PrintError(diagnostics, name, variantSource, "Composition failed:", false);
-                return false;
-            }
-
-            diagnostics = nullptr;
-            composedProgram->link(linkedProgram.writeRef(), diagnostics.writeRef());
-
-            if (!linkedProgram)
-            {
-                PrintError(diagnostics, name, variantSource, "Linking failed:", false);
-                return false;
-            }
-
             Slang::ComPtr<slang::IBlob> spirvBlob;
-            diagnostics = nullptr;
-            linkedProgram->getEntryPointCode(0, 0, spirvBlob.writeRef(), diagnostics.writeRef());
 
-            if (!spirvBlob || !spirvBlob->getBufferSize())
+            diagnostics = nullptr;
+            result = session->createCompositeComponentType(stageComponents, 2, composedProgram.writeRef(), diagnostics.writeRef());
+            PrintDiagostics(diagnostics, name, variantSource, "Composition:", false, SLANG_FAILED(result) || !composedProgram);
+            
+            if (SLANG_FAILED(result) || !composedProgram)
             {
-                PrintError(diagnostics, name, variantSource, "SPIRV emission failed:", false);
+                return false;
+            }
+
+            diagnostics = nullptr;
+            result = composedProgram->link(linkedProgram.writeRef(), diagnostics.writeRef());
+            PrintDiagostics(diagnostics, name, variantSource, "Linking:", false, SLANG_FAILED(result) || !linkedProgram);
+
+            if (SLANG_FAILED(result) || !linkedProgram)
+            {
+                return false;
+            }
+
+            diagnostics = nullptr;
+            result = linkedProgram->getEntryPointCode(0, 0, spirvBlob.writeRef(), diagnostics.writeRef());
+            PrintDiagostics(diagnostics, name, variantSource, "SPIRV emission:", false, SLANG_FAILED(result) || !spirvBlob || !spirvBlob->getBufferSize());
+
+            if (SLANG_FAILED(result) || !spirvBlob || !spirvBlob->getBufferSize())
+            {
                 return false;
             }
 
             auto* reflectModule = new SpvReflectShaderModule();
-            const auto codeStatus = spvReflectCreateShaderModule(spirvBlob->getBufferSize(), spirvBlob->getBufferPointer(), reflectModule);
+            const auto reflectStatus = spvReflectCreateShaderModule(spirvBlob->getBufferSize(), spirvBlob->getBufferPointer(), reflectModule);
 
-            if (codeStatus != SPV_REFLECT_RESULT_SUCCESS)
+            if (reflectStatus != SPV_REFLECT_RESULT_SUCCESS)
             {
                 printf("Failed to extract reflection data from SPIR-V module!\n");
                 delete reflectModule;
@@ -466,6 +475,7 @@ namespace PKAssets::Shader
             {
                 Slang::ComPtr<slang::IBlob> spirvAsmBlob;
                 linkedProgram->getEntryPointCode(0, 1, spirvAsmBlob.writeRef(), diagnostics.writeRef());
+
                 if (spirvAsmBlob)
                 {
                     printf("DISASSEMBLY:\n %.*s\n", (int)spirvAsmBlob->getBufferSize(), static_cast<const char*>(spirvAsmBlob->getBufferPointer()));

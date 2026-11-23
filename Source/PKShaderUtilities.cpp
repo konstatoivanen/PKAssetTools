@@ -20,14 +20,7 @@ namespace PKAssets::Shader
         std::vector<std::string> args;
     };
 
-    struct ParsedDirective
-    {
-        std::string pass;
-        std::string name;
-        std::vector<int16_t> values;
-    };
-
-    struct ParsedUniformDecl
+    struct ParsedUniform
     {
         std::string name;
         std::string fieldType;
@@ -134,6 +127,56 @@ namespace PKAssets::Shader
     };
 
 
+    static uint32_t AlignUp(uint32_t value, uint32_t alignment)
+    {
+        return (value + alignment - 1u) & ~(alignment - 1u);
+    }
+
+    template<typename... TArgs>
+    static int Fail(std::format_string<TArgs...> fmt, TArgs&&... args)
+    {
+        printf("Error: %s\n", std::format(fmt, std::forward<TArgs>(args)...).c_str());
+        return -1;
+    }
+
+    #define RETURN_ERROR_IF(condition, ...) if (condition) return Fail(__VA_ARGS__)
+
+    template<typename TContainer>
+    static auto* FindByName(TContainer& items, std::string_view name)
+    {
+        for (auto& item : items)
+        {
+            if (item.name == name)
+            {
+                return &item;
+            }
+        }
+
+        return decltype(items.data()){};
+    }
+
+    static ShaderPass& FindOrAddPass(ShaderPasses& passes, const std::string& name)
+    {
+        if (auto* pass = FindByName(passes, name))
+        {
+            return *pass;
+        }
+
+        return passes.emplace_back(ShaderPass{ name, 0u });
+    }
+
+    template<typename TFunc>
+    static void ForEachMatchingPass(ShaderPasses& passes, std::string_view passName, TFunc&& apply)
+    {
+        for (auto& pass : passes)
+        {
+            if (passName == PK_SHADER_ATTRIB_PASS_ANY || passName == pass.name)
+            {
+                apply(pass);
+            }
+        }
+    }
+
     static ShaderPassType GetShaderPassType(PKShaderStage stage)
     {
         switch (stage)
@@ -146,47 +189,6 @@ namespace PKAssets::Shader
             case PKShaderStage::RayIntersection: return ShaderPassType::RayTracing;
             default: return ShaderPassType::Graphics;
         }
-    }
-
-    static const ShaderPass* FindPass(const ShaderPasses& passes, const std::string& name)
-    {
-        for (const auto& pass : passes)
-        {
-            if (pass.name == name)
-            {
-                return &pass;
-            }
-        }
-
-        return nullptr;
-    }
-
-    static ShaderPass& FindOrAddPass(ShaderPasses& passes, const std::string& name)
-    {
-        for (auto& pass : passes)
-        {
-            if (pass.name == name)
-            {
-                return pass;
-            }
-        }
-
-        passes.push_back(ShaderPass{ name, 0u });
-
-        return passes.back();
-    }
-
-    static const EntryPointInfo* FindActiveEntryPoint(const std::string& name, const std::vector<EntryPointInfo>& activeEntries)
-    {
-        for (const auto& entry : activeEntries)
-        {
-            if (entry.name == name)
-            {
-                return &entry;
-            }
-        }
-
-        return nullptr;
     }
 
 
@@ -206,31 +208,20 @@ namespace PKAssets::Shader
                 break;
             }
 
-            auto parts = StringUtilities::Split(output, " \n\r");
+            const auto parts = StringUtilities::Split(output, " \n\r");
 
-            if (parts.empty())
-            {
-                printf("Error: Pragma '%s' is missing pass and arguments!\n", token);
-                return -1;
-            }
-
-            if (requirePasses && parts[0] != PK_SHADER_ATTRIB_PASS_ANY && !FindPass(passes, parts[0]))
-            {
-                printf("Error: Pragma '%s' references undeclared pass '%s'!\n", token, parts[0].c_str());
-                return -1;
-            }
+            RETURN_ERROR_IF(parts.empty(), "Pragma '{}' is missing pass and arguments!", token);
+            RETURN_ERROR_IF(requirePasses && parts[0] != PK_SHADER_ATTRIB_PASS_ANY && !FindByName(passes, parts[0]), "Pragma '{}' references undeclared pass '{}'!", token, parts[0]);
 
             PragmaDirective directive{};
             directive.pass = parts[0];
             directive.args.assign(parts.begin() + 1, parts.end());
-            outDirectives.push_back(directive);
+            outDirectives.push_back(std::move(directive));
         }
 
         std::stable_sort(outDirectives.begin(), outDirectives.end(), [](const PragmaDirective& a, const PragmaDirective& b)
         {
-            const auto isAnyA = a.pass == PK_SHADER_ATTRIB_PASS_ANY;
-            const auto isAnyB = b.pass == PK_SHADER_ATTRIB_PASS_ANY;
-            return isAnyA != isAnyB ? isAnyA : false;
+            return a.pass == PK_SHADER_ATTRIB_PASS_ANY && b.pass != PK_SHADER_ATTRIB_PASS_ANY;
         });
 
         return 0;
@@ -250,106 +241,107 @@ namespace PKAssets::Shader
         {
             if (directive.args.size() < minArgs || directive.args.size() > maxArgs)
             {
-                printf("Error: Invalid argument count for '%s' in pass '%s'!\n", token, directive.pass.c_str());
+                Fail("Invalid argument count for '{}' in pass '{}'!", token, directive.pass);
                 return false;
             }
 
-            for (auto& pass : passes)
+            ForEachMatchingPass(passes, directive.pass, [&](ShaderPass& pass)
             {
-                if (directive.pass == PK_SHADER_ATTRIB_PASS_ANY || directive.pass == pass.name)
-                {
-                    apply(pass.attributes, directive.args);
-                }
-            }
+                apply(pass.attributes, directive.args);
+            });
         }
 
         return true;
     }
 
+    static int AddPassEntryPoint(ShaderPass& pass, const EntryPointInfo& info, bool checkPassType)
+    {
+        const auto stageFlag = 1u << (uint32_t)info.stage;
+        const auto entryType = GetShaderPassType(info.stage);
+        
+        RETURN_ERROR_IF(checkPassType && !pass.entryPoints.empty() && GetShaderPassType(pass.entryPoints[0].stage) != entryType, "Pass '{}' mixes incompatible shader stage types!", pass.name);
+        RETURN_ERROR_IF(pass.stageMask & stageFlag, "Pass '{}' already declares an entry point for '{}'!", pass.name, PKShaderStage_NAMES[(uint32_t)info.stage]);
+
+        pass.stageMask |= stageFlag;
+        pass.entryPoints.push_back(info);
+        return 0;
+    }
+
+    static int ParseMulticompileDirective(const PragmaDirective& pragma, ShaderDirective& outDirective)
+    {
+        RETURN_ERROR_IF(pragma.args.size() < 3u, "Multicompile directive in pass '{}' requires a directive name, pass name and at least two integer values!", pragma.pass);
+
+        outDirective.name = pragma.args[0];
+        outDirective.values.clear();
+        outDirective.values.reserve(pragma.args.size() - 1ull);
+
+        for (auto i = 1ull; i < pragma.args.size(); ++i)
+        {
+            auto value = (int16_t)0;
+
+            RETURN_ERROR_IF(!StringUtilities::TryParseInt16(pragma.args[i], &value), "Multicompile directive '{}' in pass '{}' has non-integer value '{}'!", outDirective.name, pragma.pass, pragma.args[i]);
+
+            if (std::find(outDirective.values.begin(), outDirective.values.end(), value) == outDirective.values.end())
+            {
+                outDirective.values.push_back(value);
+            }
+        }
+
+        RETURN_ERROR_IF(outDirective.values.size() < 2u, "Multicompile directive '{}' in pass '{}' requires at least two unique integer values!", outDirective.name, pragma.pass);
+        RETURN_ERROR_IF(outDirective.values.size() > PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE, "Multicompile directive '{}' exceeds maximum value count limit '{}' in pass '{}'!", outDirective.name, PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE, pragma.pass);
+        return 0;
+    }
+
     static bool FindStructDefinition(const std::string& source, const std::string& structName, size_t* outOpen, size_t* outClose)
     {
+        constexpr auto whitespace = " \t\r\n";
         auto pos = 0ull;
 
-        while (pos < source.size())
+        while ((pos = source.find(structName, pos)) != std::string::npos)
         {
-            pos = StringUtilities::SkipWhitespaceAndComments(source, pos);
+            const auto nameBeg = pos;
+            const auto nameEnd = pos + structName.size();
+            pos = nameEnd;
 
-            if (pos >= source.size())
+            if (nameBeg < 7ull || StringUtilities::IsAlphaNumeric(source[nameBeg - 1ull]))
+            {
+                continue;
+            }
+
+            if (nameEnd < source.size() && StringUtilities::IsAlphaNumeric(source[nameEnd]))
+            {
+                continue;
+            }
+
+            const auto keywordEnd = source.find_last_not_of(whitespace, nameBeg - 1ull);
+
+            if (keywordEnd == std::string::npos || keywordEnd < 5ull || source.compare(keywordEnd - 5ull, 6ull, "struct") != 0)
+            {
+                continue;
+            }
+
+            if (keywordEnd > 5ull && StringUtilities::IsAlphaNumeric(source[keywordEnd - 6ull]))
+            {
+                continue;
+            }
+
+            const auto openBrace = source.find_first_not_of(whitespace, nameEnd);
+
+            if (openBrace == std::string::npos || source[openBrace] != '{')
+            {
+                continue;
+            }
+
+            const auto closeBrace = source.find('}', openBrace + 1ull);
+
+            if (closeBrace == std::string::npos)
             {
                 return false;
             }
 
-            const auto nextPos = StringUtilities::SkipStringLiteral(source, pos);
-
-            if (nextPos != pos)
-            {
-                pos = nextPos;
-                continue;
-            }
-
-            if (StringUtilities::IsAlphaNumeric(source[pos]))
-            {
-                const auto wordBeg = pos;
-
-                while (pos < source.size() && StringUtilities::IsAlphaNumeric(source[pos]))
-                {
-                    pos++;
-                }
-
-                if (pos - wordBeg == 6ull && source.compare(wordBeg, 6ull, "struct") == 0)
-                {
-                    const auto nameBeg = StringUtilities::SkipWhitespaceAndComments(source, pos);
-                    auto nameEnd = nameBeg;
-
-                    while (nameEnd < source.size() && StringUtilities::IsAlphaNumeric(source[nameEnd]))
-                    {
-                        nameEnd++;
-                    }
-
-                    if (nameEnd - nameBeg == structName.size() && source.compare(nameBeg, structName.size(), structName) == 0)
-                    {
-                        auto bracePos = StringUtilities::SkipWhitespaceAndComments(source, nameEnd);
-
-                        if (bracePos < source.size() && source[bracePos] == '{')
-                        {
-                            const auto openBrace = bracePos;
-                            auto depth = 0;
-
-                            while (bracePos < source.size())
-                            {
-                                bracePos = StringUtilities::SkipWhitespaceAndComments(source, bracePos);
-
-                                if (bracePos >= source.size())
-                                {
-                                    return false;
-                                }
-
-                                if (source[bracePos] == '{')
-                                {
-                                    depth++;
-                                }
-                                else if (source[bracePos] == '}')
-                                {
-                                    if (--depth == 0)
-                                    {
-                                        *outOpen = openBrace;
-                                        *outClose = bracePos;
-                                        return true;
-                                    }
-                                }
-
-                                bracePos++;
-                            }
-
-                            return false;
-                        }
-                    }
-                }
-
-                continue;
-            }
-
-            pos++;
+            *outOpen = openBrace;
+            *outClose = closeBrace;
+            return true;
         }
 
         return false;
@@ -431,23 +423,6 @@ namespace PKAssets::Shader
         return PKUniform::Invalid;
     }
 
-    static std::string CompileUniformProperty(PKUniform type, const std::string& targetType, const std::string& name, const std::string& valueExpr, bool isArray = false)
-    {
-        auto expression = "DescriptorHandle<" + targetType + ">(uint2(" + valueExpr + ",0u))";
-
-        if (type == PKUniform::AccelerationStructure)
-        {
-            expression = targetType + "(" + valueExpr + ")";
-        }
-
-        if (isArray)
-        {
-            return "struct " + name + "_Array{__subscript(uint i)->" + targetType + "{get{return " + expression + ";}}};static const " + name + "_Array " + name + "={};\n";
-        }
-            
-        return "property " + targetType + " " + name + "{get{return " + expression + ";}}\n";
-    }
-
 
     static void EraseTokenRange(simplecpp::TokenList& tokens, simplecpp::Token* first, simplecpp::Token* last)
     {
@@ -461,7 +436,13 @@ namespace PKAssets::Shader
         }
     }
 
-    static simplecpp::Token* FindTokenScope(simplecpp::Token* start, simplecpp::Token* end, char openOp, char closeOp)
+    static bool IsUnqualifiedIdentifier(const simplecpp::Token* token)
+    {
+        return token && token->name && (!token->previous || token->previous->op != '.');
+    }
+
+    template<typename TToken>
+    static TToken* FindTokenScope(TToken* start, const simplecpp::Token* end, char openOp, char closeOp)
     {
         if (!start || start->op != openOp)
         {
@@ -476,19 +457,16 @@ namespace PKAssets::Shader
             {
                 depth++;
             }
-            else if (token->op == closeOp)
+            else if (token->op == closeOp && --depth == 0)
             {
-                if (--depth == 0)
-                {
-                    return token;
-                }
+                return token;
             }
         }
 
         return nullptr;
     }
 
-    static simplecpp::Token* SkipLeadingAttributes(simplecpp::Token* start, simplecpp::Token* end)
+    static simplecpp::Token* SkipLeadingAttributes(simplecpp::Token* start, const simplecpp::Token* end)
     {
         auto* token = start;
 
@@ -507,7 +485,8 @@ namespace PKAssets::Shader
         return token;
     }
 
-    static simplecpp::Token* FindTemplateArgumentScope(simplecpp::Token* start)
+    template<typename TToken>
+    static TToken* FindTemplateArgumentScope(TToken* start)
     {
         if (!start || start->op != '<')
         {
@@ -520,16 +499,6 @@ namespace PKAssets::Shader
         for (auto* token = start; token; token = token->next)
         {
             if (token->op == ';' || token->op == '{' || token->op == '}' || token->op == '?')
-            {
-                return nullptr;
-            }
-
-            if ((token->op == '&' || token->op == '|') && token->next && token->next->op == token->op)
-            {
-                return nullptr;
-            }
-
-            if ((token->op == '<' || token->op == '>' || token->op == '=' || token->op == '!') && token->next && token->next->op == '=')
             {
                 return nullptr;
             }
@@ -547,24 +516,31 @@ namespace PKAssets::Shader
             }
             else if (parenDepth == 0)
             {
+                if ((token->op == '&' || token->op == '|') && token->next && token->next->op == token->op)
+                {
+                    return nullptr;
+                }
+
+                if ((token->op == '<' || token->op == '>' || token->op == '=' || token->op == '!') && token->next && token->next->op == '=')
+                {
+                    return nullptr;
+                }
+
                 if (token->op == '<')
                 {
                     angleDepth++;
                 }
-                else if (token->op == '>')
+                else if (token->op == '>' && --angleDepth == 0)
                 {
-                    if (--angleDepth == 0)
-                    {
-                        return token;
-                    }
+                    return token;
                 }
             }
         }
 
         return nullptr;
     }
-    
-    static const char* ParseUniformDeclaration(simplecpp::Token* typeBeg, simplecpp::Token* limit, ParsedUniformDecl& outDecl)
+
+    static const char* ParseUniform(simplecpp::Token* typeBeg, simplecpp::Token* limit, ParsedUniform& outUniform)
     {
         if (!typeBeg || !typeBeg->name)
         {
@@ -622,16 +598,16 @@ namespace PKAssets::Shader
             typeText += token->str();
         }
 
-        outDecl.type = ReflectUniformType(typeText, &outDecl.fieldType, &outDecl.targetType);
+        outUniform.type = ReflectUniformType(typeText, &outUniform.fieldType, &outUniform.targetType);
 
-        if (outDecl.type == PKUniform::Invalid)
+        if (outUniform.type == PKUniform::Invalid)
         {
             return "Unsupported field type";
         }
 
-        outDecl.name = nameToken->str();
-        outDecl.count = count;
-        outDecl.endToken = endToken;
+        outUniform.name = nameToken->str();
+        outUniform.count = count;
+        outUniform.endToken = endToken;
         return nullptr;
     }
 
@@ -672,7 +648,7 @@ namespace PKAssets::Shader
             return 0u;
         }
 
-        const auto* closeParen = FindTokenScope(const_cast<simplecpp::Token*>(openParen), nullptr, '(', ')');
+        const auto* closeParen = FindTokenScope(openParen, nullptr, '(', ')');
 
         if (!closeParen || openParen->next == closeParen || (openParen->next->next == closeParen && openParen->next->str() == "void"))
         {
@@ -688,7 +664,7 @@ namespace PKAssets::Shader
         {
             if (depth == 0 && token->op == '<' && token->previous && token->previous->name)
             {
-                if (const auto* closeAngle = FindTemplateArgumentScope(const_cast<simplecpp::Token*>(token)))
+                if (const auto* closeAngle = FindTemplateArgumentScope(token))
                 {
                     const auto isCtorOrScope = closeAngle->next && (closeAngle->next->op == '(' || closeAngle->next->op == '.' || closeAngle->next->op == ':');
 
@@ -741,8 +717,7 @@ namespace PKAssets::Shader
     {
         if (const auto* openParen = FindFunctionOpenParen(token))
         {
-            const auto maxArgs = GetFunctionArityRange(openParen);
-            return token->str() + "#" + std::to_string(maxArgs);
+            return std::format("{}#{}", token->str(), GetFunctionArityRange(openParen));
         }
 
         return token->str();
@@ -754,7 +729,7 @@ namespace PKAssets::Shader
 
         for (const auto* token = first; token; token = token->next)
         {
-            if (token->name && (!token->previous || token->previous->op != '.') && GetTokenUsageKey(token) == key)
+            if (IsUnqualifiedIdentifier(token) && GetTokenUsageKey(token) == key)
             {
                 count++;
             }
@@ -777,74 +752,77 @@ namespace PKAssets::Shader
     static std::vector<TokenStatement> ScanTopLevelStatements(simplecpp::TokenList& tokens)
     {
         std::vector<TokenStatement> statements;
-        simplecpp::Token* statementBeg = nullptr;
-        simplecpp::Token* openBrace = nullptr;
-        simplecpp::Token* closeBrace = nullptr;
-        simplecpp::Token* functionName = nullptr;
+        TokenStatement current{};
         auto hasEquals = false;
+
+        auto commitStatement = [&](simplecpp::Token* endToken, bool isFunction)
+        {
+            current.end = endToken;
+            current.isFunction = isFunction;
+            current.functionName = isFunction ? current.functionName : nullptr;
+            statements.push_back(current);
+            current = {};
+            hasEquals = false;
+        };
 
         for (auto* token = tokens.front(); token; token = token->next)
         {
-            if (!statementBeg)
+            if (!current.beg)
             {
-                statementBeg = token;
+                current.beg = token;
             }
 
             if (token->op == '[')
             {
-                auto* closeBracket = FindTokenScope(token, nullptr, '[', ']');
+                token = FindTokenScope(token, nullptr, '[', ']');
 
-                if (!closeBracket)
+                if (!token)
                 {
                     break;
                 }
-
-                token = closeBracket;
             }
-            else if (token->op == '<' && !openBrace && !hasEquals)
+            else if (token->op == '<' && !current.openBrace && !hasEquals)
             {
                 auto* closeAngle = FindTemplateArgumentScope(token);
 
                 if (closeAngle && closeAngle->next && closeAngle->next->op == '(' && token->previous && token->previous->name)
                 {
-                    functionName = token->previous;
+                    current.functionName = token->previous;
                     token = closeAngle;
                 }
             }
             else if (token->op == '(')
             {
-                if (!openBrace && !hasEquals && token->previous && token->previous->name)
+                if (!current.openBrace && !hasEquals && token->previous && token->previous->name)
                 {
-                    functionName = token->previous;
+                    current.functionName = token->previous;
                 }
 
-                auto* closeParen = FindTokenScope(token, nullptr, '(', ')');
+                token = FindTokenScope(token, nullptr, '(', ')');
 
-                if (!closeParen)
+                if (!token)
                 {
                     break;
                 }
-
-                token = closeParen;
             }
             else if (token->op == '=')
             {
                 hasEquals = true;
-                functionName = nullptr;
+                current.functionName = nullptr;
             }
             else if (token->op == '{')
             {
-                openBrace = token;
-                closeBrace = FindTokenScope(token, nullptr, '{', '}');
+                current.openBrace = token;
+                current.closeBrace = FindTokenScope(token, nullptr, '{', '}');
 
-                if (!closeBrace)
+                if (!current.closeBrace)
                 {
                     break;
                 }
 
-                token = closeBrace;
-                const auto isFunction = functionName != nullptr;
-                const auto* firstToken = SkipLeadingAttributes(statementBeg, openBrace);
+                token = current.closeBrace;
+                const auto isFunction = current.functionName != nullptr;
+                const auto* firstToken = SkipLeadingAttributes(current.beg, current.openBrace);
                 const auto isBlock = firstToken && firstToken->name && (firstToken->str() == "property" || firstToken->str() == "namespace" || firstToken->str() == "extension");
 
                 if (isFunction || isBlock)
@@ -854,48 +832,39 @@ namespace PKAssets::Shader
                         token = token->next;
                     }
 
-                    statements.push_back({ statementBeg, token, openBrace, closeBrace, isFunction ? functionName : nullptr, isFunction });
-                    statementBeg = nullptr;
-                    openBrace = nullptr;
-                    closeBrace = nullptr;
-                    functionName = nullptr;
-                    hasEquals = false;
+                    commitStatement(token, isFunction);
                 }
             }
             else if (token->op == ';')
             {
-                const auto isPrototype = !openBrace && !hasEquals && functionName;
-                statements.push_back({ statementBeg, token, openBrace, closeBrace, isPrototype ? functionName : nullptr, isPrototype });
-
-                statementBeg = nullptr;
-                openBrace = nullptr;
-                closeBrace = nullptr;
-                functionName = nullptr;
-                hasEquals = false;
+                const auto isPrototype = !current.openBrace && !hasEquals && current.functionName != nullptr;
+                commitStatement(token, isPrototype);
             }
         }
 
         return statements;
     }
 
-    static simplecpp::Token* FindPropertyDeclarationName(const TokenStatement& statement)
+    static simplecpp::Token* FindDeclarationName(const TokenStatement& statement)
     {
-        if (statement.beg &&
-            statement.openBrace &&
-            statement.beg->name &&
-            statement.beg->str() == "property" &&
-            statement.openBrace->previous &&
-            statement.openBrace->previous->name)
+        if (statement.isFunction)
         {
-            return statement.openBrace->previous;
+            return statement.functionName;
         }
 
-        return nullptr;
-    }
+        if (statement.openBrace)
+        {
+            const auto* firstToken = SkipLeadingAttributes(statement.beg, statement.openBrace);
 
-    static simplecpp::Token* FindVariableDeclarationName(const TokenStatement& statement)
-    {
-        if (statement.isFunction || statement.openBrace || !statement.end)
+            if (firstToken && firstToken->name && firstToken->str() == "property" && statement.openBrace->previous && statement.openBrace->previous->name)
+            {
+                return statement.openBrace->previous;
+            }
+
+            return nullptr;
+        }
+
+        if (!statement.end)
         {
             return nullptr;
         }
@@ -948,34 +917,19 @@ namespace PKAssets::Shader
 
         for (const auto* token = tokens.cfront(); token; token = token->next)
         {
-            if (token->name && (!token->previous || token->previous->op != '.'))
+            if (IsUnqualifiedIdentifier(token))
             {
                 counts[GetTokenUsageKey(token)]++;
             }
         }
 
-        // Subtract declaration tokens so the map only stores actual reference counts
+        // Subtract declaration tokens so the map only stores actual reference counts.
         for (const auto& statement : statements)
         {
-            const simplecpp::Token* declToken = nullptr;
-
-            if (statement.isFunction)
-            {
-                declToken = statement.functionName;
-            }
-            else if (auto* propToken = FindPropertyDeclarationName(statement))
-            {
-                declToken = propToken;
-            }
-            else if (auto* varToken = FindVariableDeclarationName(statement))
-            {
-                declToken = varToken;
-            }
-
-            if (declToken)
+            if (const auto* declToken = FindDeclarationName(statement))
             {
                 auto iterator = counts.find(GetTokenUsageKey(declToken));
-                
+
                 if (iterator != counts.end() && iterator->second > 0u)
                 {
                     iterator->second--;
@@ -1121,7 +1075,9 @@ namespace PKAssets::Shader
 
         for (const auto& line : StringUtilities::Split(error, "\r\n"))
         {
-            output.append(line + "\n");
+            output.append(line);
+            output.push_back('\n');
+
             auto lineIndex = 0ull;
 
             if (StringUtilities::ExtractDiagnosticLineIndex(line, name, &lineIndex) && lineIndex)
@@ -1149,97 +1105,50 @@ namespace PKAssets::Shader
             return -1;
         }
 
-        auto sharedStageMask = 0u;
-        std::vector<EntryPointInfo> sharedEntryPoints;
+        ShaderPass sharedPass{ PK_SHADER_ATTRIB_PASS_ANY, 0u };
 
         for (const auto& directive : directives)
         {
-            if (directive.args.size() != 2)
-            {
-                printf("Error: Entry point declaration for pass '%s' contains an invalid number of arguments (should be pass, stage, name)\n", directive.pass.c_str());
-                return -1;
-            }
+            RETURN_ERROR_IF(directive.args.size() != 2u, "Entry point declaration for pass '{}' contains an invalid number of arguments (should be pass, stage, name)", directive.pass);
 
             const auto stage = StringToPKShaderStage(directive.args[0].c_str());
 
-            if (stage == PKShaderStage::EnumCount)
-            {
-                printf("Error: Unsupported shader stage '%s' specified!\n", directive.args[0].c_str());
-                return -1;
-            }
+            RETURN_ERROR_IF(stage == PKShaderStage::EnumCount, "Unsupported shader stage '{}' specified!", directive.args[0]);
+            RETURN_ERROR_IF(source.find(directive.args[1], 0ull) == std::string::npos, "Definition for declared entry point '{}' was not found!", directive.args[1]);
 
             EntryPointInfo info{};
             info.name = directive.args[1];
             info.stage = stage;
 
-            if (source.find(info.name, 0u) == std::string::npos)
+            const auto isAny = directive.pass == PK_SHADER_ATTRIB_PASS_ANY;
+            auto& targetPass = isAny ? sharedPass : FindOrAddPass(passes, directive.pass);
+
+            if (AddPassEntryPoint(targetPass, info, !isAny) != 0)
             {
-                printf("Error: Definition for declared entry point '%s' was not found!\n", info.name.c_str());
                 return -1;
-            }
-
-            if (directive.pass == PK_SHADER_ATTRIB_PASS_ANY)
-            {
-                if (sharedStageMask & (1u << (uint32_t)info.stage))
-                {
-                    printf("Error: Pass '%s' already declares an entry point for '%s'!\n", PK_SHADER_ATTRIB_PASS_ANY, PKShaderStage_NAMES[(uint32_t)info.stage]);
-                    return -1;
-                }
-
-                sharedStageMask |= 1u << (uint32_t)info.stage;
-                sharedEntryPoints.push_back(info);
-            }
-            else
-            {
-                auto& pass = FindOrAddPass(passes, directive.pass);
-
-                if (!pass.entryPoints.empty() && GetShaderPassType(pass.entryPoints[0].stage) != GetShaderPassType(info.stage))
-                {
-                    printf("Error: Pass '%s' mixes incompatible shader stage types!\n", directive.pass.c_str());
-                    return -1;
-                }
-
-                if (pass.stageMask & (1u << (uint32_t)info.stage))
-                {
-                    printf("Error: Pass '%s' already declares an entry point for '%s'!\n", directive.pass.c_str(), PKShaderStage_NAMES[(uint32_t)info.stage]);
-                    return -1;
-                }
-
-                pass.stageMask |= 1u << (uint32_t)info.stage;
-                pass.entryPoints.push_back(info);
             }
         }
 
         if (passes.empty())
         {
-            if (sharedEntryPoints.empty())
+            RETURN_ERROR_IF(sharedPass.entryPoints.empty(), "Shader does not declare any entry points!");
+
+            const auto passType = GetShaderPassType(sharedPass.entryPoints[0].stage);
+
+            for (auto i = 1ull; i < sharedPass.entryPoints.size(); ++i)
             {
-                printf("Error: Shader does not declare any entry points!\n");
-                return -1;
+                RETURN_ERROR_IF(GetShaderPassType(sharedPass.entryPoints[i].stage) != passType, "Pass '{}' mixes incompatible shader stage types!", PK_SHADER_ATTRIB_PASS_ANY);
             }
 
-            const auto passType = GetShaderPassType(sharedEntryPoints[0].stage);
-
-            for (auto i = 1ull; i < sharedEntryPoints.size(); ++i)
-            {
-                if (GetShaderPassType(sharedEntryPoints[i].stage) != passType)
-                {
-                    printf("Error: Pass '%s' mixes incompatible shader stage types!\n", PK_SHADER_ATTRIB_PASS_ANY);
-                    return -1;
-                }
-            }
-
-            auto& pass = FindOrAddPass(passes, PK_SHADER_ATTRIB_PASS_ANY);
-            pass.stageMask = sharedStageMask;
-            pass.entryPoints = std::move(sharedEntryPoints);
+            passes.push_back(std::move(sharedPass));
         }
-        else if (!sharedEntryPoints.empty())
+        else if (!sharedPass.entryPoints.empty())
         {
             for (auto& pass : passes)
             {
                 const auto passType = GetShaderPassType(pass.entryPoints[0].stage);
-                
-                for (const auto& info : sharedEntryPoints)
+
+                for (const auto& info : sharedPass.entryPoints)
                 {
                     const auto stageFlag = 1u << (uint32_t)info.stage;
 
@@ -1252,18 +1161,13 @@ namespace PKAssets::Shader
             }
         }
 
-        if (passes.size() > PK_ASSET_MAX_SHADER_PASSES)
-        {
-            printf("Error: Maximum number of shader passes exceeded (%llu / %u)!\n", passes.size(), PK_ASSET_MAX_SHADER_PASSES);
-            return -1;
-        }
-
+        RETURN_ERROR_IF(passes.size() > PK_ASSET_MAX_SHADER_PASSES, "Maximum number of shader passes exceeded ({} / {})!", passes.size(), PK_ASSET_MAX_SHADER_PASSES);
+        
         return 0;
     }
 
     int ExtractMulticompiles(std::string& source, ShaderPasses& passes)
     {
-        constexpr auto maxDirectiveValuesPerDirective = PK_ASSET_MAX_SHADER_DIRECTIVE_SIZE;
         constexpr auto maxDirectivesPerPass = PK_ASSET_MAX_SHADER_DIRECTIVES;
         constexpr auto maxVariantsPerPass = PK_ASSET_MAX_SHADER_VARIANTS;
         constexpr auto maxTotalDirectives = 0xFFu;
@@ -1277,51 +1181,32 @@ namespace PKAssets::Shader
             return -1;
         }
 
-        std::vector<ParsedDirective> parsedDirectives;
-        parsedDirectives.reserve(pragmaDirectives.size());
+        for (auto& pass : passes)
+        {
+            pass.directives.clear();
+            pass.variantDefines.clear();
+        }
 
         for (const auto& pragma : pragmaDirectives)
         {
-            if (pragma.args.size() < 3u)
+            ShaderDirective parsed{};
+
+            if (ParseMulticompileDirective(pragma, parsed) != 0)
             {
-                printf("Error: Multicompile directive in pass '%s' requires a directive name, pass name and at least two integer values!\n", pragma.pass.c_str());
                 return -1;
             }
 
-            ParsedDirective parsed{};
-            parsed.pass = pragma.pass;
-            parsed.name = pragma.args[0];
-            parsed.values.reserve(pragma.args.size() - 1ull);
-
-            for (auto i = 1ull; i < pragma.args.size(); ++i)
+            ForEachMatchingPass(passes, pragma.pass, [&](ShaderPass& pass)
             {
-                int16_t value = 0;
-
-                if (!StringUtilities::TryParseInt16(pragma.args[i], &value))
+                if (auto* existing = FindByName(pass.directives, parsed.name))
                 {
-                    printf("Error: Multicompile directive '%s' in pass '%s' has non-integer value '%s'!\n", parsed.name.c_str(), parsed.pass.c_str(), pragma.args[i].c_str());
-                    return -1;
+                    existing->values = parsed.values;
                 }
-
-                if (std::find(parsed.values.begin(), parsed.values.end(), value) == parsed.values.end())
+                else
                 {
-                    parsed.values.push_back(value);
+                    pass.directives.push_back(parsed);
                 }
-            }
-
-            if (parsed.values.size() < 2u)
-            {
-                printf("Error: Multicompile directive '%s' in pass '%s' requires at least two unique integer values!\n", parsed.name.c_str(), parsed.pass.c_str());
-                return -1;
-            }
-
-            if (parsed.values.size() > maxDirectiveValuesPerDirective)
-            {
-                printf("Error: Multicompile directive '%s' exceeds maximum value count limit '%u' in pass '%s'!\n", parsed.name.c_str(), maxDirectiveValuesPerDirective, parsed.pass.c_str());
-                return -1;
-            }
-
-            parsedDirectives.push_back(std::move(parsed));
+            });
         }
 
         auto totalDirectives = 0ull;
@@ -1330,50 +1215,11 @@ namespace PKAssets::Shader
 
         for (auto& pass : passes)
         {
-            pass.directives.clear();
-            pass.variantDefines.clear();
-
-            for (const auto& parsed : parsedDirectives)
-            {
-                if (parsed.pass != PK_SHADER_ATTRIB_PASS_ANY && parsed.pass != pass.name)
-                {
-                    continue;
-                }
-
-                auto overridden = false;
-
-                for (auto& existing : pass.directives)
-                {
-                    if (existing.name == parsed.name)
-                    {
-                        existing.values = parsed.values;
-                        overridden = true;
-                        break;
-                    }
-                }
-
-                if (!overridden)
-                {
-                    if (pass.directives.size() >= maxDirectivesPerPass)
-                    {
-                        printf("Error: Pass multicompile directive limit '%u' exceeded in pass '%s'!\n", maxDirectivesPerPass, pass.name.c_str());
-                        return -1;
-                    }
-
-                    ShaderDirective dir{};
-                    dir.name = parsed.name;
-                    dir.values = parsed.values;
-                    pass.directives.push_back(std::move(dir));
-                }
-            }
-
-            if (totalDirectives + pass.directives.size() > maxTotalDirectives)
-            {
-                printf("Error: Total multicompile directive limit '%u' exceeded!\n", maxTotalDirectives);
-                return -1;
-            }
+            RETURN_ERROR_IF(pass.directives.size() > maxDirectivesPerPass, "Pass multicompile directive limit '{}' exceeded in pass '{}'!", maxDirectivesPerPass, pass.name);
 
             totalDirectives += pass.directives.size();
+
+            RETURN_ERROR_IF(totalDirectives > maxTotalDirectives, "Total multicompile directive limit '{}' exceeded!", maxTotalDirectives);
 
             auto variantCount = 1ull;
 
@@ -1381,47 +1227,30 @@ namespace PKAssets::Shader
             {
                 totalDirectiveValues += dir.values.size();
 
-                if (totalDirectiveValues > maxTotalDirectiveValues)
-                {
-                    printf("Error: Total shader directive value count limit '%u' exceeded!\n", maxTotalDirectiveValues);
-                    return -1;
-                }
-
-                if (variantCount * dir.values.size() > maxVariantsPerPass)
-                {
-                    printf("Error: Pass variant count limit '%u' exceeded in pass '%s'!\n", maxVariantsPerPass, pass.name.c_str());
-                    return -1;
-                }
+                RETURN_ERROR_IF(totalDirectiveValues > maxTotalDirectiveValues, "Total shader directive value count limit '{}' exceeded!", maxTotalDirectiveValues);
+                RETURN_ERROR_IF(variantCount * dir.values.size() > maxVariantsPerPass, "Pass variant count limit '{}' exceeded in pass '{}'!", maxVariantsPerPass, pass.name);
 
                 dir.stride = (uint8_t)variantCount;
                 variantCount *= dir.values.size();
             }
 
-            if (totalVariants + variantCount > maxTotalVariants)
-            {
-                printf("Error: Total shader variant count limit '%u' exceeded!\n", maxTotalVariants);
-                return -1;
-            }
-
             totalVariants += variantCount;
 
+            RETURN_ERROR_IF(totalVariants > maxTotalVariants, "Total shader variant count limit '{}' exceeded!", maxTotalVariants);
+
             pass.variantDefines.reserve(variantCount);
-            const auto passDefine = pass.name != PK_SHADER_ATTRIB_PASS_ANY ? ("#define " + pass.name + "\n") : "";
+            const auto passDefine = pass.name != PK_SHADER_ATTRIB_PASS_ANY ? std::format("#define {}\n", pass.name) : std::string();
 
             for (auto i = 0u; i < variantCount; ++i)
             {
                 auto defines = passDefine;
-                auto declareIndex = i;
+                auto variantIndex = i;
 
                 for (const auto& dir : pass.directives)
                 {
-                    const auto value = dir.values[declareIndex % dir.values.size()];
-                    defines.append("#define ");
-                    defines.append(dir.name);
-                    defines.append(" ");
-                    defines.append(std::to_string(value));
-                    defines.append("\n");
-                    declareIndex /= (uint32_t)dir.values.size();
+                    const auto valueCount = (uint32_t)dir.values.size();
+                    defines += std::format("#define {} {}\n", dir.name, dir.values[variantIndex % valueCount]);
+                    variantIndex /= valueCount;
                 }
 
                 pass.variantDefines.push_back(std::move(defines));
@@ -1487,11 +1316,11 @@ namespace PKAssets::Shader
 
     int ExtractExportedStructs(std::string& source, ShaderStructs& outStructs)
     {
+        outStructs.clear();
+
         std::vector<std::string> structNames;
         std::string output;
         auto pos = 0ull;
-
-        outStructs.clear();
 
         while (true)
         {
@@ -1502,13 +1331,9 @@ namespace PKAssets::Shader
                 break;
             }
 
-            auto parts = StringUtilities::Split(output, " \n\r");
+            const auto parts = StringUtilities::Split(output, " \n\r");
 
-            if (parts.size() != 1u)
-            {
-                printf("Error: '%s' expects a single struct name argument!\n", PK_SHADER_ATTRIB_EXPORT_STRUCT);
-                return -1;
-            }
+            RETURN_ERROR_IF(parts.size() != 1u, "'{}' expects a single struct name argument!", PK_SHADER_ATTRIB_EXPORT_STRUCT);
 
             if (std::find(structNames.begin(), structNames.end(), parts[0]) == structNames.end())
             {
@@ -1521,50 +1346,31 @@ namespace PKAssets::Shader
             auto openBrace = 0ull;
             auto closeBrace = 0ull;
 
-            if (!FindStructDefinition(source, structName, &openBrace, &closeBrace))
-            {
-                printf("Error: Definition for exported struct '%s' was not found!\n", structName.c_str());
-                return -1;
-            }
+            RETURN_ERROR_IF(!FindStructDefinition(source, structName, &openBrace, &closeBrace), "Definition for exported struct '{}' was not found!", structName);
 
             const auto bodySource = source.substr(openBrace + 1ull, closeBrace - openBrace - 1ull);
-
             std::istringstream stream(bodySource);
             std::vector<std::string> filenames;
             simplecpp::OutputList outputList;
             simplecpp::TokenList bodyTokens(stream, filenames, structName, {}, &outputList);
             bodyTokens.removeComments();
 
-            std::vector<ParsedUniformDecl> fields;
+            std::vector<ParsedUniform> fields;
 
             for (auto* tokenBeg = bodyTokens.front(); tokenBeg;)
             {
-                ParsedUniformDecl decl{};
-                const auto* error = ParseUniformDeclaration(tokenBeg, nullptr, decl);
+                auto& uniform = fields.emplace_back();
+                const auto* error = ParseUniform(tokenBeg, nullptr, uniform);
 
-                if (error)
-                {
-                    printf("Error: %s near '%s' in exported struct '%s'!\n", error, tokenBeg->str().c_str(), structName.c_str());
-                    return -1;
-                }
+                RETURN_ERROR_IF(error, "{} near '{}' in exported struct '{}'!", error, tokenBeg->str(), structName);
+                RETURN_ERROR_IF(PKUniformIsResourceHandle(uniform.type) && uniform.count > 1u, "Resource handle arrays are not supported in exported struct '{}' ('{}')!", structName, uniform.name);
 
-                if (PKUniformIsResourceHandle(decl.type) && decl.count > 1u)
-                {
-                    printf("Error: Resource handle arrays are not supported in exported struct '%s' ('%s')!\n", structName.c_str(), decl.name.c_str());
-                    return -1;
-                }
-
-                tokenBeg = decl.endToken->next;
-                fields.push_back(std::move(decl));
+                tokenBeg = uniform.endToken->next;
             }
 
-            if (!fields.size())
-            {
-                printf("Error: Exported struct '%s' has no fields!\n", structName.c_str());
-                return -1;
-            }
+            RETURN_ERROR_IF(fields.empty(), "Exported struct '{}' has no fields!", structName);
 
-            std::stable_sort(fields.begin(), fields.end(), [](const ParsedUniformDecl& a, const ParsedUniformDecl& b)
+            std::stable_sort(fields.begin(), fields.end(), [](const ParsedUniform& a, const ParsedUniform& b)
             {
                 const auto alignA = PKUniformToScalarSize(a.type);
                 const auto alignB = PKUniformToScalarSize(b.type);
@@ -1577,55 +1383,55 @@ namespace PKAssets::Shader
                 return PKUniformToSize(a.type) * a.count > PKUniformToSize(b.type) * b.count;
             });
 
-            auto stride = 0u;
-            auto maxAlign = 4u;
-            std::string structFields;
-            std::string propertyAccessors;
-
-            outStructs.push_back({structName});
-            auto& outStruct = outStructs.back();
+            auto& outStruct = outStructs.emplace_back();
+            outStruct.name = structName;
             outStruct.fields.reserve(fields.size());
 
-            for (auto& field : fields)
+            auto stride = 0u;
+            auto maxAlign = 4u;
+
+            for (const auto& field : fields)
             {
                 const auto align = PKUniformToScalarSize(field.type);
                 maxAlign = std::max(maxAlign, align);
-                stride = (stride + align - 1u) & ~(align - 1u);
+                stride = AlignUp(stride, align);
 
-                PKShaderStructField parsed{};
-                WriteName(parsed.name, field.name.c_str());
-                parsed.type = field.type;
-                parsed.count = (uint8_t)field.count;
-                parsed.offset = (uint16_t)stride;
-                outStruct.fields.push_back(parsed);
+                auto& layoutField = outStruct.fields.emplace_back();
+                WriteName(layoutField.name, field.name.c_str());
+                layoutField.type = field.type;
+                layoutField.count = field.count;
+                layoutField.offset = stride;
 
                 stride += PKUniformToSize(field.type) * field.count;
+            }
 
+            const auto alignedStride = AlignUp(stride, maxAlign);
+            const auto padding = alignedStride - stride;
+            outStruct.size = alignedStride;
+
+            std::string structFields;
+            std::string accessors;
+
+            for (const auto& field : fields)
+            {
                 if (PKUniformIsResourceHandle(field.type))
                 {
-                    const auto handleName = field.name + "_Handle";
-                    structFields += field.fieldType + " " + handleName + ";\n";
-                    propertyAccessors += CompileUniformProperty(field.type, field.targetType, field.name, handleName, false);
+                    const auto* macro = field.type == PKUniform::AccelerationStructure ? "PK_STRUCT_TLAS" : "PK_STRUCT_HANDLE";
+                    structFields += std::format("{} {}_Handle;\n", field.fieldType, field.name);
+                    accessors += std::format("{}({}, {})\n", macro, field.targetType, field.name);
+                    continue;
                 }
-                else
-                {
-                    const auto arraySuffix = field.count > 1u ? ("[" + std::to_string(field.count) + "]") : "";
-                    structFields += field.fieldType + " " + field.name + arraySuffix + ";\n";
-                }
+
+                const auto arraySuffix = field.count > 1u ? std::format("[{}]", field.count) : "";
+                structFields += std::format("{} {}{};\n", field.fieldType, field.name, arraySuffix);
             }
 
-            if (stride % maxAlign)
+            if (padding > 0u)
             {
-                const auto padding = maxAlign - (stride % maxAlign);
-                structFields += "uint8_t _pk_pad[" + std::to_string(padding) + "];\n";
-                stride += padding;
+                structFields += std::format("uint8_t _pk_pad[{}];\n", padding);
             }
 
-            outStruct.size = (uint16_t)stride;
-
-            const auto compiledBody = "{\n" + structFields + propertyAccessors + "}";
-            
-            source.replace(openBrace, closeBrace - openBrace + 1ull, compiledBody);
+            source.replace(openBrace, closeBrace - openBrace + 1ull, std::format("{{\n{}{}}}", structFields, accessors));
         }
 
         return 0;
@@ -1645,11 +1451,13 @@ namespace PKAssets::Shader
         if (!outputList.empty())
         {
             printf("\n ----------BEGIN PREPROCESS ERROR---------- \n");
+
             for (const auto& output : outputList)
             {
-                auto filename = output.location.fileIndex < filenames.size() ? filenames[output.location.fileIndex] : name;
+                const auto& filename = output.location.fileIndex < filenames.size() ? filenames[output.location.fileIndex] : name;
                 printf("%s:%u: %s\n", filename.c_str(), output.location.line, output.msg.c_str());
             }
+
             printf("\n ----------END PREPROCESS ERROR---------- \n\n");
             return -1;
         }
@@ -1665,11 +1473,9 @@ namespace PKAssets::Shader
         {
             if (statement.isFunction && statement.functionName && statement.openBrace)
             {
-                const auto* entry = FindActiveEntryPoint(statement.functionName->str(), activeEntries);
-
-                if (entry)
+                if (const auto* entry = FindByName(activeEntries, statement.functionName->str()))
                 {
-                    statement.beg->setstr(std::string(GetSlangStageAttribute(entry->stage)) + statement.beg->str());
+                    statement.beg->setstr(std::format("{}{}", GetSlangStageAttribute(entry->stage), statement.beg->str()));
                 }
             }
         }
@@ -1694,19 +1500,19 @@ namespace PKAssets::Shader
                     const auto& functionName = statement.functionName->str();
 
                     auto minArgs = 0u;
-                    auto maxArgs = GetFunctionArityRange(FindFunctionOpenParen(statement.functionName), &minArgs);
+                    const auto maxArgs = GetFunctionArityRange(FindFunctionOpenParen(statement.functionName), &minArgs);
 
                     auto totalRefs = 0u;
                     auto selfRefs = 0u;
 
                     for (auto arity = minArgs; arity <= maxArgs; ++arity)
                     {
-                        const auto functionKey = functionName + "#" + std::to_string(arity);
+                        const auto functionKey = std::format("{}#{}", functionName, arity);
                         totalRefs += GetIdentifierUsageCount(usageMap, functionKey);
                         selfRefs += CountIdentifierInRange(statement.openBrace, statement.end, functionKey);
                     }
 
-                    if (!FindActiveEntryPoint(functionName, activeEntries) && totalRefs <= selfRefs)
+                    if (!FindByName(activeEntries, functionName) && totalRefs <= selfRefs)
                     {
                         EraseTokenRange(tokens, statement.beg, statement.end);
                         changed = true;
@@ -1715,20 +1521,9 @@ namespace PKAssets::Shader
                     continue;
                 }
 
-                if (auto* propertyNameToken = FindPropertyDeclarationName(statement))
+                if (const auto* declToken = FindDeclarationName(statement))
                 {
-                    if (GetIdentifierUsageCount(usageMap, propertyNameToken->str()) == 0u)
-                    {
-                        EraseTokenRange(tokens, statement.beg, statement.end);
-                        changed = true;
-                    }
-
-                    continue;
-                }
-
-                if (auto* variableNameToken = FindVariableDeclarationName(statement))
-                {
-                    if (GetIdentifierUsageCount(usageMap, variableNameToken->str()) == 0u)
+                    if (GetIdentifierUsageCount(usageMap, declToken->str()) == 0u)
                     {
                         EraseTokenRange(tokens, statement.beg, statement.end);
                         changed = true;
@@ -1756,37 +1551,28 @@ namespace PKAssets::Shader
                 continue;
             }
 
-            ParsedUniformDecl decl{};
+            ParsedUniform uniform{};
 
-            if (ParseUniformDeclaration(token->next, statement.end, decl) != nullptr || decl.endToken != statement.end)
+            if (ParseUniform(token->next, statement.end, uniform) != nullptr || uniform.endToken != statement.end)
             {
                 continue;
             }
 
-            auto found = false;
-
-            for (auto& member : outConstants)
+            if (const auto* existing = FindByName(outConstants, uniform.name))
             {
-                if (member.name == decl.name)
+                if (existing->targetType != uniform.targetType || existing->count != uniform.count)
                 {
-                    if (member.targetType != decl.targetType || member.count != decl.count)
-                    {
-                        printf("Warning constant parameter '%s' was declared again with a different format '%s'\n", member.name.c_str(), decl.targetType.c_str());
-                    }
-
-                    found = true;
-                    break;
+                    printf("Warning constant parameter '%s' was declared again with a different format '%s'\n", existing->name.c_str(), uniform.targetType.c_str());
                 }
             }
-
-            if (!found)
+            else
             {
                 SourcePushConstant constant{};
-                constant.name = std::move(decl.name);
-                constant.fieldType = std::move(decl.fieldType);
-                constant.targetType = std::move(decl.targetType);
-                constant.type = decl.type;
-                constant.count = decl.count;
+                constant.name = std::move(uniform.name);
+                constant.fieldType = std::move(uniform.fieldType);
+                constant.targetType = std::move(uniform.targetType);
+                constant.type = uniform.type;
+                constant.count = uniform.count;
                 outConstants.push_back(std::move(constant));
             }
 
@@ -1814,17 +1600,17 @@ namespace PKAssets::Shader
             if (isPackedHandle)
             {
                 member.memberAlignment = 4u;
-                member.memberSize = (totalSize + 3u) & ~3u;
+                member.memberSize = (uint16_t)AlignUp(totalSize, 4u);
 
                 if (member.count == 1u)
                 {
-                    member.bitSize = elementSize * 8u;
+                    member.bitSize = (uint8_t)(elementSize * 8u);
                 }
             }
             else
             {
-                member.memberAlignment = PKUniformToScalarSize(member.type);
-                member.memberSize = totalSize;
+                member.memberAlignment = (uint8_t)PKUniformToScalarSize(member.type);
+                member.memberSize = (uint16_t)totalSize;
             }
         }
 
@@ -1859,10 +1645,10 @@ namespace PKAssets::Shader
             if (member.bitSize > 0u)
             {
                 const auto elementSize = member.bitSize / 8u;
-                packedByteOffset = (packedByteOffset + elementSize - 1u) & ~(elementSize - 1u);
+                packedByteOffset = AlignUp(packedByteOffset, elementSize);
 
-                member.memberIndex = dedicatedMemberCount + packedByteOffset / 4u;
-                member.bitOffset = (packedByteOffset % 4u) * 8u;
+                member.memberIndex = (uint16_t)(dedicatedMemberCount + packedByteOffset / 4u);
+                member.bitOffset = (uint8_t)((packedByteOffset % 4u) * 8u);
                 packedByteOffset += elementSize;
             }
             else
@@ -1881,38 +1667,38 @@ namespace PKAssets::Shader
             if (member.bitSize > 0u)
             {
                 const auto wordIndex = member.memberIndex - dedicatedMemberCount;
-                accessors += "PK_PC_HANDLE(" + member.targetType + ", " + member.name + ", " + std::to_string(wordIndex) + ", " + std::to_string(member.bitOffset) + ", " + std::to_string(member.bitSize) + ")\n";
+                accessors += std::format("PK_PC_HANDLE({}, {}, {}, {}, {})\n", member.targetType, member.name, wordIndex, member.bitOffset, member.bitSize);
                 continue;
             }
 
-            const auto arraySuffix = member.count > 1u ? "[" + std::to_string(member.count) + "]" : "";
+            const auto arraySuffix = member.count > 1u ? std::format("[{}]", member.count) : "";
 
             if (!PKUniformIsResourceHandle(member.type))
             {
-                blockFields += member.fieldType + " " + member.name + arraySuffix + ";\n";
+                blockFields += std::format("{} {}{};\n", member.fieldType, member.name, arraySuffix);
                 continue;
             }
 
             if (member.type == PKUniform::AccelerationStructure)
             {
-                const auto macro = member.count > 1u ? "PK_PC_TLAS_ARRAY(" : "PK_PC_TLAS(";
-                blockFields += member.fieldType + " " + member.name + "_Handle" + arraySuffix + ";\n";
-                accessors += macro + member.targetType + ", " + member.name + ")\n";
+                const auto* macro = member.count > 1u ? "PK_PC_TLAS_ARRAY" : "PK_PC_TLAS";
+                blockFields += std::format("{} {}_Handle{};\n", member.fieldType, member.name, arraySuffix);
+                accessors += std::format("{}({}, {})\n", macro, member.targetType, member.name);
                 continue;
             }
 
             const auto wordCount = member.memberSize / 4u;
             const auto elementBits = PKUniformToSize(member.type) * 8u;
-            blockFields += "uint " + member.name + "_Handle[" + std::to_string(wordCount) + "];\n";
-            accessors += "PK_PC_HANDLE_ARRAY(" + member.targetType + ", " + member.name + ", " + std::to_string(elementBits) + "u)\n";
+            blockFields += std::format("uint {}_Handle[{}];\n", member.name, wordCount);
+            accessors += std::format("PK_PC_HANDLE_ARRAY({}, {}, {}u)\n", member.targetType, member.name, elementBits);
         }
 
         for (auto wordIndex = 0u; wordIndex < packedWordCount; ++wordIndex)
         {
-            blockFields += "uint pk_packed_pc_" + std::to_string(wordIndex) + ";\n";
+            blockFields += std::format("uint pk_packed_pc_{};\n", wordIndex);
         }
 
-        source.insert(0ull, "[[vk::push_constant]] cbuffer pk_global_push_constant_block\n{\n" + blockFields + "};\n" + accessors);
+        source.insert(0ull, std::format("[[vk::push_constant]] cbuffer pk_global_push_constant_block\n{{\n{}}};\n{}", blockFields, accessors));
     }
 
     uint64_t FNV1aHash(const void* data, uint64_t size, uint64_t hash)

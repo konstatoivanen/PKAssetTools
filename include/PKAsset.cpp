@@ -89,8 +89,7 @@ namespace PKAssets
         2u, /*ConstantBuffer*/
         2u, /*StorageBuffer*/
         2u, /*InputAttachment*/
-        8u, /*AccelerationStructure*/
-        1u  /*Keyword*/
+        8u /*AccelerationStructure*/
     };
 
     const static PKUniform PKUniform_SCALAR[] =
@@ -119,8 +118,7 @@ namespace PKAssets
         PKUniform::ConstantBuffer,
         PKUniform::StorageBuffer,
         PKUniform::InputAttachment,
-        PKUniform::AccelerationStructure,
-        PKUniform::Keyword
+        PKUniform::AccelerationStructure
     };
 
     uint32_t PKUniformToSize(PKUniform type)
@@ -287,18 +285,6 @@ namespace PKAssets
         }
 
         return quantized[0] | (quantized[1] << 10u) | (quantized[2] << 20u) | ((index & 0x3u) << 30u);
-    }
-
-
-    PKDrawInfo PackPKDrawInfo(uint16_t material, float uniformScale, uint32_t transform, uint32_t submesh, uint32_t userdata)
-    {
-        PKDrawInfo info;
-        info.material = material;
-        info.uniformScale = PackHalf(uniformScale);
-        info.transform = transform;
-        info.submesh = submesh;
-        info.userdata = userdata;
-        return info;
     }
 
     PKMeshletVertex PackPKMeshletVertex(const float* pPosition,

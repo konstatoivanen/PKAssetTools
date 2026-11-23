@@ -12,6 +12,7 @@ namespace PKAssets::StringUtilities
     std::string ReadFileRecursiveInclude(const std::string& filepath, std::vector<std::string>& outIncludes);
     std::string ExtractToken(const char* token, std::string& source, bool includeToken, bool trim = false);
     std::string GetLineAtIndex(const std::string& string, size_t index);
+    std::string_view ReadIdentifier(const std::string& source, size_t& pos);
     size_t ExtractToken(size_t offset, const char* token, std::string& source, std::string& output, bool includeToken, bool trim = false);
     size_t SkipWhitespaceAndComments(const std::string& source, size_t pos);
     size_t SkipStringLiteral(const std::string& source, size_t pos);

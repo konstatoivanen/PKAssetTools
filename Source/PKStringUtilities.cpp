@@ -213,6 +213,18 @@ namespace PKAssets::StringUtilities
         return std::string();
     }
 
+    std::string_view ReadIdentifier(const std::string& source, size_t& pos)
+    {
+        const auto beg = pos;
+
+        while (pos < source.size() && StringUtilities::IsAlphaNumeric(source[pos]))
+        {
+            pos++;
+        }
+
+        return std::string_view(source.data() + beg, pos - beg);
+    }
+
     size_t ExtractToken(size_t offset, const char* token, std::string& source, std::string& output, bool includeToken, bool trim)
     {
         auto pos = source.find(token, offset);

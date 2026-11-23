@@ -215,7 +215,12 @@ typedef struct SpvReflectPrvParser {
   const char*                     source_embedded;
   size_t                          node_count;
   SpvReflectPrvNode*              nodes;
+  // Maps a result id to (node index + 1); 0 means "no node". Sized by the id
+  // bound from the SPIR-V header so FindNode() is O(1) instead of O(node_count).
+  uint32_t                        id_bound;
+  uint32_t*                       node_index_by_id;
   uint32_t                        entry_point_count;
+  uint32_t                        graph_entry_point_count;
   uint32_t                        capability_count;
   uint32_t                        function_count;
   SpvReflectPrvFunction*          functions;
@@ -547,15 +552,20 @@ static SpvReflectDescriptorType ClassifyHeapDescriptorType(const SpvReflectTypeD
 }
 
 static SpvReflectPrvNode* FindNode(SpvReflectPrvParser* p_parser, uint32_t result_id) {
-  SpvReflectPrvNode* p_node = NULL;
-  for (size_t i = 0; i < p_parser->node_count; ++i) {
-    SpvReflectPrvNode* p_elem = &(p_parser->nodes[i]);
-    if (p_elem->result_id == result_id) {
-      p_node = p_elem;
-      break;
-    }
+  if (result_id == 0 || result_id >= p_parser->id_bound) {
+    return NULL;
   }
-  return p_node;
+  uint32_t index_plus_one = p_parser->node_index_by_id[result_id];
+  return index_plus_one ? &(p_parser->nodes[index_plus_one - 1]) : NULL;
+}
+
+static uint32_t GetUint32Constant(SpvReflectPrvParser* p_parser, uint32_t id) {
+  uint32_t result = (uint32_t)INVALID_VALUE;
+  SpvReflectPrvNode* p_node = FindNode(p_parser, id);
+  if (p_node && p_node->op == SpvOpConstant) {
+    UNCHECKED_READU32(p_parser, p_node->word_offset + 3, result);
+  }
+  return result;
 }
 
 static SpvReflectTypeDescription* FindType(SpvReflectShaderModule* p_module, uint32_t type_id) {
@@ -602,6 +612,15 @@ static uint32_t FindAccessChainBaseVariable(SpvReflectPrvParser* p_parser, SpvRe
       case SpvOpBufferPointerEXT: {
         UNCHECKED_READU32(p_parser, base_node->word_offset + 3, base_id);
       } break;
+      // PK_MOD_BEGIN
+      case SpvOpUntypedAccessChainKHR:
+      case SpvOpUntypedInBoundsAccessChainKHR:
+      case SpvOpUntypedPtrAccessChainKHR:
+      case SpvOpUntypedInBoundsPtrAccessChainKHR: {
+          // Word 1: Result Type, Word 2: Result ID, Word 3: Base Type, Word 4: Base
+          UNCHECKED_READU32(p_parser, base_node->word_offset + 4, base_id);
+      } break;
+      // PK_MOD_END
       case SpvOpBitcast:
         // This can be caused by something like GL_EXT_buffer_reference_uvec2 trying to load a pointer.
         // We currently call from a push constant, so no way to have a reference loop back into the PC block
@@ -699,6 +718,8 @@ static void DestroyParser(SpvReflectPrvParser* p_parser) {
     }
 
     SafeFree(p_parser->nodes);
+    SafeFree(p_parser->node_index_by_id);
+    p_parser->id_bound = 0;
     SafeFree(p_parser->strings);
     SafeFree(p_parser->source_embedded);
     SafeFree(p_parser->functions);
@@ -744,6 +765,15 @@ static SpvReflectResult ParseNodes(SpvReflectPrvParser* p_parser) {
   p_parser->node_count = node_count;
   p_parser->nodes = (SpvReflectPrvNode*)calloc(p_parser->node_count, sizeof(*(p_parser->nodes)));
   if (IsNull(p_parser->nodes)) {
+    return SPV_REFLECT_RESULT_ERROR_ALLOC_FAILED;
+  }
+  // Allocate the result id -> node lookup table. Word 3 of the header is the id bound.
+  p_parser->id_bound = p_spirv[3];
+  if (p_parser->id_bound == 0) {
+    return SPV_REFLECT_RESULT_ERROR_SPIRV_INVALID_ID_REFERENCE;
+  }
+  p_parser->node_index_by_id = (uint32_t*)calloc(p_parser->id_bound, sizeof(*(p_parser->node_index_by_id)));
+  if (IsNull(p_parser->node_index_by_id)) {
     return SPV_REFLECT_RESULT_ERROR_ALLOC_FAILED;
   }
   // Mark all nodes with an invalid state
@@ -850,6 +880,19 @@ static SpvReflectResult ParseNodes(SpvReflectPrvParser* p_parser) {
         ++(p_parser->entry_point_count);
       } break;
 
+      case SpvOpGraphEntryPointARM: {
+        ++(p_parser->graph_entry_point_count);
+      } break;
+
+      case SpvOpTypeGraphARM: {
+        CHECKED_READU32(p_parser, p_node->word_offset + 1, p_node->result_id);
+      } break;
+
+      case SpvOpGraphARM: {
+        CHECKED_READU32(p_parser, p_node->word_offset + 1, p_node->result_type_id);
+        CHECKED_READU32(p_parser, p_node->word_offset + 2, p_node->result_id);
+      } break;
+
       case SpvOpCapability: {
         CHECKED_READU32(p_parser, p_node->word_offset + 1, p_node->capability);
         ++(p_parser->capability_count);
@@ -891,6 +934,9 @@ static SpvReflectResult ParseNodes(SpvReflectPrvParser* p_parser) {
       case SpvOpTypeCooperativeVectorNV:
       case SpvOpTypeCooperativeMatrixNV:
       case SpvOpTypeCooperativeMatrixKHR:
+      case SpvOpTypeTensorARM:
+      case SpvOpTypeTensorLayoutNV:
+      case SpvOpTypeTensorViewNV:
       case SpvOpTypeUntypedPointerKHR: {
         CHECKED_READU32(p_parser, p_node->word_offset + 1, p_node->result_id);
         p_node->is_type = true;
@@ -1103,6 +1149,13 @@ static SpvReflectResult ParseNodes(SpvReflectPrvParser* p_parser) {
       case SpvOpSDiv: {
         CHECKED_READU32(p_parser, p_node->word_offset + 2, p_node->result_id);
       } break;
+    }
+
+    // Register the node so FindNode() can reach it. Ids are unique, except for
+    // OpTypeForwardPointer whose result id is re-assigned to the OpTypePointer
+    // above, so overwriting is what we want.
+    if (p_node->result_id != 0 && p_node->result_id < p_parser->id_bound) {
+      p_parser->node_index_by_id[p_node->result_id] = node_index + 1;
     }
 
     if (p_node->is_type) {
@@ -2026,7 +2079,7 @@ static SpvReflectResult ParseType(SpvReflectPrvParser* p_parser, SpvReflectPrvNo
             // Parse next dimension or element type
             SpvReflectPrvNode* p_next_node = FindNode(p_parser, element_type_id);
             if (IsNotNull(p_next_node)) {
-              result = ParseType(p_parser, p_next_node, NULL, p_module, p_type);
+              result = ParseType(p_parser, p_next_node, p_struct_member_decorations, p_module, p_type);
             }
           } else {
             result = SPV_REFLECT_RESULT_ERROR_SPIRV_INVALID_ID_REFERENCE;
@@ -2047,7 +2100,7 @@ static SpvReflectResult ParseType(SpvReflectPrvParser* p_parser, SpvReflectPrvNo
         // Parse next dimension or element type
         SpvReflectPrvNode* p_next_node = FindNode(p_parser, element_type_id);
         if (IsNotNull(p_next_node)) {
-          result = ParseType(p_parser, p_next_node, NULL, p_module, p_type);
+          result = ParseType(p_parser, p_next_node, p_struct_member_decorations, p_module, p_type);
         } else {
           result = SPV_REFLECT_RESULT_ERROR_SPIRV_INVALID_ID_REFERENCE;
           SPV_REFLECT_ASSERT(false);
@@ -2134,6 +2187,38 @@ static SpvReflectResult ParseType(SpvReflectPrvParser* p_parser, SpvReflectPrvNo
 
       case SpvOpTypeAccelerationStructureKHR: {
         p_type->type_flags |= SPV_REFLECT_TYPE_FLAG_EXTERNAL_ACCELERATION_STRUCTURE;
+      } break;
+
+      case SpvOpTypeTensorARM: {
+        p_type->type_flags |= SPV_REFLECT_TYPE_FLAG_EXTERNAL_TENSOR_ARM;
+        uint32_t element_type_id = (uint32_t)INVALID_VALUE;
+        IF_READU32(result, p_parser, p_node->word_offset + 2, element_type_id);
+        SpvReflectPrvNode* p_next_node = FindNode(p_parser, element_type_id);
+        if (IsNotNull(p_next_node)) {
+          result = ParseType(p_parser, p_next_node, NULL, p_module, p_type);
+        } else {
+          result = SPV_REFLECT_RESULT_ERROR_SPIRV_INVALID_ID_REFERENCE;
+          SPV_REFLECT_ASSERT(false);
+        }
+        // Optional Rank and Shape operands
+        if (p_node->word_count > 3) {
+          uint32_t rank_id = (uint32_t)INVALID_VALUE;
+          IF_READU32(result, p_parser, p_node->word_offset + 3, rank_id);
+          p_type->traits.tensor.rank = GetUint32Constant(p_parser, rank_id);
+        }
+        if (p_node->word_count > 4) {
+          uint32_t shape_id = (uint32_t)INVALID_VALUE;
+          IF_READU32(result, p_parser, p_node->word_offset + 4, shape_id);
+          SpvReflectPrvNode* p_shape_node = FindNode(p_parser, shape_id);
+          if (IsNotNull(p_shape_node) &&
+              (p_shape_node->op == SpvOpConstantComposite || p_shape_node->op == SpvOpSpecConstantComposite)) {
+            for (uint32_t i = 0; i + 3 < p_shape_node->word_count && i < SPV_REFLECT_MAX_ARRAY_DIMS; ++i) {
+              uint32_t dim_id = (uint32_t)INVALID_VALUE;
+              IF_READU32(result, p_parser, p_shape_node->word_offset + 3 + i, dim_id);
+              p_type->traits.tensor.dims[i] = GetUint32Constant(p_parser, dim_id);
+            }
+          }
+        }
       } break;
 
       case SpvOpTypeBufferEXT: {
@@ -2490,6 +2575,10 @@ static SpvReflectResult ParseDescriptorType(SpvReflectShaderModule* p_module) {
         case SPV_REFLECT_TYPE_FLAG_EXTERNAL_ACCELERATION_STRUCTURE: {
           p_descriptor->descriptor_type = SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
         } break;
+
+        case SPV_REFLECT_TYPE_FLAG_EXTERNAL_TENSOR_ARM: {
+          p_descriptor->descriptor_type = SPV_REFLECT_DESCRIPTOR_TYPE_TENSOR_ARM;
+        } break;
       }
     }
 
@@ -2529,6 +2618,9 @@ static SpvReflectResult ParseDescriptorType(SpvReflectShaderModule* p_module) {
       case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
         p_descriptor->resource_type = SPV_REFLECT_RESOURCE_FLAG_SRV;
         break;
+      case SPV_REFLECT_DESCRIPTOR_TYPE_TENSOR_ARM:
+        p_descriptor->resource_type = SPV_REFLECT_RESOURCE_FLAG_UAV;
+        break;
     }
   }
 
@@ -2536,8 +2628,9 @@ static SpvReflectResult ParseDescriptorType(SpvReflectShaderModule* p_module) {
 }
 
 static SpvReflectResult ParseUAVCounterBindings(SpvReflectShaderModule* p_module) {
-  char name[MAX_NODE_NAME_LENGTH];
+  char local_name[MAX_NODE_NAME_LENGTH];
   const char* k_count_tag = "@count";
+  const size_t k_count_tag_len = strlen(k_count_tag);
 
   for (uint32_t descriptor_index = 0; descriptor_index < p_module->descriptor_binding_count; ++descriptor_index) {
     SpvReflectDescriptorBinding* p_descriptor = &(p_module->descriptor_bindings[descriptor_index]);
@@ -2564,11 +2657,29 @@ static SpvReflectResult ParseUAVCounterBindings(SpvReflectShaderModule* p_module
     // ...otherwise use old @count convention.
     else {
       const size_t descriptor_name_length = p_descriptor->name ? strlen(p_descriptor->name) : 0;
+      const size_t total_length = descriptor_name_length + k_count_tag_len + 1;
 
-      memset(name, 0, MAX_NODE_NAME_LENGTH);
-      memcpy(name, p_descriptor->name, descriptor_name_length);
+      char* name = local_name;
+      bool allocated = false;
+
+      if (total_length > MAX_NODE_NAME_LENGTH) {
+        name = (char*)malloc(total_length);
+        if (IsNull(name)) {
+          return SPV_REFLECT_RESULT_ERROR_ALLOC_FAILED;
+        }
+        allocated = true;
+      }
+
+      memset(name, 0, total_length);
+      if (p_descriptor->name != NULL && descriptor_name_length > 0) {
+        memcpy(name, p_descriptor->name, descriptor_name_length);
+      }
 #if defined(_WIN32)
-      strcat_s(name, MAX_NODE_NAME_LENGTH, k_count_tag);
+      if (allocated) {
+        strcat_s(name, total_length, k_count_tag);
+      } else {
+        strcat_s(name, MAX_NODE_NAME_LENGTH, k_count_tag);
+      }
 #else
       strcat(name, k_count_tag);
 #endif
@@ -2583,6 +2694,10 @@ static SpvReflectResult ParseUAVCounterBindings(SpvReflectShaderModule* p_module
           p_counter_descriptor = p_test_counter_descriptor;
           break;
         }
+      }
+
+      if (allocated) {
+        free(name);
       }
     }
 
@@ -3494,15 +3609,6 @@ static SpvReflectResult TraverseCallGraph(SpvReflectPrvParser* p_parser, SpvRefl
   return SPV_REFLECT_RESULT_SUCCESS;
 }
 
-static uint32_t GetUint32Constant(SpvReflectPrvParser* p_parser, uint32_t id) {
-  uint32_t result = (uint32_t)INVALID_VALUE;
-  SpvReflectPrvNode* p_node = FindNode(p_parser, id);
-  if (p_node && p_node->op == SpvOpConstant) {
-    UNCHECKED_READU32(p_parser, p_node->word_offset + 3, result);
-  }
-  return result;
-}
-
 static bool HasByteAddressBufferOffset(SpvReflectPrvNode* p_node, SpvReflectDescriptorBinding* p_binding) {
   return IsNotNull(p_node) && IsNotNull(p_binding) && (p_node->op == SpvOpAccessChain || p_node->op == SpvOpInBoundsAccessChain) && p_node->word_count == 6 &&
          (p_binding->user_type == SPV_REFLECT_USER_TYPE_BYTE_ADDRESS_BUFFER ||
@@ -4220,6 +4326,81 @@ static SpvReflectResult ParseEntryPoints(SpvReflectPrvParser* p_parser, SpvRefle
   return SPV_REFLECT_RESULT_SUCCESS;
 }
 
+static SpvReflectResult ParseGraphEntryPoints(SpvReflectPrvParser* p_parser, SpvReflectShaderModule* p_module) {
+  if (p_parser->graph_entry_point_count == 0) {
+    return SPV_REFLECT_RESULT_SUCCESS;
+  }
+
+  p_module->graph_entry_point_count = p_parser->graph_entry_point_count;
+  p_module->graph_entry_points =
+      (SpvReflectGraphEntryPoint*)calloc(p_module->graph_entry_point_count, sizeof(*(p_module->graph_entry_points)));
+  if (IsNull(p_module->graph_entry_points)) {
+    return SPV_REFLECT_RESULT_ERROR_ALLOC_FAILED;
+  }
+
+  uint32_t entry_point_index = 0;
+  for (size_t i = 0; entry_point_index < p_parser->graph_entry_point_count && i < p_parser->node_count; ++i) {
+    SpvReflectPrvNode* p_node = &(p_parser->nodes[i]);
+    if (p_node->op != SpvOpGraphEntryPointARM) {
+      continue;
+    }
+
+    SpvReflectGraphEntryPoint* p_entry_point = &(p_module->graph_entry_points[entry_point_index++]);
+    CHECKED_READU32(p_parser, p_node->word_offset + 1, p_entry_point->id);
+
+    uint32_t name_start_word_offset = 2;
+    uint32_t name_length_with_terminator = 0;
+    SpvReflectResult result =
+        ReadStr(p_parser, p_node->word_offset + name_start_word_offset, 0, p_node->word_count, &name_length_with_terminator, NULL);
+    if (result != SPV_REFLECT_RESULT_SUCCESS) {
+      return result;
+    }
+    p_entry_point->name = (const char*)(p_parser->spirv_code + p_node->word_offset + name_start_word_offset);
+
+    // OpGraphARM -> OpTypeGraphARM: the first NumInputs interface variables are inputs, the rest are outputs
+    SpvReflectPrvNode* p_graph_node = FindNode(p_parser, p_entry_point->id);
+    SpvReflectPrvNode* p_graph_type_node = IsNotNull(p_graph_node) ? FindNode(p_parser, p_graph_node->result_type_id) : NULL;
+    if (IsNull(p_graph_type_node) || p_graph_type_node->op != SpvOpTypeGraphARM) {
+      return SPV_REFLECT_RESULT_ERROR_SPIRV_INVALID_ID_REFERENCE;
+    }
+    uint32_t input_count = 0;
+    CHECKED_READU32(p_parser, p_graph_type_node->word_offset + 2, input_count);
+
+    uint32_t interface_start = name_start_word_offset + RoundUp(name_length_with_terminator, SPIRV_WORD_SIZE) / SPIRV_WORD_SIZE;
+    uint32_t interface_count = p_node->word_count > interface_start ? p_node->word_count - interface_start : 0;
+    if (input_count > interface_count) {
+      return SPV_REFLECT_RESULT_ERROR_SPIRV_INVALID_ID_REFERENCE;
+    }
+    if (interface_count == 0) {
+      continue;
+    }
+    // Outputs share the inputs allocation
+    p_entry_point->inputs = (SpvReflectDescriptorBinding**)calloc(interface_count, sizeof(*(p_entry_point->inputs)));
+    if (IsNull(p_entry_point->inputs)) {
+      return SPV_REFLECT_RESULT_ERROR_ALLOC_FAILED;
+    }
+    p_entry_point->input_count = input_count;
+    p_entry_point->output_count = interface_count - input_count;
+    p_entry_point->outputs = p_entry_point->inputs + input_count;
+
+    for (uint32_t j = 0; j < interface_count; ++j) {
+      uint32_t variable_id = 0;
+      CHECKED_READU32(p_parser, p_node->word_offset + interface_start + j, variable_id);
+      for (uint32_t k = 0; k < p_module->descriptor_binding_count; ++k) {
+        if (p_module->descriptor_bindings[k].spirv_id == variable_id) {
+          p_entry_point->inputs[j] = &p_module->descriptor_bindings[k];
+          break;
+        }
+      }
+      if (IsNull(p_entry_point->inputs[j])) {
+        return SPV_REFLECT_RESULT_ERROR_SPIRV_INVALID_ID_REFERENCE;
+      }
+    }
+  }
+
+  return SPV_REFLECT_RESULT_SUCCESS;
+}
+
 static SpvReflectResult ParseExecutionModes(SpvReflectPrvParser* p_parser, SpvReflectShaderModule* p_module) {
   assert(IsNotNull(p_parser));
   assert(IsNotNull(p_parser->nodes));
@@ -4804,6 +4985,10 @@ static SpvReflectResult CreateShaderModule(uint32_t flags, size_t size, const vo
     SPV_REFLECT_ASSERT(result == SPV_REFLECT_RESULT_SUCCESS);
   }
   if (result == SPV_REFLECT_RESULT_SUCCESS) {
+    result = ParseGraphEntryPoints(&parser, p_module);
+    SPV_REFLECT_ASSERT(result == SPV_REFLECT_RESULT_SUCCESS);
+  }
+  if (result == SPV_REFLECT_RESULT_SUCCESS) {
     result = ParseEntryPointHeapAccesses(&parser, p_module);
     SPV_REFLECT_ASSERT(result == SPV_REFLECT_RESULT_SUCCESS);
   }
@@ -4954,6 +5139,11 @@ void spvReflectDestroyShaderModule(SpvReflectShaderModule* p_module) {
     SafeFree(p_entry->resource_heap_accesses);
     SafeFree(p_entry->sampler_heap_accesses);
   }
+  // Graph entry points (outputs share the inputs allocation)
+  for (size_t i = 0; i < p_module->graph_entry_point_count; ++i) {
+    SafeFree(p_module->graph_entry_points[i].inputs);
+  }
+  SafeFree(p_module->graph_entry_points);
   SafeFree(p_module->capabilities);
   SafeFree(p_module->entry_points);
   SafeFree(p_module->spec_constants);
@@ -5006,6 +5196,19 @@ const SpvReflectEntryPoint* spvReflectGetEntryPoint(const SpvReflectShaderModule
   for (uint32_t i = 0; i < p_module->entry_point_count; ++i) {
     if (strcmp(p_module->entry_points[i].name, entry_point) == 0) {
       return &p_module->entry_points[i];
+    }
+  }
+  return NULL;
+}
+
+const SpvReflectGraphEntryPoint* spvReflectGetGraphEntryPoint(const SpvReflectShaderModule* p_module, const char* entry_point) {
+  if (IsNull(p_module) || IsNull(entry_point)) {
+    return NULL;
+  }
+
+  for (uint32_t i = 0; i < p_module->graph_entry_point_count; ++i) {
+    if (strcmp(p_module->graph_entry_points[i].name, entry_point) == 0) {
+      return &p_module->graph_entry_points[i];
     }
   }
   return NULL;

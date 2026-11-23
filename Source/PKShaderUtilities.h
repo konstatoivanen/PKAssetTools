@@ -38,8 +38,7 @@ namespace PKAssets::Shader
         "ConstantBuffer",
         "StorageBuffer",
         "InputAttachment",
-        "AccelerationStructure",
-        "keyword",
+        "AccelerationStructure"
     };
 
     constexpr const static char* PKShaderStage_NAMES[] =
@@ -223,6 +222,12 @@ namespace PKAssets::Shader
         #define PK_PC_TLAS_ARRAY(TType, TName) \
         struct TName##_Array { __subscript(uint i) -> TType { get { return TType(TName##_Handle[i]); } } }; \
         static const TName##_Array TName = {};
+
+        #define PK_STRUCT_HANDLE(TType, TName) \
+        property TType TName { get { return DescriptorHandle<TType>(uint2(TName##_Handle, 0u)); } }
+
+        #define PK_STRUCT_TLAS(TType, TName) \
+        property TType TName { get { return TType(TName##_Handle); } }
     )";
 
     struct SourcePushConstant
@@ -230,14 +235,17 @@ namespace PKAssets::Shader
         std::string name;
         std::string fieldType;
         std::string targetType;
+
         PKUniform type = PKUniform::Invalid;
         uint16_t count = 1u;
+        
         uint16_t memberIndex = 0u;
         uint16_t memberSize = 0u;
         uint8_t memberAlignment = 0u;
         uint8_t offset = 0u;
         uint8_t bitOffset = 0u;
         uint8_t bitSize = 0u;
+
         uint32_t accessMask = 0u;
         uint32_t writeMask = 0u;
     };
@@ -264,7 +272,7 @@ namespace PKAssets::Shader
         std::vector<EntryPointInfo> entryPoints;
         std::vector<ShaderDirective> directives;
         std::vector<std::string> variantDefines;
-        PKShaderFixedStateAttributes attributes;
+        PKShaderFixedStateAttributes attributes{};
     };
 
     struct ShaderStruct
